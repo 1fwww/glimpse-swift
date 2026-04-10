@@ -49,8 +49,21 @@ function listen(event, callback) {
   return () => window.removeEventListener('glimpse:' + event, handler);
 }
 
-// Enable window dragging for regions with -webkit-app-region: drag
-// WKWebView supports this natively — no extra code needed
+// Window dragging: React's handleHeaderMouseDown checks for __TAURI_INTERNALS__
+// and returns early when chatFullSize=true. We can't intercept that cleanly, so
+// we add a capture-phase listener directly on .chat-header that fires BEFORE React.
+var _dragObserver = new MutationObserver(function() {
+  var header = document.querySelector('.chat-header');
+  if (header && !header._glimpseDragBound) {
+    header._glimpseDragBound = true;
+    header.addEventListener('mousedown', function(e) {
+      if (e.target.closest('button') || e.target.closest('[data-no-drag]')) return;
+      window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
+    }, true); // capture phase — fires before React's bubble-phase handler
+    _dragObserver.disconnect();
+  }
+});
+_dragObserver.observe(document, { childList: true, subtree: true });
 
 window.electronAPI = {
   // ── Thread management ──

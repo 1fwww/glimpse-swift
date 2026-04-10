@@ -6,178 +6,628 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var chatWebView: WKWebView?
     var ipcBridge = IPCBridge()
     var chatReady = false
+    var isPinned = false
+
+    // Overlay (screenshot)
+    var overlayPanel: GlimpsePanel?
+    var overlayWebView: WKWebView?
+    var overlayIPC = IPCBridge()
+    var overlayReady = false
+    var pendingCaptureResult: ScreenCapture.CaptureResult?
+
+    static let screensaverLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+
+    let settingsStore = SettingsStore()
+    lazy var threadStore = ThreadStore(appSupportDir: settingsStore.appSupportDir)
+    let aiService = AIService()
+    let shortcutManager = ShortcutManager()
+    let textGrabber = TextGrabber()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("[App] Starting Glimpse (Swift)")
 
-        // Listen for chat events
+        // Wire up stores
+        ipcBridge.settingsStore = settingsStore
+        ipcBridge.threadStore = threadStore
+        ipcBridge.aiService = aiService
+
+        overlayIPC.settingsStore = settingsStore
+        overlayIPC.threadStore = threadStore
+        overlayIPC.aiService = aiService
+
+        // Notifications
+        setupMainMenu()
+
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseChatWindow), name: .closeChatWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleChatReady), name: .chatReady, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleResizeChatWindow(_:)), name: .resizeChatWindow, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleTogglePin), name: .togglePin, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handlePinChat(_:)), name: .pinChat, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCloseOverlay), name: .closeOverlay, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleOverlayReady), name: .overlayReady, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleLowerOverlay), name: .lowerOverlay, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRestoreOverlay), name: .restoreOverlay, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleInputFocus), name: .inputFocus, object: nil)
 
-        // Pre-warm chat panel on main thread (WKWebView requires main thread)
-        DispatchQueue.main.async { [weak self] in
-            self?.prewarmChat()
-        }
+        // Global shortcuts
+        shortcutManager.onChatShortcut = { [weak self] in self?.handleChatShortcut() }
+        shortcutManager.onScreenshotShortcut = { [weak self] in self?.handleScreenshotShortcut() }
+        shortcutManager.onEscape = { [weak self] in self?.handleEscape() }
+        shortcutManager.start()
+
+        prewarmChat()
+        prewarmOverlay()
     }
 
     // MARK: - Chat Panel
 
     func prewarmChat() {
         let panel = GlimpsePanel(size: NSSize(width: 432, height: 412))
-
-        // Create WKWebView with IPC bridge
-        let config = WKWebViewConfiguration()
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled") // DevTools
-        // Allow file access for ES modules (type="module" scripts need this)
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        let userContent = config.userContentController
-
-        // Register IPC bridge
-        userContent.add(ipcBridge, name: "glimpse")
-
-        // Set route before any scripts run
-        let routeScript = WKUserScript(source: "window._glimpseRoute = '#chat-only';", injectionTime: .atDocumentStart, forMainFrameOnly: true)
-        userContent.addUserScript(routeScript)
-
-        // Inject swift-shim.js before any page scripts run
-        if let shimURL = Bundle.main.url(forResource: "swift-shim", withExtension: "js", subdirectory: "Glimpse"),
-           let shimCode = try? String(contentsOf: shimURL) {
-            let script = WKUserScript(source: shimCode, injectionTime: .atDocumentStart, forMainFrameOnly: true)
-            userContent.addUserScript(script)
-        } else {
-            // Fallback: try relative path in dev
-            let devPath = URL(fileURLWithPath: #file).deletingLastPathComponent().appendingPathComponent("swift-shim.js")
-            if let shimCode = try? String(contentsOf: devPath) {
-                let script = WKUserScript(source: shimCode, injectionTime: .atDocumentStart, forMainFrameOnly: true)
-                userContent.addUserScript(script)
-                NSLog("[App] Loaded shim from dev path")
-            } else {
-                NSLog("[App] WARNING: swift-shim.js not found!")
-            }
-        }
-
-        let webView = WKWebView(frame: panel.contentView!.bounds, configuration: config)
-        webView.autoresizingMask = [.width, .height]
+        let webView = createWebView(
+            in: panel,
+            bridge: ipcBridge,
+            route: "#chat-only"
+        )
 
         ipcBridge.webView = webView
-        panel.contentView = webView
-
-        // Load the built React frontend
-        let distURL = findDistURL()
-        if let indexURL = distURL?.appendingPathComponent("index.html") {
-            webView.loadFileURL(indexURL, allowingReadAccessTo: distURL!)
-            // Set hash after page loads (WKWebView loadFileURL ignores fragment)
-            webView.navigationDelegate = self
-            NSLog("[App] Loading frontend from: \(indexURL.path)")
-        } else {
-            NSLog("[App] ERROR: dist/index.html not found!")
-        }
-
-        // Show at screen center directly (no offscreen prewarm for Phase 0)
-        if let screen = NSScreen.main {
-            let frame = screen.visibleFrame
-            panel.setFrameOrigin(NSPoint(x: frame.midX - 216, y: frame.midY - 206))
-        }
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        panel.orderOut(nil)
 
         self.chatPanel = panel
         self.chatWebView = webView
-
-        NSLog("[App] Chat panel pre-warmed")
+        NSLog("[App] Chat panel pre-warmed (hidden)")
     }
 
+    private var isRecreatingForFullscreen = false
+    private var onChatReadyAction: (() -> Void)? = nil  // custom action when chat WebView loads (for pin swap)
+
     func showChat() {
-        guard let panel = chatPanel else {
-            NSLog("[App] showChat: no panel!")
+        let isFullscreen = SpaceDetector.isFullscreenSpace()
+
+        // Fullscreen path: hidden windows are bound to their original Space.
+        // Must destroy and recreate to associate with current fullscreen Space.
+        // Also need Accessory policy so macOS doesn't switch Spaces when we show.
+        if isFullscreen && !isRecreatingForFullscreen {
+            if let panel = chatPanel, !panel.isVisible {
+                NSLog("[App] Fullscreen detected — recreating chat panel")
+                panel.orderOut(nil)
+                chatPanel = nil
+                chatWebView = nil
+                chatReady = false
+
+                // Switch to Accessory policy — required for fullscreen Space windows
+                NSApp.setActivationPolicy(.accessory)
+
+                isRecreatingForFullscreen = true
+                prewarmChat()
+                // handleChatReady → showChat will be called again with isRecreatingForFullscreen=true
+                return
+            }
+        }
+
+        guard let panel = chatPanel else { return }
+        isRecreatingForFullscreen = false
+
+        // Center on cursor's screen
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main ?? NSScreen.screens.first
+        if let screen = screen {
+            let frame = screen.visibleFrame
+            let panelSize = panel.frame.size
+            let x = frame.midX - panelSize.width / 2
+            let y = frame.midY - panelSize.height / 2
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        // Show with CanJoinAllSpaces for initial visibility on any Space
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Reset frontend state BEFORE showing — clear stale screenshot and pin
+        // from previous overlay pin. JS runs on hidden WebView so React updates
+        // its DOM before the window becomes visible. No flash.
+        ipcBridge.emit("pin-state", data: isPinned)
+        ipcBridge.emit("clear-screenshot")
+
+        // Floating only when pinned or on fullscreen (fullscreen needs floating to stay above)
+        panel.level = (isPinned || isFullscreen) ? .floating : .normal
+
+        if isFullscreen {
+            panel.showOnFullscreen()
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKey()
+            if let cv = panel.contentView { panel.makeFirstResponder(cv) }
+        } else {
+            panel.showAndFocus()
+        }
+        NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
+
+        // After 200ms, lock to current Space (stop following across desktops)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak panel] in
+            guard let panel, panel.isVisible else { return }
+            panel.collectionBehavior = [.fullScreenAuxiliary]
+            NSLog("[App] Chat locked to current Space")
+        }
+    }
+
+    func hideChat() {
+        chatPanel?.orderOut(nil)
+        isPinned = false  // Reset pin state so next session starts in sync with frontend
+        restoreActivationPolicyIfNeeded()
+        NSLog("[App] Chat hidden")
+    }
+
+    func togglePin() {
+        isPinned.toggle()
+        NSLog("[App] Pin toggled: \(isPinned)")
+        if let panel = chatPanel {
+            panel.level = isPinned ? .floating : .normal
+        }
+        // Notify frontend
+        ipcBridge.emit("pin-state", data: isPinned)
+    }
+
+    // MARK: - Overlay Panel
+
+    func prewarmOverlay() {
+        let screen = NSScreen.main ?? NSScreen.screens.first!
+        let panel = GlimpsePanel(size: screen.frame.size)
+        panel.level = Self.screensaverLevel
+        panel.styleMask = [.borderless]
+
+        let webView = createWebView(
+            in: panel,
+            bridge: overlayIPC,
+            route: nil  // default route = overlay
+        )
+
+        overlayIPC.webView = webView
+        panel.orderOut(nil)
+
+        self.overlayPanel = panel
+        self.overlayWebView = webView
+        self.overlayReady = false
+        NSLog("[App] Overlay panel pre-warmed (hidden)")
+    }
+
+    func showOverlay() {
+        guard let panel = overlayPanel else { return }
+
+        // Size to cursor's screen
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main ?? NSScreen.screens.first!
+        panel.setFrame(screen.frame, display: true)
+
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.level = Self.screensaverLevel
+
+        let isFullscreen = SpaceDetector.isFullscreenSpace()
+        if isFullscreen {
+            panel.showOnFullscreen()
+        } else {
+            panel.showAndFocus()
+        }
+        NSLog("[App] Overlay shown (fullscreen=\(isFullscreen))")
+    }
+
+    func hideOverlay() {
+        overlayPanel?.orderOut(nil)
+        overlayIPC.emit("reset-overlay")
+        restoreActivationPolicyIfNeeded()
+        NSLog("[App] Overlay hidden")
+    }
+
+    /// Restore Regular activation policy after showing windows on fullscreen Spaces.
+    /// Uses hide-then-restore pattern to avoid Space switch.
+    private func restoreActivationPolicyIfNeeded() {
+        guard NSApp.activationPolicy() == .accessory else { return }
+        NSApp.hide(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NSApp.setActivationPolicy(.regular)
+        }
+    }
+
+    func emitCaptureToOverlay(_ result: ScreenCapture.CaptureResult) {
+        overlayIPC.emit("screen-captured", data: [
+            "dataUrl": result.dataUrl,
+            "windowBounds": result.windowBounds,
+            "displayInfo": result.displayInfo,
+            "offset": result.offset
+        ])
+        NSLog("[App] Emitted screen-captured to overlay")
+    }
+
+    // MARK: - Shortcut Handlers
+
+    func handleChatShortcut() {
+        // If overlay visible, close it and switch to chat
+        if let panel = overlayPanel, panel.isVisible {
+            hideOverlay()
+            showChat()
+            return
+        }
+        if let panel = chatPanel, panel.isVisible {
+            hideChat()
+            return
+        }
+        showChat()
+    }
+
+    func handleScreenshotShortcut() {
+        NSLog("[App] Screenshot shortcut triggered")
+
+        // Toggle: if overlay visible, hide it
+        if let panel = overlayPanel, panel.isVisible {
+            hideOverlay()
             return
         }
 
-        // Position at screen center
-        if let screen = NSScreen.main {
-            let frame = screen.visibleFrame
-            let x = frame.midX - 216
-            let y = frame.midY - 206
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-            NSLog("[App] Positioning panel at (\(x), \(y)), screen: \(frame)")
+        // Hide chat if visible
+        if let panel = chatPanel, panel.isVisible {
+            hideChat()
         }
 
-        panel.setIsVisible(true)
-        panel.level = .statusBar // higher than floating, below screen saver
-        panel.orderFrontRegardless()
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        let isFullscreen = SpaceDetector.isFullscreenSpace()
 
-        NSLog("[App] Chat panel shown, isVisible=\(panel.isVisible), frame=\(panel.frame)")
+        // Fullscreen: destroy and recreate overlay for Space association
+        if isFullscreen {
+            NSLog("[App] Fullscreen detected — recreating overlay")
+            overlayPanel?.orderOut(nil)
+            overlayPanel = nil
+            overlayWebView = nil
+            overlayReady = false
+            NSApp.setActivationPolicy(.accessory)
+            prewarmOverlay()
+        }
+
+        // Capture screen on background thread (before showing overlay)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let result = ScreenCapture.capture() else {
+                NSLog("[App] Capture FAILED")
+                return
+            }
+            NSLog("[App] Capture OK: \(result.windowBounds.count) windows, \(result.displayInfo)")
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.showOverlay()
+
+                if self.overlayReady {
+                    self.emitCaptureToOverlay(result)
+                } else {
+                    self.pendingCaptureResult = result
+                }
+            }
+        }
+    }
+
+    func handleEscape() {
+        // Overlay takes priority
+        if let panel = overlayPanel, panel.isVisible {
+            hideOverlay()
+            return
+        }
+        if let panel = chatPanel, panel.isVisible {
+            hideChat()
+        }
+    }
+
+    // MARK: - Notification Handlers
+
+    @objc func handleTogglePin() {
+        togglePin()
     }
 
     @objc func handleCloseChatWindow() {
-        // TEMP: disabled for Phase 0 testing
-        NSLog("[App] Close requested (ignored for testing)")
+        hideChat()
+    }
+
+    @objc func handleCloseOverlay() {
+        hideOverlay()
     }
 
     @objc func handleChatReady() {
         chatReady = true
         NSLog("[App] Chat ready")
+        // If a custom action is pending (e.g. pin swap), run it instead of showChat
+        if let action = onChatReadyAction {
+            onChatReadyAction = nil
+            isRecreatingForFullscreen = false
+            action()
+        } else {
+            showChat()
+        }
     }
 
-    // MARK: - Find Frontend
+    @objc func handlePinChat(_ notification: Notification) {
+        let threadData = notification.userInfo?["threadData"] as? [String: Any]
+        let bounds = notification.userInfo?["bounds"] as? [String: Any]
+
+        // Capture overlay frame before any changes
+        let overlayFrame = overlayPanel?.frame
+        NSLog("[App] Pin chat: overlayFrame=\(overlayFrame.map { "\($0)" } ?? "nil"), hasBounds=\(bounds != nil)")
+
+        // Compute target chat frame from overlay chat panel bounds.
+        // bounds: CSS viewport coords (top-left origin, relative to overlay).
+        // JSON numbers arrive as NSNumber.
+        var pinFrame: NSRect? = nil
+        if let bounds = bounds, let overlayFrame = overlayFrame, overlayFrame.height > 0 {
+            func f(_ key: String) -> CGFloat {
+                (bounds[key] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0
+            }
+            let bx = f("x"); let by = f("y")
+            let bw = f("width"); let bh = f("height")
+            let screenX = overlayFrame.origin.x + bx
+            // CSS y=0 is top of screen; Cocoa y=0 is bottom
+            let screenY = overlayFrame.origin.y + overlayFrame.height - by - bh
+            pinFrame = NSRect(x: screenX, y: screenY, width: bw, height: bh)
+            NSLog("[App] Pin frame: CSS(\(bx),\(by),\(bw),\(bh)) → screen(\(screenX),\(screenY))")
+        }
+
+        isPinned = true
+
+        let isFullscreen = SpaceDetector.isFullscreenSpace()
+
+        // ── Seamless pin transition ──
+        // Strategy: show chat at alpha=0 (invisible but WebKit paints), emit thread
+        // data so React renders, then after ~150ms make chat visible + hide overlay.
+        // During the wait, overlay stays fully visible — user sees no gap.
+
+        // Closure: given a ready panel, pre-load content at alpha=0, then swap
+        let prepareAndSwap: (GlimpsePanel) -> Void = { [weak self] panel in
+            guard let self else { return }
+
+            // 1. Emit thread data + pin state to chat (JS runs even at alpha=0)
+            if let threadData = threadData {
+                self.ipcBridge.emit("load-thread-data", data: threadData)
+            }
+            self.ipcBridge.emit("pin-state", data: true)
+
+            // 2. Show chat at alpha=0 above overlay (invisible, but WebKit paints)
+            panel.alphaValue = 0
+            if let frame = pinFrame {
+                panel.setFrame(frame, display: false)
+            }
+            panel.level = Self.screensaverLevel
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            if isFullscreen {
+                panel.showOnFullscreen()
+            } else {
+                panel.orderFrontRegardless()
+            }
+            panel.makeKey()
+
+            // 3. After React renders (~150ms), reveal chat + hide overlay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                guard let self, let panel = self.chatPanel else { return }
+
+                // Atomic visual swap: chat becomes visible, overlay hides
+                panel.alphaValue = 1
+                self.overlayPanel?.orderOut(nil)
+                self.overlayIPC.emit("reset-overlay")
+
+                // Restore to floating level
+                panel.level = .floating
+                if !isFullscreen {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+
+                // Lock to current Space after swap
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak panel] in
+                    guard let panel, panel.isVisible else { return }
+                    panel.collectionBehavior = [.fullScreenAuxiliary]
+                }
+            }
+        }
+
+        if !isFullscreen, let panel = chatPanel {
+            // ── Non-fullscreen: panel already exists, swap immediately ──
+            prepareAndSwap(panel)
+
+        } else {
+            // ── Fullscreen: must recreate panel for Space association ──
+            // Keep overlay visible until new WebView is loaded + content rendered.
+            chatPanel?.orderOut(nil)
+            chatPanel = nil
+            chatWebView = nil
+            chatReady = false
+            NSApp.setActivationPolicy(.accessory)
+            isRecreatingForFullscreen = true
+
+            onChatReadyAction = { [weak self] in
+                guard let self, let panel = self.chatPanel else { return }
+                prepareAndSwap(panel)
+            }
+
+            prewarmChat()
+        }
+    }
+
+    @objc func handleOverlayReady() {
+        overlayReady = true
+        NSLog("[App] Overlay ready")
+        if let result = pendingCaptureResult {
+            pendingCaptureResult = nil
+            emitCaptureToOverlay(result)
+        }
+    }
+
+    @objc func handleLowerOverlay() {
+        overlayPanel?.level = .normal
+        NSLog("[App] Overlay lowered")
+    }
+
+    @objc func handleRestoreOverlay() {
+        overlayPanel?.level = .init(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+        NSLog("[App] Overlay restored")
+    }
+
+    @objc func handleInputFocus() {
+        overlayPanel?.makeKey()
+    }
+
+    @objc func handleResizeChatWindow(_ notification: Notification) {
+        guard let panel = chatPanel,
+              let size = notification.userInfo,
+              let width = size["width"] as? CGFloat ?? (size["width"] as? Int).map({ CGFloat($0) }),
+              let height = size["height"] as? CGFloat ?? (size["height"] as? Int).map({ CGFloat($0) })
+        else { return }
+
+        let currentFrame = panel.frame
+        // Grow upward (keep bottom-left corner, adjust origin.y)
+        let dy = height - currentFrame.height
+        let newFrame = NSRect(
+            x: currentFrame.origin.x,
+            y: currentFrame.origin.y - dy,
+            width: width,
+            height: height
+        )
+        panel.setFrame(newFrame, display: true, animate: true)
+        NSLog("[App] Chat resized to \(Int(width))×\(Int(height))")
+    }
+
+    // MARK: - Menu
+
+    func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        // App menu
+        let appMenu = NSMenu()
+        appMenu.addItem(NSMenuItem(title: "Quit Glimpse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        let appMenuItem = NSMenuItem()
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+
+        // Edit menu (required for Cmd+C/V/X/A in WKWebView)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
+        editMenu.addItem(NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"))
+        editMenu.addItem(.separator())
+        editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        let editMenuItem = NSMenuItem()
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    // MARK: - Resource Loading
+
+    /// Create a WKWebView wired to a panel with IPC bridge, shim, and optional route.
+    func createWebView(in panel: GlimpsePanel, bridge: IPCBridge, route: String?) -> GlimpseWebView {
+        let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        let userContent = config.userContentController
+
+        userContent.add(bridge, name: "glimpse")
+
+        if let route = route {
+            userContent.addUserScript(WKUserScript(
+                source: "window._glimpseRoute = '\(route)';",
+                injectionTime: .atDocumentStart, forMainFrameOnly: true
+            ))
+        }
+
+        if let shimCode = loadShimJS() {
+            userContent.addUserScript(WKUserScript(
+                source: shimCode,
+                injectionTime: .atDocumentStart, forMainFrameOnly: true
+            ))
+        }
+
+        let webView = GlimpseWebView(frame: panel.contentView!.bounds, configuration: config)
+        webView.autoresizingMask = [.width, .height]
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = self
+
+        panel.contentView = webView
+
+        if let distURL = findDistURL() {
+            let indexURL = distURL.appendingPathComponent("index.html")
+            webView.loadFileURL(indexURL, allowingReadAccessTo: distURL)
+        } else {
+            NSLog("[App] ERROR: dist/index.html not found!")
+        }
+
+        return webView
+    }
+
+    func loadShimJS() -> String? {
+        // Bundle (production)
+        if let url = Bundle.main.url(forResource: "swift-shim", withExtension: "js", subdirectory: "Glimpse"),
+           let code = try? String(contentsOf: url, encoding: .utf8) {
+            return code
+        }
+        // Dev fallback: next to source file
+        let devPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("swift-shim.js")
+        if let code = try? String(contentsOf: devPath, encoding: .utf8) {
+            NSLog("[App] Loaded shim from dev path")
+            return code
+        }
+        NSLog("[App] WARNING: swift-shim.js not found!")
+        return nil
+    }
 
     func findDistURL() -> URL? {
-        // Check bundle resources first
+        // .app bundle
         if let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "dist") {
             return url.deletingLastPathComponent()
         }
-        // Dev mode: look relative to executable
-        let execURL = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0])
-        // Go up from .build/debug/Glimpse to project root
-        var projectRoot = execURL.deletingLastPathComponent() // debug/
-            .deletingLastPathComponent() // .build/
-            .deletingLastPathComponent() // project root
+        // SPM dev mode: relative to source file
+        let sourceDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let projectRoot = sourceDir.deletingLastPathComponent()
         let devDist = projectRoot.appendingPathComponent("dist")
         if FileManager.default.fileExists(atPath: devDist.appendingPathComponent("index.html").path) {
             return devDist
         }
+        // SPM dev mode: relative to executable
+        let execURL = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0])
+        let execRoot = execURL
+            .deletingLastPathComponent()  // debug/
+            .deletingLastPathComponent()  // .build/
+            .deletingLastPathComponent()  // project root
+        let execDist = execRoot.appendingPathComponent("dist")
+        if FileManager.default.fileExists(atPath: execDist.appendingPathComponent("index.html").path) {
+            return execDist
+        }
         return nil
     }
 
+    // MARK: - App Lifecycle
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { showChat() }
+        return true
+    }
 }
 
 // MARK: - WKNavigationDelegate
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        NSLog("[App] WebView finished loading, URL: \(webView.url?.absoluteString ?? "nil")")
-        // Diagnose: check if React rendered and report errors
-        webView.evaluateJavaScript("""
-            (function() {
-                var root = document.getElementById('root');
-                var hasContent = root ? root.innerHTML.length : 0;
-                var hash = location.hash;
-                var hasAPI = !!window.electronAPI;
-                return JSON.stringify({hash: hash, rootContent: hasContent, hasAPI: hasAPI, bodyHTML: document.body.innerHTML.substring(0, 200)});
-            })()
-        """) { result, error in
-            if let result { NSLog("[App] Diagnose: \(result)") }
-            if let error { NSLog("[App] Diagnose error: \(error)") }
+        NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
+        // Overlay WebView ready — React renders on next frame
+        if webView === overlayWebView {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self else { return }
+                self.overlayReady = true
+                NSLog("[App] Overlay ready (didFinish + 100ms)")
+                if let result = self.pendingCaptureResult {
+                    self.pendingCaptureResult = nil
+                    self.emitCaptureToOverlay(result)
+                }
+            }
         }
-    }
-
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        NSLog("[App] WebView navigation failed: \(error)")
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        NSLog("[App] WebView provisional navigation failed: \(error)")
+        NSLog("[App] WebView load failed: \(error)")
     }
-}
 
-extension AppDelegate {
-    // MARK: - App Lifecycle
-
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            showChat()
-        }
-        return true
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        NSLog("[App] WebView process terminated — reloading")
+        webView.reload()
     }
 }

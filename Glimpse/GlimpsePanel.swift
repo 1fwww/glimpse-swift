@@ -1,8 +1,8 @@
 import AppKit
 
-/// NSPanel subclass that accepts keyboard input.
-/// NonactivatingPanel style allows floating on fullscreen Spaces.
-/// canBecomeKey/canBecomeMain overrides enable keyboard + mouse interaction.
+/// NSPanel subclass that accepts keyboard input and floats on fullscreen Spaces.
+/// Key insight: NonactivatingPanel is NOT needed for keyboard or fullscreen.
+/// FullScreenAuxiliary + floating level + canBecomeKey is sufficient.
 class GlimpsePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -10,7 +10,7 @@ class GlimpsePanel: NSPanel {
     convenience init(size: NSSize) {
         self.init(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.resizable, .titled], // TEMP: visible for testing (add .nonactivatingPanel later)
+            styleMask: [.borderless, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -22,10 +22,27 @@ class GlimpsePanel: NSPanel {
         // Panel behavior
         hidesOnDeactivate = false
         isOpaque = false
-        backgroundColor = NSColor.white.withAlphaComponent(0.95) // TEMP: visible for debugging
-        hasShadow = true // TEMP
+        backgroundColor = .clear
+        hasShadow = false
 
-        // Accept mouse events immediately (no need to click-to-focus first)
+        // Accept mouse events immediately
         acceptsMouseMovedEvents = true
+    }
+
+    /// Show panel with proper activation for keyboard input (non-fullscreen)
+    func showAndFocus() {
+        makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Show panel on fullscreen Space without activating app (avoids Space switch).
+    /// Uses orderFront + floating level. Keyboard input works via makeKey().
+    func showOnFullscreen() {
+        orderFrontRegardless()
+        makeKey()
+        // Force first responder to content so clicks/keyboard work immediately
+        if let contentView = contentView {
+            makeFirstResponder(contentView)
+        }
     }
 }

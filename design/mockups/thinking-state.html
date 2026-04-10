@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Thinking State Options</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #16151E;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 800px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.options {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.option-desc {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* Chat panel simulation */
+.chat-sim {
+  width: 380px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(22, 21, 30, 0.96);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.30);
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(108, 99, 255, 0.08);
+}
+
+.sim-eye { flex-shrink: 0; }
+
+.sim-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(242,240,255,0.93);
+  flex: 1;
+}
+
+.sim-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(108,99,255,0.08);
+  color: rgba(140,137,175,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sim-messages {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 140px;
+}
+
+.user-msg {
+  align-self: flex-end;
+  padding: 10px 14px;
+  background: rgba(108,99,255,0.10);
+  color: rgba(242,240,255,0.93);
+  border-radius: 14px 14px 4px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  max-width: 85%;
+}
+
+/* ═══ Thinking variants ═══ */
+
+.think-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+}
+
+/* A: Current spec — eye + dots + "Thinking" */
+.think-a {
+  gap: 8px;
+}
+.think-a .think-eye svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: squintBig 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.think-dots {
+  display: flex;
+  gap: 3px;
+}
+.think-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(140,137,175,0.50);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+.think-dots span:nth-child(2) { animation-delay: 0.2s; }
+.think-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+.think-text {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(140,137,175,0.50);
+}
+
+@keyframes squintBig {
+  0%   { transform: translateY(0) rotate(0deg); }
+  18%  { transform: translateY(22px) rotate(3deg); }
+  32%  { transform: translateY(22px) rotate(3deg); }
+  52%  { transform: translateY(-10px) rotate(-4deg); }
+  68%  { transform: translateY(0) rotate(0.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* B: Small eye + "Glimpsing..." — no dots */
+.think-b {
+  gap: 6px;
+}
+.think-b .think-eye-sm svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: squintSmall 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes squintSmall {
+  0%   { transform: translateY(0) rotate(0deg); }
+  18%  { transform: translateY(8px) rotate(2deg); }
+  32%  { transform: translateY(8px) rotate(2deg); }
+  52%  { transform: translateY(-4px) rotate(-2.5deg); }
+  68%  { transform: translateY(0) rotate(0.3deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* C: Tiny eye + "Glimpsing..." — even smaller */
+.think-c {
+  gap: 5px;
+}
+.think-c .think-eye-xs svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: squintTiny 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes squintTiny {
+  0%   { transform: translateY(0) rotate(0deg); }
+  18%  { transform: translateY(6px) rotate(1.5deg); }
+  32%  { transform: translateY(6px) rotate(1.5deg); }
+  52%  { transform: translateY(-3px) rotate(-2deg); }
+  68%  { transform: translateY(0) rotate(0.3deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* D: Small eye + "Glimpsing" with animated ellipsis */
+.think-d {
+  gap: 6px;
+}
+.think-d .think-eye-sm svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: squintSmall 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.animated-ellipsis::after {
+  content: '';
+  animation: ellipsis 1.5s steps(4) infinite;
+}
+@keyframes ellipsis {
+  0%  { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}
+
+/* E: Eye only, "Glimpsing..." text pulses opacity gently */
+.think-e {
+  gap: 6px;
+}
+.think-e .think-eye-sm svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: squintSmall 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.think-pulse {
+  animation: textPulse 2.4s ease-in-out infinite;
+}
+@keyframes textPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+/* Light versions */
+.chat-sim-light {
+  background: #F2F2F4;
+  border-color: rgba(0,0,0,0.06);
+}
+.chat-sim-light .sim-header { border-bottom-color: rgba(0,0,0,0.06); }
+.chat-sim-light .sim-title { color: rgba(18,18,25,0.90); }
+.chat-sim-light .sim-btn { border-color: rgba(0,0,0,0.06); color: rgba(70,70,95,0.5); }
+.chat-sim-light .user-msg { color: rgba(18,18,25,0.90); }
+.chat-sim-light .think-text { color: rgba(70,70,95,0.50); }
+.chat-sim-light .think-dots span { background: rgba(70,70,95,0.50); }
+
+.rec-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(108, 99, 255, 0.12);
+  border: 1px solid rgba(108, 99, 255, 0.2);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(133, 128, 255, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Thinking State — "Glimpsing..." variations</span>
+
+<span class="section-label">Dark theme</span>
+<div class="options">
+
+  <!-- A: Current spec -->
+  <div class="option">
+    <span class="option-label">A. Current spec</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <div class="sim-eye"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="sim-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row think-a">
+          <div class="think-eye"><svg viewBox="60 140 420 280" width="28" height="19"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <div class="think-dots"><span></span><span></span><span></span></div>
+          <span class="think-text">Thinking</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">28px eye + dots + "Thinking". Two eyes visible. Dots feel generic.</span>
+  </div>
+
+  <!-- B: 16px eye + Glimpsing... -->
+  <div class="option">
+    <span class="option-label">B. 16px + Glimpsing...</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <div class="sim-eye"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="sim-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row think-b">
+          <div class="think-eye-sm"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="rec-badge">recommended</span>
+    <span class="option-desc">Tiny 16px eye with scaled-down squint (8px drop). "Glimpsing..." in Outfit 12px. Compact, branded, no dots.</span>
+  </div>
+
+  <!-- C: 12px eye + Glimpsing... -->
+  <div class="option">
+    <span class="option-label">C. 12px + Glimpsing...</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <div class="sim-eye"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="sim-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row think-c">
+          <div class="think-eye-xs"><svg viewBox="60 140 420 280" width="12" height="8"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Even smaller 12px eye. Almost emoji-sized. The squint is very subtle at this size.</span>
+  </div>
+
+  <!-- D: 16px eye + animated ellipsis -->
+  <div class="option">
+    <span class="option-label">D. Animated ellipsis</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <div class="sim-eye"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="sim-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row think-d">
+          <div class="think-eye-sm"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing<span class="animated-ellipsis"></span></span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Same 16px eye but the "..." types itself. Adds a bit more life to the text without dots.</span>
+  </div>
+
+  <!-- E: 16px eye + opacity pulse text -->
+  <div class="option">
+    <span class="option-label">E. Breathing text</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <div class="sim-eye"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="sim-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row think-e">
+          <div class="think-eye-sm"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text think-pulse">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Eye squints + text gently breathes (opacity 0.4→0.7). Two rhythms that sync on the same 2.4s cycle.</span>
+  </div>
+
+</div>
+
+<!-- Light theme -->
+<span class="section-label">Recommended (B) — light theme</span>
+<div class="options">
+  <div class="option">
+    <div class="chat-sim chat-sim-light">
+      <div class="sim-header">
+        <div class="sim-eye"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="sim-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row think-b">
+          <div class="think-eye-sm"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

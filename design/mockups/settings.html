@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Settings (Redesigned)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #0e0e12;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 960px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.settings-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.state-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* ═══ Window Shell ═══ */
+
+.window {
+  width: 380px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.window-dark {
+  background: #16151E;
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+.window-light {
+  background: #F2F2F4;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.10);
+}
+
+/* ═══ Header ═══ */
+
+.s-header {
+  padding: 14px 20px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.window-dark .s-header { border-bottom: 1px solid rgba(108,99,255,0.08); }
+.window-light .s-header { border-bottom: 1px solid rgba(0,0,0,0.06); }
+
+.s-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+}
+.window-dark .s-title { color: rgba(242,240,255,0.93); }
+.window-light .s-title { color: rgba(18,18,25,0.90); }
+
+.s-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.window-dark .s-close { color: rgba(140,137,175,0.5); }
+.window-dark .s-close:hover { color: rgba(175,172,205,0.75); background: rgba(108,99,255,0.05); }
+.window-light .s-close { color: rgba(70,70,95,0.5); }
+.window-light .s-close:hover { color: rgba(45,45,62,0.72); background: rgba(0,0,0,0.04); }
+
+/* ═══ Content ═══ */
+
+.s-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Section */
+.s-section { display: flex; flex-direction: column; gap: 8px; }
+
+.s-section-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+}
+.window-dark .s-section-title { color: rgba(140,137,175,0.70); }
+.window-light .s-section-title { color: rgba(70,70,95,0.60); }
+
+/* ═══ API Key Row ═══ */
+
+.key-row {
+  padding: 12px 14px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.window-dark .key-row { background: rgba(31,29,42,0.5); border: 1px solid rgba(108,99,255,0.06); }
+.window-light .key-row { background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.05); }
+
+.key-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.key-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+}
+.window-dark .key-label { color: rgba(242,240,255,0.93); }
+.window-light .key-label { color: rgba(18,18,25,0.90); }
+
+.key-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.window-dark .key-value { color: rgba(140,137,175,0.70); }
+.window-light .key-value { color: rgba(70,70,95,0.60); }
+
+.key-value.saved {
+  color: #238542;
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+
+.key-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Small buttons */
+.btn-sm {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.window-dark .btn-sm {
+  background: rgba(108,99,255,0.08);
+  border: 1px solid rgba(108,99,255,0.15);
+  color: #8580FF;
+}
+.window-dark .btn-sm:hover {
+  background: rgba(108,99,255,0.14);
+  border-color: rgba(108,99,255,0.30);
+}
+.window-light .btn-sm {
+  background: rgba(108,99,255,0.06);
+  border: 1px solid rgba(108,99,255,0.14);
+  color: #5B53E0;
+}
+.window-light .btn-sm:hover {
+  background: rgba(108,99,255,0.12);
+  border-color: rgba(108,99,255,0.28);
+}
+
+.btn-sm.cancel {
+  background: transparent;
+}
+.window-dark .btn-sm.cancel { border-color: rgba(108,99,255,0.08); color: rgba(175,172,205,0.60); }
+.window-light .btn-sm.cancel { border-color: rgba(0,0,0,0.06); color: rgba(45,45,62,0.55); }
+
+.btn-sm.danger {
+  background: transparent;
+}
+.window-dark .btn-sm.danger { border-color: rgba(239,68,68,0.18); color: #EF4444; }
+.window-dark .btn-sm.danger:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.30); color: #F87171; }
+.window-light .btn-sm.danger { border-color: rgba(207,34,46,0.12); color: rgba(207,34,46,0.70); }
+.window-light .btn-sm.danger:hover { background: rgba(207,34,46,0.06); border-color: rgba(207,34,46,0.25); color: #CF222E; }
+
+.btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Key edit inline */
+.key-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.key-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.window-dark .key-input {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(108,99,255,0.08);
+  color: rgba(242,240,255,0.93);
+}
+.window-dark .key-input:focus { border-color: rgba(108,99,255,0.30); }
+.window-dark .key-input::placeholder { color: rgba(140,137,175,0.40); }
+
+.window-light .key-input {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  color: rgba(18,18,25,0.90);
+}
+.window-light .key-input:focus { border-color: rgba(108,99,255,0.30); }
+.window-light .key-input::placeholder { color: rgba(70,70,95,0.40); }
+
+.key-error {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: #CF222E;
+}
+
+/* Delete confirmation */
+.delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.window-dark .delete-confirm { background: rgba(239,68,68,0.06); color: #EF4444; }
+.window-light .delete-confirm { background: rgba(207,34,46,0.04); color: rgba(207,34,46,0.70); }
+
+.delete-confirm-text { flex: 1; }
+
+.btn-sm-xs {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+.btn-sm-xs.confirm-delete {
+  background: rgba(207,34,46,0.12);
+  border: 1px solid rgba(207,34,46,0.25);
+  color: #CF222E;
+}
+.btn-sm-xs.confirm-delete:hover {
+  background: rgba(207,34,46,0.20);
+}
+.btn-sm-xs.confirm-cancel {
+  background: transparent;
+  border: 1px solid rgba(108,99,255,0.08);
+}
+.window-dark .btn-sm-xs.confirm-cancel { color: rgba(175,172,205,0.60); }
+.window-light .btn-sm-xs.confirm-cancel { color: rgba(45,45,62,0.55); }
+
+/* Invite row */
+.invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+.window-dark .invite-row { background: rgba(31,29,42,0.5); border: 1px solid rgba(108,99,255,0.06); }
+.window-light .invite-row { background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.05); }
+
+.invite-badge {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  color: #6C63FF;
+}
+
+/* ═══ Pref Row ═══ */
+
+.pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+.window-dark .pref-row { background: rgba(31,29,42,0.5); border: 1px solid rgba(108,99,255,0.06); }
+.window-light .pref-row { background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.05); }
+
+.pref-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.window-dark .pref-label { color: rgba(242,240,255,0.93); }
+.window-light .pref-label { color: rgba(18,18,25,0.90); }
+
+/* Toggle */
+.toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  position: relative;
+  padding: 0;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.window-dark .toggle { background: rgba(108,99,255,0.12); border: none; }
+.window-light .toggle { background: rgba(0,0,0,0.08); border: none; }
+
+.toggle.on {
+  background: #6C63FF !important;
+}
+
+.toggle-knob {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: left 0.2s;
+}
+.toggle.on .toggle-knob { left: 18px; }
+
+/* Button group (theme, save location) */
+.btn-group {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-group-item {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.window-dark .btn-group-item {
+  background: transparent;
+  border: 1px solid rgba(108,99,255,0.08);
+  color: rgba(175,172,205,0.60);
+}
+.window-dark .btn-group-item.active {
+  background: rgba(108,99,255,0.12);
+  border-color: rgba(108,99,255,0.25);
+  color: #8580FF;
+}
+.window-dark .btn-group-item:hover:not(.active) {
+  border-color: rgba(108,99,255,0.15);
+  color: rgba(175,172,205,0.75);
+}
+
+.window-light .btn-group-item {
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.06);
+  color: rgba(45,45,62,0.55);
+}
+.window-light .btn-group-item.active {
+  background: rgba(108,99,255,0.08);
+  border-color: rgba(108,99,255,0.20);
+  color: #5B53E0;
+}
+.window-light .btn-group-item:hover:not(.active) {
+  border-color: rgba(0,0,0,0.10);
+  color: rgba(45,45,62,0.72);
+}
+
+/* ═══ Shortcut Row ═══ */
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+.window-dark .shortcut-row { background: rgba(31,29,42,0.5); border: 1px solid rgba(108,99,255,0.06); }
+.window-light .shortcut-row { background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.05); }
+
+.shortcut-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shortcut-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+}
+.window-dark .shortcut-label { color: rgba(242,240,255,0.93); }
+.window-light .shortcut-label { color: rgba(18,18,25,0.90); }
+
+.shortcut-hint {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.window-dark .shortcut-hint { color: rgba(140,137,175,0.70); }
+.window-light .shortcut-hint { color: rgba(70,70,95,0.60); }
+
+.shortcut-keys {
+  display: flex;
+  gap: 3px;
+}
+.shortcut-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.window-dark kbd { background: rgba(108,99,255,0.06); border: 1px solid rgba(108,99,255,0.10); color: rgba(175,172,205,0.65); }
+.window-light kbd { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.06); color: rgba(45,45,62,0.60); }
+
+.shortcut-note {
+  font-family: var(--font-display);
+  font-size: 11px;
+  padding: 0 12px;
+}
+.window-dark .shortcut-note { color: rgba(140,137,175,0.65); }
+.window-light .shortcut-note { color: rgba(70,70,95,0.60); }
+
+/* ═══ Footer ═══ */
+
+.s-footer {
+  padding: 8px 20px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.window-dark .s-footer { border-top: 1px solid rgba(108,99,255,0.06); }
+.window-light .s-footer { border-top: 1px solid rgba(0,0,0,0.04); }
+
+.s-version {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.window-dark .s-version { color: rgba(160,157,195,0.60); }
+.window-light .s-version { color: rgba(70,70,95,0.60); }
+
+.s-esc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  transition: color 0.15s;
+}
+.window-dark .s-esc { color: rgba(160,157,195,0.60); }
+.window-dark .s-esc:hover { color: rgba(175,172,205,0.75); }
+.window-light .s-esc { color: rgba(70,70,95,0.60); }
+.window-light .s-esc:hover { color: rgba(45,45,62,0.72); }
+
+.s-esc kbd {
+  font-size: 10px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+}
+
+/* ═══ Scrollbar ═══ */
+.s-content::-webkit-scrollbar { width: 4px; }
+.s-content::-webkit-scrollbar-track { background: transparent; }
+.window-dark .s-content::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.10); border-radius: 2px; }
+.window-light .s-content::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.06); border-radius: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Settings — States & Themes</span>
+
+<!-- ═══ DARK THEME — API Key States ═══ -->
+<span class="section-label">Dark — API key management states</span>
+<div class="settings-row">
+
+  <!-- Default: mixed states -->
+  <div>
+    <div class="state-label">Default — mixed key states</div>
+    <div class="window window-dark">
+      <div class="s-header">
+        <span class="s-title">Settings</span>
+        <button class="s-close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="s-content">
+        <div class="s-section">
+          <span class="s-section-title">API keys</span>
+          <!-- Configured -->
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">Anthropic</span>
+              <span class="key-value">sk-ant-•••7f2a</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+          <!-- Not configured -->
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">Gemini</span>
+              <span class="key-value">Not configured</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Add</button>
+            </div>
+          </div>
+          <!-- Configured -->
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">OpenAI</span>
+              <span class="key-value">sk-•••m4kx</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-section">
+          <span class="s-section-title">Preferences</span>
+          <div class="pref-row">
+            <span class="pref-label">Appearance</span>
+            <div class="btn-group">
+              <button class="btn-group-item active">Light</button>
+              <button class="btn-group-item">Dark</button>
+              <button class="btn-group-item">System</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label">Launch at login</span>
+            <button class="toggle on" aria-label="Toggle launch at login"><div class="toggle-knob"></div></button>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label">Save screenshots to</span>
+            <div class="btn-group">
+              <button class="btn-group-item active">Ask each time</button>
+              <button class="btn-group-item">Choose folder</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-section">
+          <span class="s-section-title">Shortcuts</span>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Screenshot</span>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></div>
+          </div>
+          <div class="shortcut-row">
+            <div class="shortcut-info">
+              <span class="shortcut-label">Text chat</span>
+              <span class="shortcut-hint">Select text first, then press</span>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></div>
+          </div>
+          <span class="shortcut-note">Customizable shortcuts coming soon</span>
+        </div>
+      </div>
+      <div class="s-footer">
+        <span class="s-version">Glimpse v1.0</span>
+        <button class="s-esc"><kbd>Esc</kbd> to close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editing a key -->
+  <div>
+    <div class="state-label">Editing — inline key input</div>
+    <div class="window window-dark">
+      <div class="s-header">
+        <span class="s-title">Settings</span>
+        <button class="s-close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="s-content">
+        <div class="s-section">
+          <span class="s-section-title">API keys</span>
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">Anthropic</span>
+              <span class="key-value">sk-ant-•••7f2a</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+          <!-- Editing state -->
+          <div class="key-row" style="border-color: rgba(108,99,255,0.15);">
+            <div class="key-info">
+              <span class="key-label">Gemini</span>
+            </div>
+            <div class="key-edit">
+              <input class="key-input" type="password" placeholder="AIza..." value="AIzaSyB..." autofocus>
+              <div class="key-actions">
+                <button class="btn-sm">Save</button>
+                <button class="btn-sm cancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">OpenAI</span>
+              <span class="key-value">Not configured</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="s-footer">
+        <span class="s-version">Glimpse v1.0</span>
+        <button class="s-esc"><kbd>Esc</kbd> to close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error + Just saved + Delete confirm -->
+  <div>
+    <div class="state-label">Error, saved, delete confirm</div>
+    <div class="window window-dark">
+      <div class="s-header">
+        <span class="s-title">Settings</span>
+        <button class="s-close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="s-content">
+        <div class="s-section">
+          <span class="s-section-title">API keys</span>
+          <!-- Error state -->
+          <div class="key-row" style="border-color: rgba(207,34,46,0.15);">
+            <div class="key-info">
+              <span class="key-label">Anthropic</span>
+            </div>
+            <div class="key-edit">
+              <input class="key-input" type="password" value="sk-invalid-key" style="border-color: rgba(207,34,46,0.30);">
+              <span class="key-error">Invalid API key. Check your key and try again.</span>
+              <div class="key-actions">
+                <button class="btn-sm">Save</button>
+                <button class="btn-sm cancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <!-- Just saved state -->
+          <div class="key-row" style="border-color: rgba(35,133,66,0.20);">
+            <div class="key-info">
+              <span class="key-label">Gemini</span>
+              <span class="key-value saved">✓ Saved</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+          <!-- Delete confirmation -->
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">OpenAI</span>
+              <span class="key-value">sk-•••m4kx</span>
+            </div>
+            <div class="delete-confirm">
+              <span class="delete-confirm-text">Delete this key?</span>
+              <button class="btn-sm-xs confirm-delete">Delete</button>
+              <button class="btn-sm-xs confirm-cancel">Keep</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="s-footer">
+        <span class="s-version">Glimpse v1.0</span>
+        <button class="s-esc"><kbd>Esc</kbd> to close</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ DARK — Invite code state ═══ -->
+<span class="section-label">Dark — invite code state</span>
+<div class="settings-row">
+  <div>
+    <div class="state-label">Using invite code</div>
+    <div class="window window-dark">
+      <div class="s-header">
+        <span class="s-title">Settings</span>
+        <button class="s-close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="s-content">
+        <div class="s-section">
+          <span class="s-section-title">API keys</span>
+          <div class="invite-row">
+            <span class="invite-badge">Using invite code</span>
+            <button class="btn-sm">Use my own keys</button>
+          </div>
+        </div>
+
+        <div class="s-section">
+          <span class="s-section-title">Preferences</span>
+          <div class="pref-row">
+            <span class="pref-label">Appearance</span>
+            <div class="btn-group">
+              <button class="btn-group-item">Light</button>
+              <button class="btn-group-item active">Dark</button>
+              <button class="btn-group-item">System</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label">Launch at login</span>
+            <button class="toggle" aria-label="Toggle launch at login"><div class="toggle-knob"></div></button>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label">Save screenshots to</span>
+            <div class="btn-group">
+              <button class="btn-group-item">Ask each time</button>
+              <button class="btn-group-item active">/Screenshots</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-section">
+          <span class="s-section-title">Shortcuts</span>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Screenshot</span>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></div>
+          </div>
+          <div class="shortcut-row">
+            <div class="shortcut-info">
+              <span class="shortcut-label">Text chat</span>
+              <span class="shortcut-hint">Select text first, then press</span>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></div>
+          </div>
+          <span class="shortcut-note">Customizable shortcuts coming soon</span>
+        </div>
+      </div>
+      <div class="s-footer">
+        <span class="s-version">Glimpse v1.0</span>
+        <button class="s-esc"><kbd>Esc</kbd> to close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LIGHT THEME ═══ -->
+<span class="section-label">Light theme</span>
+<div class="settings-row">
+
+  <div>
+    <div class="state-label">Default — mixed key states</div>
+    <div class="window window-light">
+      <div class="s-header">
+        <span class="s-title">Settings</span>
+        <button class="s-close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="s-content">
+        <div class="s-section">
+          <span class="s-section-title">API keys</span>
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">Anthropic</span>
+              <span class="key-value">sk-ant-•••7f2a</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">Gemini</span>
+              <span class="key-value">Not configured</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Add</button>
+            </div>
+          </div>
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">OpenAI</span>
+              <span class="key-value">sk-•••m4kx</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-section">
+          <span class="s-section-title">Preferences</span>
+          <div class="pref-row">
+            <span class="pref-label">Appearance</span>
+            <div class="btn-group">
+              <button class="btn-group-item active">Light</button>
+              <button class="btn-group-item">Dark</button>
+              <button class="btn-group-item">System</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label">Launch at login</span>
+            <button class="toggle on" aria-label="Toggle launch at login"><div class="toggle-knob"></div></button>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label">Save screenshots to</span>
+            <div class="btn-group">
+              <button class="btn-group-item active">Ask each time</button>
+              <button class="btn-group-item">Choose folder</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-section">
+          <span class="s-section-title">Shortcuts</span>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Screenshot</span>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></div>
+          </div>
+          <div class="shortcut-row">
+            <div class="shortcut-info">
+              <span class="shortcut-label">Text chat</span>
+              <span class="shortcut-hint">Select text first, then press</span>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></div>
+          </div>
+          <span class="shortcut-note">Customizable shortcuts coming soon</span>
+        </div>
+      </div>
+      <div class="s-footer">
+        <span class="s-version">Glimpse v1.0</span>
+        <button class="s-esc"><kbd>Esc</kbd> to close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Light — error + saved + delete -->
+  <div>
+    <div class="state-label">Error, saved, delete confirm</div>
+    <div class="window window-light">
+      <div class="s-header">
+        <span class="s-title">Settings</span>
+        <button class="s-close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="s-content">
+        <div class="s-section">
+          <span class="s-section-title">API keys</span>
+          <div class="key-row" style="border-color: rgba(207,34,46,0.12);">
+            <div class="key-info">
+              <span class="key-label">Anthropic</span>
+            </div>
+            <div class="key-edit">
+              <input class="key-input" type="password" value="sk-invalid-key" style="border-color: rgba(207,34,46,0.25);">
+              <span class="key-error">Invalid API key. Check your key and try again.</span>
+              <div class="key-actions">
+                <button class="btn-sm">Save</button>
+                <button class="btn-sm cancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div class="key-row" style="border-color: rgba(35,133,66,0.15);">
+            <div class="key-info">
+              <span class="key-label">Gemini</span>
+              <span class="key-value saved">✓ Saved</span>
+            </div>
+            <div class="key-actions">
+              <button class="btn-sm">Update</button>
+              <button class="btn-sm danger">Delete</button>
+            </div>
+          </div>
+          <div class="key-row">
+            <div class="key-info">
+              <span class="key-label">OpenAI</span>
+              <span class="key-value">sk-•••m4kx</span>
+            </div>
+            <div class="delete-confirm">
+              <span class="delete-confirm-text">Delete this key?</span>
+              <button class="btn-sm-xs confirm-delete">Delete</button>
+              <button class="btn-sm-xs confirm-cancel">Keep</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="s-footer">
+        <span class="s-version">Glimpse v1.0</span>
+        <button class="s-esc"><kbd>Esc</kbd> to close</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

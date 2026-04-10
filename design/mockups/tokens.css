@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════
+   GLIMPSE — Design Tokens v2
+   Calm · Modern · Humane
+   ═══════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* ─── Brand ─── */
+  --brand: #6C63FF;
+  --brand-hover: #5B53E0;
+  --brand-muted: rgba(108, 99, 255, 0.14);
+  --brand-dim: rgba(108, 99, 255, 0.07);
+  --brand-border: rgba(108, 99, 255, 0.24);
+
+  /* ─── Semantic ─── */
+  --success: #34C759;
+  --success-muted: rgba(52, 199, 89, 0.14);
+  --success-border: rgba(52, 199, 89, 0.28);
+  --error: #FF453A;
+  --error-muted: rgba(255, 69, 58, 0.10);
+
+  /* ─── Typography ─── */
+  --font-display: 'Outfit', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ─── Type Scale ─── */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 26px;
+
+  /* ─── Spacing ─── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ─── Radii ─── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+}
+
+/* ═══ Dark Theme ═══ */
+[data-theme="dark"], .theme-dark {
+  --surface-base: #151517;
+  --surface-panel: rgba(23, 23, 27, 0.96);
+  --surface-elevated: rgba(34, 34, 40, 0.92);
+  --surface-input: rgba(28, 28, 34, 0.96);
+  --surface-hover: rgba(255, 255, 255, 0.04);
+
+  --border-dim: rgba(255, 255, 255, 0.07);
+  --border-active: rgba(255, 255, 255, 0.12);
+  --border-bright: rgba(108, 99, 255, 0.40);
+
+  --text-primary: rgba(242, 242, 250, 0.93);
+  --text-secondary: rgba(180, 180, 200, 0.70);
+  --text-dim: rgba(130, 130, 155, 0.50);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.15);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.15);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.40);
+
+  /* Dark-specific brand adjustments */
+  --brand-on-surface: #7B73FF;
+  --brand-text: #9B95FF;
+
+  color-scheme: dark;
+}
+
+/* ═══ Light Theme ═══ */
+[data-theme="light"], .theme-light {
+  --surface-base: #F6F6F9;
+  --surface-panel: rgba(255, 255, 255, 0.98);
+  --surface-elevated: rgba(244, 244, 249, 0.95);
+  --surface-input: rgba(246, 246, 250, 0.98);
+  --surface-hover: rgba(0, 0, 0, 0.03);
+
+  --border-dim: rgba(0, 0, 0, 0.06);
+  --border-active: rgba(0, 0, 0, 0.10);
+  --border-bright: rgba(108, 99, 255, 0.35);
+
+  --text-primary: rgba(18, 18, 30, 0.90);
+  --text-secondary: rgba(55, 55, 75, 0.68);
+  --text-dim: rgba(95, 95, 118, 0.50);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-lg: 0 8px 28px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.03);
+  --shadow-xl: 0 16px 40px rgba(0,0,0,0.10);
+
+  /* Light-specific brand adjustments */
+  --brand-on-surface: #6C63FF;
+  --brand-text: #5B53E0;
+
+  color-scheme: light;
+}
+
+/* ═══ Reset ═══ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* ═══ Focus ═══ */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ═══ Reduced Motion ═══ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

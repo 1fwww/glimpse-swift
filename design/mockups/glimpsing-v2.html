@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — "Glimpsing..." Bold Animations</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #16151E;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 800px;
+  width: 100%;
+}
+
+.options {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.option-desc {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 220px;
+  line-height: 1.5;
+}
+
+.rec-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(108, 99, 255, 0.12);
+  border: 1px solid rgba(108, 99, 255, 0.2);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(133, 128, 255, 0.7);
+}
+
+/* Chat sim */
+.chat-sim {
+  width: 340px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(22, 21, 30, 0.96);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.30);
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(108, 99, 255, 0.08);
+}
+.sim-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(242,240,255,0.93);
+  flex: 1;
+}
+
+.sim-messages {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100px;
+}
+
+.user-msg {
+  align-self: flex-end;
+  padding: 10px 14px;
+  background: rgba(108,99,255,0.10);
+  color: rgba(242,240,255,0.93);
+  border-radius: 14px 14px 4px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  max-width: 85%;
+}
+
+.think-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.think-text {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(140,137,175,0.55);
+}
+
+/* Synced with focus pulse — same 1.6s cycle */
+.think-sync {
+  animation: textSync 1.6s ease-in-out infinite;
+}
+@keyframes textSync {
+  0%, 100% { opacity: 0.45; }
+  40% { opacity: 0.75; }
+  60% { opacity: 0.75; }
+}
+
+/* Synced with orbit — same 2.4s cycle, gentle wave */
+.think-orbit-sync {
+  animation: textOrbitSync 2.4s ease-in-out infinite;
+}
+@keyframes textOrbitSync {
+  0%, 100% { opacity: 0.45; }
+  25% { opacity: 0.65; }
+  50% { opacity: 0.75; }
+  75% { opacity: 0.55; }
+}
+
+/* ═══ A. Scanning — eye looks left, center, right ═══ */
+.anim-scan svg {
+  transform-origin: center;
+  animation: scanLook 2.0s ease-in-out infinite;
+}
+.anim-scan svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: scanBrow 2.0s ease-in-out infinite;
+}
+@keyframes scanLook {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  30% { transform: translateX(-4px); }
+  50% { transform: translateX(5px); }
+  60% { transform: translateX(5px); }
+  80% { transform: translateX(0); }
+}
+@keyframes scanBrow {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(2deg); }
+  50% { transform: rotate(-2.5deg); }
+  80% { transform: rotate(0deg); }
+}
+
+/* ═══ B. Focused pulse — eye scales rhythmically like it's concentrating ═══ */
+.anim-focus svg {
+  transform-origin: center;
+  animation: focusPulse 1.6s ease-in-out infinite;
+}
+.anim-focus svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: focusBrow 1.6s ease-in-out infinite;
+}
+@keyframes focusPulse {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  60% { transform: scale(1.15); }
+}
+@keyframes focusBrow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  40% { transform: translateY(-2px) rotate(-2deg); }
+  60% { transform: translateY(-2px) rotate(-2deg); }
+}
+
+/* ═══ C. Looking around + squint — combines scanning with the squint think ═══ */
+.anim-search svg {
+  transform-origin: center;
+  animation: searchMove 3.0s ease-in-out infinite;
+}
+.anim-search svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: searchBrow 3.0s ease-in-out infinite;
+}
+@keyframes searchMove {
+  0%, 100% { transform: translateX(0) scale(1); }
+  15% { transform: translateX(-4px) scale(1); }
+  25% { transform: translateX(-4px) scale(1.08); }
+  35% { transform: translateX(0) scale(1); }
+  50% { transform: translateX(5px) scale(1); }
+  60% { transform: translateX(5px) scale(1.08); }
+  70% { transform: translateX(0) scale(1); }
+  85% { transform: translateX(0) scale(1.05); }
+}
+@keyframes searchBrow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  15% { transform: translateY(0) rotate(1.5deg); }
+  25% { transform: translateY(-2px) rotate(-2deg); }
+  35% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(0) rotate(-1.5deg); }
+  60% { transform: translateY(-2px) rotate(2deg); }
+  70% { transform: translateY(0) rotate(0deg); }
+  85% { transform: translateY(-1px) rotate(-1deg); }
+}
+
+/* ═══ D. Orbit — eye traces a small circular path ═══ */
+.anim-orbit svg {
+  transform-origin: center;
+  animation: orbitMove 2.4s ease-in-out infinite;
+}
+.anim-orbit svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: orbitBrow 2.4s ease-in-out infinite;
+}
+@keyframes orbitMove {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(3px, -2px); }
+  50%  { transform: translate(0, -3px); }
+  75%  { transform: translate(-3px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes orbitBrow {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-2deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(2deg); }
+}
+
+/* ═══ E. Blink-scan — scans left-right with periodic blinks ═══ */
+.anim-blinkscan svg {
+  transform-origin: center;
+  animation: bsMove 3.2s ease-in-out infinite;
+}
+.anim-blinkscan svg path:first-child {
+  transform-origin: 260px 230px;
+  animation: bsBrow 3.2s ease-in-out infinite;
+}
+@keyframes bsMove {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-4px); }
+  30% { transform: translateX(0); }
+  45% { transform: translateX(5px); }
+  60% { transform: translateX(0); }
+  /* blink happens here via brow */
+  75% { transform: translateX(0); }
+}
+@keyframes bsBrow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  15% { transform: translateY(0) rotate(2deg); }
+  30% { transform: translateY(0) rotate(0deg); }
+  45% { transform: translateY(0) rotate(-2deg); }
+  60% { transform: translateY(0) rotate(0deg); }
+  /* quick blink */
+  68% { transform: translateY(0) rotate(0deg); }
+  72% { transform: translateY(10px) rotate(0deg); }
+  76% { transform: translateY(0) rotate(0deg); }
+  85% { transform: translateY(0) rotate(0deg); }
+}
+
+/* ═══ F. Intense focus — rapid micro-movements like reading ═══ */
+.anim-read svg {
+  transform-origin: center;
+  animation: readMove 1.8s ease-in-out infinite;
+}
+.anim-read svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: readBrow 1.8s ease-in-out infinite;
+}
+@keyframes readMove {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-2px); }
+  20% { transform: translateX(1px); }
+  30% { transform: translateX(-3px); }
+  40% { transform: translateX(2px); }
+  50% { transform: translateX(-1px); }
+  60% { transform: translateX(3px); }
+  70% { transform: translateX(0); }
+  80% { transform: translateX(-2px); }
+  90% { transform: translateX(1px); }
+}
+@keyframes readBrow {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-1px); }
+  60% { transform: translateY(1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">"Glimpsing..." — Bolder Animations (16px eye)</span>
+
+<div class="options">
+
+  <!-- A: Scanning -->
+  <div class="option">
+    <span class="option-label">A. Scanning</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">Debug query</span>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row" style="gap:6px;">
+          <div class="anim-scan"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Eye looks left, pauses, looks right, pauses, returns. Actively searching. Eyebrow tilts to follow gaze direction.</span>
+  </div>
+
+  <!-- B: Focused pulse -->
+  <div class="option">
+    <span class="option-label">B. Focus pulse</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">Debug query</span>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row" style="gap:6px;">
+          <div class="anim-focus"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text think-sync">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="rec-badge">recommended</span>
+    <span class="option-desc">Eye and text breathe together. Eye scales up while text brightens — one heartbeat, one rhythm.</span>
+  </div>
+
+  <!-- C: Search -->
+  <div class="option">
+    <span class="option-label">C. Search + focus</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">Debug query</span>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row" style="gap:6px;">
+          <div class="anim-search"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="rec-badge">recommended</span>
+    <span class="option-desc">Combines scanning + focus. Looks left (zoom), looks right (zoom), then centers (zoom). The eye is searching and inspecting. Most "alive."</span>
+  </div>
+
+  <!-- D: Orbit -->
+  <div class="option">
+    <span class="option-label">D. Orbit</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">Debug query</span>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row" style="gap:6px;">
+          <div class="anim-orbit"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text think-orbit-sync">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Eye traces a small circular path. Eyebrow tilts to follow. Dreamy, contemplative. Like the eye is processing in circles.</span>
+  </div>
+
+  <!-- E: Blink-scan -->
+  <div class="option">
+    <span class="option-label">E. Scan + blink</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">Debug query</span>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row" style="gap:6px;">
+          <div class="anim-blinkscan"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Scans left-right, then blinks once mid-cycle. Most human — like actually reading something and blinking naturally.</span>
+  </div>
+
+  <!-- F: Reading -->
+  <div class="option">
+    <span class="option-label">F. Speed-reading</span>
+    <div class="chat-sim">
+      <div class="sim-header">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">Debug query</span>
+      </div>
+      <div class="sim-messages">
+        <div class="user-msg">What does this error mean?</div>
+        <div class="think-row" style="gap:6px;">
+          <div class="anim-read"><svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+          <span class="think-text">Glimpsing...</span>
+        </div>
+      </div>
+    </div>
+    <span class="option-desc">Rapid micro-saccades like actually reading text. Fast, jittery, intense. The eye is processing information at speed.</span>
+  </div>
+
+</div>
+
+</body>
+</html>

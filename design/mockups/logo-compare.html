@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Logo Polish</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #151517;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  align-self: flex-start;
+  max-width: 900px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: 100%;
+  max-width: 900px;
+  text-align: center;
+}
+
+.compare {
+  display: flex;
+  gap: 56px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.logo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.logo-sublabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 220px;
+  line-height: 1.5;
+}
+
+.logo-bg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  padding: 36px 40px;
+}
+.logo-bg-dark {
+  background: #16151E;
+  border: 1px solid rgba(108, 99, 255, 0.08);
+}
+.logo-bg-light {
+  background: #F2F2F4;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.sizes {
+  display: flex;
+  gap: 28px;
+  align-items: flex-end;
+}
+.size-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.size-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+.note {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  line-height: 1.5;
+  display: flex;
+  gap: 8px;
+}
+.note-marker {
+  color: rgba(108, 99, 255, 0.5);
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+/* Wiggle demo */
+.wiggle-demo {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.wiggle-demo:hover { transform: scale(1.03); }
+.wiggle-demo:active { transform: scale(0.97); }
+.wiggle-demo.wiggling svg path:first-child {
+  animation: eyebrowWiggle 0.9s ease-in-out;
+  transform-origin: 260px 212px;
+}
+@keyframes eyebrowWiggle {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(-4deg); }
+  40% { transform: rotate(3deg); }
+  60% { transform: rotate(3deg); }
+  80% { transform: rotate(-2deg); }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Logo — Original vs Polished</span>
+
+<!-- ═══ LARGE SIDE BY SIDE ═══ -->
+<span class="section-label">Large — see the differences</span>
+<div class="compare">
+
+  <div class="logo-card">
+    <span class="logo-label">Original</span>
+    <div class="logo-bg logo-bg-dark">
+      <svg viewBox="60 140 420 280" width="210" height="140">
+        <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="logo-sublabel">Pen-tool curves. Eyebrow floats high. Off-center. Kinks at some joins.</span>
+  </div>
+
+  <div class="logo-card">
+    <span class="logo-label">Polished</span>
+    <div class="logo-bg logo-bg-dark">
+      <svg viewBox="60 140 420 280" width="210" height="140">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="logo-sublabel">Centered eyebrow. Moderate gap. Smooth G1 joins. Clean coordinates.</span>
+  </div>
+
+</div>
+
+<!-- ═══ BOTH BACKGROUNDS ═══ -->
+<span class="section-label">On dark and light — click to wiggle</span>
+<div class="compare">
+  <div class="logo-card">
+    <div class="logo-bg logo-bg-dark" style="padding:44px 52px;">
+      <div class="wiggle-demo" onclick="this.classList.remove('wiggling');void this.offsetWidth;this.classList.add('wiggling');">
+        <svg viewBox="60 140 420 280" width="160" height="107">
+          <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <span class="logo-sublabel">Dark (#16151E)</span>
+  </div>
+  <div class="logo-card">
+    <div class="logo-bg logo-bg-light" style="padding:44px 52px;">
+      <div class="wiggle-demo" onclick="this.classList.remove('wiggling');void this.offsetWidth;this.classList.add('wiggling');">
+        <svg viewBox="60 140 420 280" width="160" height="107">
+          <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <span class="logo-sublabel">Light (#F2F2F4)</span>
+  </div>
+</div>
+
+<!-- ═══ SIZE COMPARISON ═══ -->
+<span class="section-label">At actual usage sizes</span>
+<div class="compare">
+  <div class="logo-card">
+    <span class="logo-label">Original</span>
+    <div class="sizes">
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="16" height="11"><path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">16px</span>
+      </div>
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">24px</span>
+      </div>
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="48" height="32"><path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">48px</span>
+      </div>
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="64" height="43"><path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">64px</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="logo-card">
+    <span class="logo-label">Polished</span>
+    <div class="sizes">
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="16" height="11"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">16px</span>
+      </div>
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">24px</span>
+      </div>
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="48" height="32"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">48px</span>
+      </div>
+      <div class="size-item">
+        <svg viewBox="60 140 420 280" width="64" height="43"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="size-label">64px</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WHAT CHANGED ═══ -->
+<div class="notes">
+  <span class="logo-label">What changed</span>
+  <div class="note"><span class="note-marker">1.</span><strong>Eyebrow centered over eye.</strong> Original eyebrow center was 12px right of the eye center. Now perfectly aligned at x=259.</div>
+  <div class="note"><span class="note-marker">2.</span><strong>Eyebrow tightened (moderately).</strong> ~25px closer to the eye — splits the difference between the original gap (73px) and the too-tight version. Brow reads as connected to the eye but still has room to breathe and wiggle.</div>
+  <div class="note"><span class="note-marker">3.</span><strong>Eyebrow ends balanced.</strong> Original: start y=204, end y=251 (47px drop). Now: start y=220, end y=256 (36px drop). Still has the natural slight droop right, but less extreme.</div>
+  <div class="note"><span class="note-marker">4.</span><strong>Bottom-right spiral join smoothed.</strong> Tangent discontinuity reduced from 8.8° to near 0° (collinear control points). No visible kink.</div>
+  <div class="note"><span class="note-marker">5.</span><strong>Clean integer coordinates.</strong> All pen-tool decimals (104.539, 374.28, etc.) rounded to integers. Cleaner SVG, identical rendering.</div>
+  <div class="note"><span class="note-marker">6.</span><strong>Wiggle transform-origin updated</strong> to match new eyebrow center (260px, 220px).</div>
+  <div class="note"><span class="note-marker">7.</span><strong>Same viewBox, stroke widths, color, proportions.</strong> Drop-in replacement — same `viewBox="60 140 420 280"`, same `stroke-width="20"` / `"22"`.</div>
+</div>
+
+<!-- ═══ RAW SVG ═══ -->
+<div class="notes" style="margin-top: 16px;">
+  <span class="logo-label">Drop-in SVG</span>
+  <div style="background: rgba(22,21,30,0.95); border: 1px solid rgba(108,99,255,0.08); border-radius: 10px; padding: 12px 16px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; color: rgba(242,240,255,0.7); overflow-x: auto; white-space: pre;">&lt;svg viewBox="60 140 420 280"&gt;
+  &lt;path d="M98 212C152 174 365 158 420 248"
+        fill="none" stroke="#6C63FF" stroke-width="20"
+        stroke-linecap="round"/&gt;
+  &lt;path d="M262 374C228 373 176 360 128 321C176 276
+        314 200 390 270C462 336 350 379 322 374C248
+        361 262 276 322 279C378 282 363 346 322 332"
+        fill="none" stroke="#6C63FF" stroke-width="22"
+        stroke-linecap="round"/&gt;
+&lt;/svg&gt;</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Welcome Flow (Redesigned)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #0e0e12;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 960px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.flow-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.step-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* ═══ Window Shell ═══ */
+
+.window {
+  width: 400px;
+  height: 510px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.window-dark {
+  background: #16151E;
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+
+.window-light {
+  background: #F2F2F4;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.10);
+}
+
+/* ═══ Common ═══ */
+
+.drag-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 14px 0;
+  flex-shrink: 0;
+}
+
+.close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: all 0.15s;
+}
+.window-dark .close-btn { color: rgba(140,137,175,0.5); }
+.window-dark .close-btn:hover { color: rgba(175,172,205,0.75); background: rgba(108,99,255,0.05); }
+.window-light .close-btn { color: rgba(70,70,95,0.5); }
+.window-light .close-btn:hover { color: rgba(45,45,62,0.72); background: rgba(0,0,0,0.04); }
+
+.step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 40px 20px;
+  gap: 16px;
+}
+
+.step-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.window-dark .step-title { color: rgba(242,240,255,0.93); }
+.window-light .step-title { color: rgba(18,18,25,0.90); }
+
+.step-subtitle {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+.window-dark .step-subtitle { color: rgba(242,240,255,0.93); }
+.window-light .step-subtitle { color: rgba(18,18,25,0.90); }
+
+.step-desc {
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: center;
+  max-width: 300px;
+}
+.window-dark .step-desc { color: rgba(175,172,205,0.75); }
+.window-light .step-desc { color: rgba(45,45,62,0.72); }
+
+.btn-primary {
+  width: 100%;
+  max-width: 280px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  background: #635AEE;
+  color: #fff;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(108,99,255,0.25);
+  margin-top: 4px;
+}
+.btn-primary:hover {
+  background: #5B53E0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(108,99,255,0.30);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.window-light .btn-primary {
+  background: #635AEE;
+  color: #fff;
+}
+
+.skip-link {
+  font-family: var(--font-display);
+  font-size: 11px;
+  padding: 2px 0;
+  transition: color 0.15s;
+  background: none;
+  border: none;
+}
+.window-dark .skip-link { color: rgba(160,157,195,0.60); }
+.window-dark .skip-link:hover { color: rgba(175,172,205,0.75); }
+.window-light .skip-link { color: rgba(70,70,95,0.60); }
+.window-light .skip-link:hover { color: rgba(45,45,62,0.72); }
+
+.version-hint {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.window-dark .version-hint { color: rgba(160,157,195,0.60); }
+.window-light .version-hint { color: rgba(70,70,95,0.60); }
+
+/* Footer dots */
+.footer {
+  display: flex;
+  justify-content: center;
+  padding: 0 0 22px;
+  flex-shrink: 0;
+}
+.dots { display: flex; gap: 7px; }
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: all 0.25s;
+}
+.window-dark .dot { background: rgba(108,99,255,0.15); }
+.window-light .dot { background: rgba(0,0,0,0.10); }
+.dot.active {
+  background: #6C63FF !important;
+  transform: scale(1.2);
+}
+
+/* ═══ STEP 0: Draw-on logo ═══ */
+
+.logo-draw svg path {
+  stroke-dasharray: 800;
+  stroke-dashoffset: 0;
+}
+.logo-draw.animate svg path:first-child {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  /* Draw on (0-0.6s), then pause (0.6-1.5s), then blink (1.5-2.0s) */
+  animation:
+    drawBrow 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    blinkOnce 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1.5s;
+  transform-origin: 260px 230px;
+}
+.logo-draw.animate svg path:last-child {
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  animation: drawEye 1.0s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+}
+@keyframes drawBrow { to { stroke-dashoffset: 0; } }
+@keyframes drawEye { to { stroke-dashoffset: 0; } }
+@keyframes blinkOnce {
+  0%   { transform: translateY(0); }
+  35%  { transform: translateY(24px); }
+  40%  { transform: translateY(24px); }
+  100% { transform: translateY(0); }
+}
+
+.logo-wrap {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.logo-wrap:hover { transform: scale(1.04); }
+.logo-wrap:active { transform: scale(0.97); }
+
+/* ═══ STEP 1: Permissions ═══ */
+
+.perm-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.perm-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  transition: border-color 0.25s;
+}
+.window-dark .perm-card {
+  background: rgba(31,29,42,0.6);
+  border: 1px solid rgba(108,99,255,0.08);
+}
+.window-light .perm-card {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.perm-card.granted {
+  border-color: rgba(45,164,78,0.25) !important;
+}
+
+.perm-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.window-dark .perm-icon { color: rgba(140,137,175,0.5); }
+.window-light .perm-icon { color: rgba(70,70,95,0.5); }
+.perm-card.granted .perm-icon { color: #238542; }
+
+.perm-info { flex: 1; }
+.perm-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+}
+.window-dark .perm-name { color: rgba(242,240,255,0.93); }
+.window-light .perm-name { color: rgba(18,18,25,0.90); }
+
+.perm-why {
+  font-family: var(--font-display);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.window-dark .perm-why { color: rgba(140,137,175,0.70); }
+.window-light .perm-why { color: rgba(70,70,95,0.60); }
+
+.perm-grant-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: #6C63FF;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.window-dark .perm-grant-btn {
+  background: rgba(108,99,255,0.08);
+  border: 1px solid rgba(108,99,255,0.20);
+}
+.window-light .perm-grant-btn {
+  background: rgba(108,99,255,0.06);
+  border: 1px solid rgba(108,99,255,0.18);
+}
+.perm-grant-btn:hover {
+  background: rgba(108,99,255,0.15);
+  border-color: rgba(108,99,255,0.35);
+}
+
+.perm-check {
+  flex-shrink: 0;
+  color: #2DA44E;
+}
+
+/* ═══ STEP 2: Shortcuts ═══ */
+
+.shortcut-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  transition: border-color 0.25s, background 0.25s;
+}
+.window-dark .shortcut-card {
+  background: rgba(31,29,42,0.6);
+  border: 1px solid rgba(108,99,255,0.08);
+}
+.window-light .shortcut-card {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Active = waiting for user to try this shortcut */
+.shortcut-card.active {
+  border-color: rgba(108,99,255,0.20) !important;
+}
+.window-dark .shortcut-card.active {
+  background: rgba(108,99,255,0.05);
+}
+.window-light .shortcut-card.active {
+  background: rgba(108,99,255,0.04);
+}
+
+.shortcut-card.done {
+  border-color: rgba(45,164,78,0.25) !important;
+}
+
+.shortcut-status {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.window-dark .shortcut-status { color: rgba(140,137,175,0.50); }
+.window-light .shortcut-status { color: rgba(70,70,95,0.45); }
+.shortcut-card.done .shortcut-status { color: #238542; }
+
+.shortcut-info { flex: 1; }
+.shortcut-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+}
+.window-dark .shortcut-name { color: rgba(242,240,255,0.93); }
+.window-light .shortcut-name { color: rgba(18,18,25,0.90); }
+
+.shortcut-desc-text {
+  font-family: var(--font-display);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.window-dark .shortcut-desc-text { color: rgba(140,137,175,0.70); }
+.window-light .shortcut-desc-text { color: rgba(70,70,95,0.60); }
+
+.shortcut-keys {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.shortcut-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.window-dark kbd {
+  background: rgba(108,99,255,0.06);
+  border: 1px solid rgba(108,99,255,0.10);
+  color: rgba(175,172,205,0.65);
+}
+.window-light kbd {
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.06);
+  color: rgba(45,45,62,0.6);
+}
+
+/* ═══ STEP 3: Pin + API hint ═══ */
+
+.feature-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.window-dark .feature-card {
+  background: rgba(31,29,42,0.6);
+  border: 1px solid rgba(108,99,255,0.08);
+}
+.window-light .feature-card {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.feature-card.pinned-state {
+  border-color: rgba(108,99,255,0.25) !important;
+  box-shadow: 0 4px 16px rgba(108,99,255,0.08);
+  transform: translateY(-2px);
+}
+.window-dark .feature-card.pinned-state {
+  background: rgba(108,99,255,0.08);
+}
+.window-light .feature-card.pinned-state {
+  background: rgba(108,99,255,0.06);
+}
+
+.feature-icon {
+  width: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6C63FF;
+}
+
+.feature-info { flex: 1; }
+.feature-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+}
+.window-dark .feature-name { color: rgba(242,240,255,0.93); }
+.window-light .feature-name { color: rgba(18,18,25,0.90); }
+.feature-card.pinned-state .feature-name { color: #6C63FF !important; }
+
+.feature-desc {
+  font-family: var(--font-display);
+  font-size: 11px;
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.window-dark .feature-desc { color: rgba(140,137,175,0.70); }
+.window-light .feature-desc { color: rgba(70,70,95,0.60); }
+
+.api-hint {
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.5;
+  max-width: 280px;
+}
+.window-dark .api-hint { color: rgba(160,157,195,0.60); }
+.window-light .api-hint { color: rgba(70,70,95,0.60); }
+.api-hint strong {
+  font-weight: 500;
+}
+.window-dark .api-hint strong { color: rgba(175,172,205,0.75); }
+.window-light .api-hint strong { color: rgba(45,45,62,0.72); }
+
+/* ═══ Spacer ═══ */
+.flex-spacer { flex: 1; }
+.min-spacer { min-height: 24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Welcome Flow — Redesigned (4 Steps)</span>
+
+<!-- ═══ DARK THEME ═══ -->
+<span class="section-label">Dark theme</span>
+<div class="flow-row">
+
+  <!-- STEP 0 -->
+  <div>
+    <div class="step-label">Step 0 — Intro</div>
+    <div class="window window-dark">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <div class="logo-wrap logo-draw animate" onclick="this.classList.remove('animate');void this.offsetWidth;this.classList.add('animate');">
+          <svg viewBox="60 140 420 280" width="68" height="45">
+            <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+            <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span class="step-title">Glimpse</span>
+        <p class="step-desc">Snap it. Ask it. Never lose your flow.</p>
+        <button class="btn-primary">Get Started</button>
+        <span class="version-hint">v1.0 for macOS</span>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div>
+    <div class="step-label">Step 1 — Permissions</div>
+    <div class="window window-dark">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <span class="step-subtitle">Quick setup</span>
+        <p class="step-desc">Glimpse needs two permissions to capture your screen and respond to shortcuts.</p>
+        <div class="perm-list">
+          <div class="perm-card granted">
+            <svg class="perm-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <div class="perm-info">
+              <div class="perm-name">Screen Recording</div>
+              <div class="perm-why">Capture screenshots of your screen</div>
+            </div>
+            <svg class="perm-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div class="perm-card">
+            <svg class="perm-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <div class="perm-info">
+              <div class="perm-name">Accessibility</div>
+              <div class="perm-why">Detect windows and respond to shortcuts</div>
+            </div>
+            <button class="perm-grant-btn">Grant</button>
+          </div>
+        </div>
+        <button class="btn-primary" disabled>Grant both to continue</button>
+        <div class="min-spacer">
+          <button class="skip-link">I've granted permissions, continue</button>
+        </div>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot"></div><div class="dot active"></div><div class="dot"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div>
+    <div class="step-label">Step 2 — Shortcuts</div>
+    <div class="window window-dark">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <span class="step-subtitle">Two ways to start</span>
+        <p class="step-desc">Try each shortcut now.</p>
+        <div class="shortcut-list">
+          <div class="shortcut-card done">
+            <div class="shortcut-status">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-name">Start with a screenshot</div>
+              <div class="shortcut-desc-text">Capture, annotate, ask AI</div>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></div>
+          </div>
+          <div class="shortcut-card active">
+            <div class="shortcut-status">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/></svg>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-name">Start with text</div>
+              <div class="shortcut-desc-text">Select text, ask AI about it</div>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></div>
+          </div>
+        </div>
+        <button class="btn-primary" disabled>Try both to continue</button>
+        <div class="min-spacer">
+          <button class="skip-link">Shortcuts not working? Skip</button>
+        </div>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot active"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div>
+    <div class="step-label">Step 3 — Pin + API hint</div>
+    <div class="window window-dark">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <span class="step-subtitle">Pin to screen</span>
+        <p class="step-desc">Keep the chat floating while you work.</p>
+        <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
+          <div class="feature-card" id="pinCard" onclick="this.classList.toggle('pinned-state')">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/></svg>
+            </div>
+            <div class="feature-info">
+              <div class="feature-name">Pin your chat</div>
+              <div class="feature-desc">Click the pin icon to keep chat floating on top of everything. Try it — click this card.</div>
+            </div>
+          </div>
+        </div>
+        <p class="api-hint">To chat with AI, add an API key in <strong>Settings</strong>. You can also use an invite code.</p>
+        <button class="btn-primary">Start Using Glimpse</button>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot active"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ LIGHT THEME ═══ -->
+<span class="section-label" style="margin-top:16px;">Light theme</span>
+<div class="flow-row">
+
+  <!-- STEP 0 Light -->
+  <div>
+    <div class="step-label">Step 0</div>
+    <div class="window window-light">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <div class="logo-wrap logo-draw animate" onclick="this.classList.remove('animate');void this.offsetWidth;this.classList.add('animate');">
+          <svg viewBox="60 140 420 280" width="68" height="45">
+            <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+            <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span class="step-title">Glimpse</span>
+        <p class="step-desc">Snap it. Ask it. Never lose your flow.</p>
+        <button class="btn-primary">Get Started</button>
+        <span class="version-hint">v1.0 for macOS</span>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1 Light -->
+  <div>
+    <div class="step-label">Step 1</div>
+    <div class="window window-light">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <span class="step-subtitle">Quick setup</span>
+        <p class="step-desc">Glimpse needs two permissions to capture your screen and respond to shortcuts.</p>
+        <div class="perm-list">
+          <div class="perm-card granted">
+            <svg class="perm-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <div class="perm-info">
+              <div class="perm-name">Screen Recording</div>
+              <div class="perm-why">Capture screenshots of your screen</div>
+            </div>
+            <svg class="perm-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div class="perm-card granted">
+            <svg class="perm-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <div class="perm-info">
+              <div class="perm-name">Accessibility</div>
+              <div class="perm-why">Detect windows and respond to shortcuts</div>
+            </div>
+            <svg class="perm-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+        </div>
+        <button class="btn-primary">Continue</button>
+        <div class="min-spacer"></div>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot"></div><div class="dot active"></div><div class="dot"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 Light -->
+  <div>
+    <div class="step-label">Step 2</div>
+    <div class="window window-light">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <span class="step-subtitle">Two ways to start</span>
+        <p class="step-desc">Try each shortcut now.</p>
+        <div class="shortcut-list">
+          <div class="shortcut-card done">
+            <div class="shortcut-status">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-name">Start with a screenshot</div>
+              <div class="shortcut-desc-text">Capture, annotate, ask AI</div>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></div>
+          </div>
+          <div class="shortcut-card done">
+            <div class="shortcut-status">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-name">Start with text</div>
+              <div class="shortcut-desc-text">Select text, ask AI about it</div>
+            </div>
+            <div class="shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></div>
+          </div>
+        </div>
+        <button class="btn-primary">Continue</button>
+        <div class="min-spacer"></div>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot active"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 Light -->
+  <div>
+    <div class="step-label">Step 3</div>
+    <div class="window window-light">
+      <div class="drag-bar">
+        <button class="close-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="step-content">
+        <span class="step-subtitle">Pin to screen</span>
+        <p class="step-desc">Keep the chat floating while you work.</p>
+        <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
+          <div class="feature-card pinned-state">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/></svg>
+            </div>
+            <div class="feature-info">
+              <div class="feature-name">Pinned!</div>
+              <div class="feature-desc">You got it. That's all you need.</div>
+            </div>
+          </div>
+        </div>
+        <p class="api-hint">To chat with AI, add an API key in <strong>Settings</strong>. You can also use an invite code.</p>
+        <button class="btn-primary">Start Using Glimpse</button>
+      </div>
+      <div class="footer">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot active"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

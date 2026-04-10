@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Chat Header Layout Options</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #151517;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  align-self: flex-start;
+}
+
+/* ═══ Shared ═══ */
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 800px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.option-desc {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.panel {
+  width: 390px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  background: #16151E;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+/* All headers share base styles */
+.header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(108, 99, 255, 0.08);
+  font-family: var(--font-display);
+}
+
+/* ═══ Buttons ═══ */
+
+.h-btn {
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid rgba(108, 99, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(140, 137, 175, 0.70);
+  flex-shrink: 0;
+  transition: all 0.15s;
+  background: transparent;
+}
+.h-btn:hover {
+  background: rgba(108, 99, 255, 0.05);
+  border-color: rgba(108, 99, 255, 0.13);
+  color: rgba(175, 172, 205, 0.75);
+}
+
+.h-btn.new-chat {
+  color: rgba(133, 128, 255, 0.6);
+  border-color: rgba(108, 99, 255, 0.13);
+}
+.h-btn.new-chat:hover {
+  color: #8580FF;
+  background: rgba(108, 99, 255, 0.08);
+  border-color: rgba(108, 99, 255, 0.25);
+}
+
+.title-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 6px;
+  transition: background 0.12s;
+  min-width: 0;
+  flex: 1;
+}
+.title-btn:hover { background: rgba(108, 99, 255, 0.05); }
+
+.title-text {
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(242, 240, 255, 0.93);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron { color: rgba(140, 137, 175, 0.5); flex-shrink: 0; }
+
+/* Glimpse eye */
+.eye {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.eye:hover { transform: scale(1.06); }
+
+/* Fake body content */
+.fake-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fake-line {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(108, 99, 255, 0.03);
+}
+.fl-s { width: 50%; } .fl-m { width: 70%; } .fl-l { width: 90%; }
+
+/* ═══ Separator ═══ */
+.h-sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(108, 99, 255, 0.08);
+  flex-shrink: 0;
+}
+
+/* Layout annotations */
+.annotations {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+.anno {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.anno-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Chat Header — Layout Options</span>
+
+<!-- ═══ OPTION A: Eye as thread menu trigger ═══ -->
+<div class="option">
+  <span class="option-label">A. Eye as thread menu trigger</span>
+  <span class="option-desc">The eye icon replaces the chevron as the thread menu trigger. Clicking the eye or the title opens thread list. New chat gets its own button. Eye stays as brand + functional anchor.</span>
+
+  <div class="panel">
+    <div class="header" style="padding: 11px 10px 10px; gap: 6px;">
+      <!-- Eye = thread menu trigger -->
+      <button class="eye" aria-label="Open thread menu" style="padding: 2px;">
+        <svg viewBox="60 140 420 280" width="26" height="17">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <!-- Title (also triggers menu) -->
+      <button class="title-btn" aria-label="Open thread menu">
+        <span class="title-text">Debug query results</span>
+        <svg class="chevron" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <!-- Actions -->
+      <div style="display:flex; gap:4px; flex-shrink:0;">
+        <button class="h-btn new-chat" aria-label="New chat">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="h-btn" aria-label="Pin">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="h-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fake-body">
+      <div class="fake-line fl-l"></div><div class="fake-line fl-m"></div><div class="fake-line fl-l"></div><div class="fake-line fl-s"></div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="anno"><span class="anno-dot" style="background:#6C63FF;"></span>brand + menu trigger</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(133,128,255,0.6);"></span>new chat (branded accent)</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(140,137,175,0.5);"></span>pin + close (dim, secondary)</span>
+  </div>
+</div>
+
+<!-- ═══ OPTION B: Eye left, grouped actions right ═══ -->
+<div class="option">
+  <span class="option-label">B. Eye anchored left, clear groups right</span>
+  <span class="option-desc">Eye is purely brand (decorative + wiggle trigger). Title + chevron is the thread menu. New chat, pin, close grouped right with a visual separator between new chat and window controls.</span>
+
+  <div class="panel">
+    <div class="header" style="padding: 11px 10px 10px; gap: 8px;">
+      <!-- Eye = brand only -->
+      <div class="eye" style="padding: 2px;">
+        <svg viewBox="60 140 420 280" width="24" height="16">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <!-- Title = thread menu -->
+      <button class="title-btn" aria-label="Open thread menu">
+        <span class="title-text">Debug query results</span>
+        <svg class="chevron" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <!-- New chat (separated from window controls) -->
+      <button class="h-btn new-chat" aria-label="New chat">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <div class="h-sep"></div>
+      <!-- Window controls -->
+      <div style="display:flex; gap:4px; flex-shrink:0;">
+        <button class="h-btn" aria-label="Pin">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="h-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fake-body">
+      <div class="fake-line fl-l"></div><div class="fake-line fl-m"></div><div class="fake-line fl-l"></div><div class="fake-line fl-s"></div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="anno"><span class="anno-dot" style="background:#6C63FF;"></span>brand (decorative + wiggle)</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(242,240,255,0.7);"></span>title = thread menu</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(133,128,255,0.6);"></span>new chat | separator | pin + close</span>
+  </div>
+</div>
+
+<!-- ═══ OPTION C: Eye + title as one unit, compact actions ═══ -->
+<div class="option">
+  <span class="option-label">C. Eye + title fused, compact action group</span>
+  <span class="option-desc">Eye and title form a single clickable unit (thread menu). No chevron — the eye itself signals "clickable." Actions are compact: new chat uses a compose icon (pen) instead of (+) to differentiate from "add" semantics.</span>
+
+  <div class="panel">
+    <div class="header" style="padding: 11px 10px 10px; gap: 6px;">
+      <!-- Eye + title = one clickable unit -->
+      <button class="title-btn" aria-label="Open thread menu" style="gap: 7px;">
+        <svg viewBox="60 140 420 280" width="24" height="16" style="flex-shrink:0;">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+        <span class="title-text">Debug query results</span>
+      </button>
+      <!-- Actions -->
+      <div style="display:flex; gap:4px; flex-shrink:0;">
+        <button class="h-btn new-chat" aria-label="New chat">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+        <button class="h-btn" aria-label="Pin">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="h-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fake-body">
+      <div class="fake-line fl-l"></div><div class="fake-line fl-m"></div><div class="fake-line fl-l"></div><div class="fake-line fl-s"></div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="anno"><span class="anno-dot" style="background:#6C63FF;"></span>eye + title = fused menu trigger</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(133,128,255,0.6);"></span>compose (new chat)</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(140,137,175,0.5);"></span>pin + close</span>
+  </div>
+</div>
+
+<!-- ═══ For reference: Current production ═══ -->
+<div class="option">
+  <span class="option-label">Reference: Current production header</span>
+  <span class="option-desc">7 elements: thread title + chevron, eye, pin, new thread (+), minimize (—), close (×). Visually dense.</span>
+
+  <div class="panel" style="background: #0c121e; border-color: rgba(0,229,255,0.1);">
+    <div class="header" style="padding: 14px 16px 10px; gap: 10px; border-color: rgba(0,229,255,0.1);">
+      <!-- Title + chevron -->
+      <button class="title-btn" style="gap: 5px;">
+        <span class="title-text" style="font-size: 13px; letter-spacing: 0.3px;">Debug query results</span>
+        <svg class="chevron" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="rgba(0,165,184,0.8)" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <!-- Eye -->
+      <div style="flex-shrink:0; display:flex; align-items:center;">
+        <svg viewBox="60 140 420 280" width="24" height="16">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <!-- All buttons -->
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        <button class="h-btn" style="border-color: rgba(0,229,255,0.3); color: rgba(0,165,184,0.7);" aria-label="Pin">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="h-btn" style="border-color: rgba(0,229,255,0.3); color: rgba(0,165,184,0.7);" aria-label="New thread">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="h-btn" style="border-color: rgba(0,229,255,0.1); color: rgba(0,229,255,0.3);" aria-label="Minimize">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+        </button>
+        <button class="h-btn" style="border-color: rgba(0,229,255,0.1); color: rgba(0,229,255,0.3);" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fake-body">
+      <div class="fake-line" style="background: rgba(0,229,255,0.03);width:90%;"></div>
+      <div class="fake-line" style="background: rgba(0,229,255,0.03);width:70%;"></div>
+      <div class="fake-line" style="background: rgba(0,229,255,0.03);width:90%;"></div>
+      <div class="fake-line" style="background: rgba(0,229,255,0.03);width:50%;"></div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="anno" style="color:rgba(255,255,255,0.15);">7 elements, no visual grouping, all same weight</span>
+  </div>
+</div>
+
+</body>
+</html>

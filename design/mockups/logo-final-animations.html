@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Final Animation Set</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #16151E;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  align-self: flex-start;
+  max-width: 960px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.cards {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 220px;
+}
+
+.card-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+}
+.card-context {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(108, 99, 255, 0.5);
+}
+.card-desc {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.logo-box {
+  width: 160px;
+  height: 110px;
+  background: rgba(22, 21, 30, 0.6);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  overflow: hidden;
+}
+.logo-box:hover { border-color: rgba(108, 99, 255, 0.18); }
+
+.logo-box-loop {
+  cursor: default;
+}
+
+.play-hint {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: rgba(108, 99, 255, 0.35);
+}
+
+/* Toggle for loop */
+.loop-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.loop-btn {
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.loop-btn.active {
+  background: rgba(108, 99, 255, 0.15);
+  border: 1px solid rgba(108, 99, 255, 0.25);
+  color: rgba(133, 128, 255, 0.8);
+}
+.loop-btn:not(.active) {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.3);
+}
+
+/* ═══ I. DRAW ON — Home / Welcome ═══ */
+.anim-draw svg path {
+  stroke-dasharray: 800;
+  stroke-dashoffset: 0;
+}
+.anim-draw.playing svg path:first-child {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: drawBrow 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.anim-draw.playing svg path:last-child {
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  animation: drawEye 1.0s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+}
+@keyframes drawBrow {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes drawEye {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ═══ K-LOOP. THINKING — Smooth continuous loop ═══ */
+/*
+   The cycle: rest → squint down (thinking) → pause → open up (understanding) → rest
+   Designed so the end state matches the start — seamless loop.
+   Speed: 2.4s per cycle — slow enough to feel contemplative, not frantic.
+*/
+.anim-think svg path:first-child {
+  transform-origin: 260px 212px;
+}
+.anim-think.looping svg path:first-child {
+  animation: thinkLoop 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes thinkLoop {
+  0% { transform: translateY(0) rotate(0deg); }
+  /* Squint down — thinking hard */
+  18% { transform: translateY(22px) rotate(3deg); }
+  /* Hold the squint — processing */
+  32% { transform: translateY(22px) rotate(3deg); }
+  /* Open up wide — understanding */
+  52% { transform: translateY(-10px) rotate(-4deg); }
+  /* Settle back */
+  68% { transform: translateY(0) rotate(0.5deg); }
+  /* Rest — breathing room before next cycle */
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* Also play once on click for preview */
+.anim-think.playing svg path:first-child {
+  animation: thinkOnce 2.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes thinkOnce {
+  0% { transform: translateY(0) rotate(0deg); }
+  18% { transform: translateY(22px) rotate(3deg); }
+  32% { transform: translateY(22px) rotate(3deg); }
+  52% { transform: translateY(-10px) rotate(-4deg); }
+  68% { transform: translateY(0) rotate(0.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* ═══ H. DOUBLE BLINK — Key Added ═══ */
+.anim-blink svg path:first-child {
+  transform-origin: 260px 230px;
+}
+.anim-blink.playing svg path:first-child {
+  animation: doubleBlink 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes doubleBlink {
+  0% { transform: translateY(0); }
+  15% { transform: translateY(26px); }
+  30% { transform: translateY(0); }
+  45% { transform: translateY(22px); }
+  60% { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+
+/* ═══ Context simulation ═══ */
+.context-sim {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 260px;
+  padding: 20px;
+  background: rgba(22, 21, 30, 0.6);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  border-radius: 16px;
+}
+
+.context-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.3);
+}
+
+/* Thinking context */
+.think-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(31, 29, 42, 0.6);
+  border-radius: 10px;
+  width: 100%;
+}
+
+.think-dots {
+  display: flex;
+  gap: 3px;
+}
+.think-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(140, 137, 175, 0.5);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+.think-dots span:nth-child(2) { animation-delay: 0.2s; }
+.think-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+.think-text {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(140, 137, 175, 0.5);
+}
+
+/* Key added context */
+.key-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  width: 100%;
+  justify-content: center;
+}
+.key-text {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: rgba(242, 240, 255, 0.93);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Final Animation Set — Three contexts</span>
+
+<div class="cards">
+
+  <!-- ═══ I. DRAW ON ═══ -->
+  <div class="card">
+    <span class="card-context">Home / Welcome</span>
+    <span class="card-label">Draw On</span>
+    <div class="logo-box anim-draw" onclick="replay(this)">
+      <svg viewBox="60 140 420 280" width="100" height="67">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="play-hint">click to replay</span>
+    <span class="card-desc">Plays once on page load. Eyebrow draws first, then the eye spiral traces in. The logo comes alive.</span>
+  </div>
+
+  <!-- ═══ K-LOOP. THINKING ═══ -->
+  <div class="card">
+    <span class="card-context">Loading / Thinking</span>
+    <span class="card-label">Squint Loop</span>
+    <div class="logo-box logo-box-loop anim-think looping" id="thinkBox">
+      <svg viewBox="60 140 420 280" width="100" height="67">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="loop-toggle">
+      <button class="loop-btn active" onclick="toggleLoop(true, this)">Looping</button>
+      <button class="loop-btn" onclick="toggleLoop(false, this)">Paused</button>
+    </div>
+    <span class="card-desc">Continuous smooth loop. Squints (thinking), holds, opens (understanding), rests, repeats. 2.4s per cycle. Contemplative, not frantic.</span>
+  </div>
+
+  <!-- ═══ H. DOUBLE BLINK ═══ -->
+  <div class="card">
+    <span class="card-context">Key Added / Success</span>
+    <span class="card-label">Double Blink</span>
+    <div class="logo-box anim-blink" onclick="replay(this)">
+      <svg viewBox="60 140 420 280" width="100" height="67">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="play-hint">click to replay</span>
+    <span class="card-desc">Two quick blinks — a surprised, delighted reaction. Plays once on success events. "Oh! Something happened."</span>
+  </div>
+
+</div>
+
+<!-- ═══ IN CONTEXT ═══ -->
+<span class="section-label" style="margin-top: 16px;">In context</span>
+<div class="cards">
+
+  <!-- Thinking in context -->
+  <div class="card">
+    <span class="card-context">How it looks while thinking</span>
+    <div class="context-sim">
+      <div class="think-context">
+        <div class="anim-think looping" style="flex-shrink:0;">
+          <svg viewBox="60 140 420 280" width="28" height="19">
+            <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+            <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="think-dots"><span></span><span></span><span></span></div>
+        <span class="think-text">Thinking</span>
+      </div>
+    </div>
+    <span class="card-desc">The Glimpse eye squints and opens while thinking dots pulse. The companion is visibly "working on it." Replaces the current opacity-pulsing text.</span>
+  </div>
+
+  <!-- Key added in context -->
+  <div class="card">
+    <span class="card-context">How it looks on key added</span>
+    <div class="context-sim" onclick="replayChild(this)">
+      <div class="key-context">
+        <div class="anim-blink" style="flex-shrink:0;">
+          <svg viewBox="60 140 420 280" width="32" height="21">
+            <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+            <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span class="key-text">Key added. Happy chatting!</span>
+      </div>
+    </div>
+    <span class="card-desc">Click to replay. The eye blinks twice in delight alongside the success message.</span>
+  </div>
+
+</div>
+
+<script>
+function replay(el) {
+  el.classList.remove('playing');
+  void el.offsetWidth;
+  el.classList.add('playing');
+}
+
+function replayChild(el) {
+  const anim = el.querySelector('.anim-blink');
+  if (anim) {
+    anim.classList.remove('playing');
+    void anim.offsetWidth;
+    anim.classList.add('playing');
+  }
+}
+
+function toggleLoop(on, btn) {
+  const box = document.getElementById('thinkBox');
+  const btns = btn.parentElement.querySelectorAll('.loop-btn');
+  btns.forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (on) {
+    box.classList.add('looping');
+  } else {
+    box.classList.remove('looping');
+  }
+}
+</script>
+
+</body>
+</html>

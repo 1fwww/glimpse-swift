@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Pinned State Transition</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #151517;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.page-header {
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+}
+.page-desc {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+  line-height: 1.6;
+  max-width: 640px;
+}
+
+.row-label {
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.transition-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.arrow-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.3px;
+}
+
+/* ═══ Theme tokens ═══ */
+
+.state-unpinned {
+  --s-base: #F2F2F4;
+  --s-panel: #FAFAFC;
+  --s-elevated: #EEEEF2;
+  --s-input: #F4F4F6;
+  --s-hover: rgba(0, 0, 0, 0.035);
+  --b-dim: rgba(0, 0, 0, 0.065);
+  --b-active: rgba(0, 0, 0, 0.11);
+  --b-focus: rgba(108, 99, 255, 0.35);
+  --t-primary: rgba(18, 18, 25, 0.90);
+  --t-secondary: rgba(45, 45, 62, 0.72);
+  --t-dim: rgba(70, 70, 95, 0.65);
+  --brand-text: #5B53E0;
+  --brand-btn: #635AEE;
+  --brand-muted: rgba(108, 99, 255, 0.10);
+  --brand-dim: rgba(108, 99, 255, 0.06);
+  --brand-border: rgba(108, 99, 255, 0.22);
+  --shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --window-border: rgba(0, 0, 0, 0.065);
+}
+
+.state-pinned {
+  --s-base: #F7F6FB;
+  --s-panel: #FCFBFF;
+  --s-elevated: #F4F2FC;
+  --s-input: #F6F4FD;
+  --s-hover: rgba(108, 99, 255, 0.05);
+  --b-dim: rgba(108, 99, 255, 0.07);
+  --b-active: rgba(108, 99, 255, 0.12);
+  --b-focus: rgba(108, 99, 255, 0.35);
+  --t-primary: rgba(22, 18, 40, 0.90);
+  --t-secondary: rgba(50, 45, 75, 0.72);
+  --t-dim: rgba(75, 70, 110, 0.65);
+  --brand-text: #5B53E0;
+  --brand-btn: #635AEE;
+  --brand-muted: rgba(108, 99, 255, 0.12);
+  --brand-dim: rgba(108, 99, 255, 0.07);
+  --brand-border: rgba(108, 99, 255, 0.25);
+  --shadow: 0 4px 16px rgba(108,99,255,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --window-border: rgba(108, 99, 255, 0.12);
+}
+
+/* ═══ Window ═══ */
+
+.window {
+  width: 370px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--s-base);
+  border: 1px solid var(--window-border);
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.state-label {
+  position: absolute;
+  top: -26px;
+  left: 0;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.state-sublabel {
+  position: absolute;
+  top: -26px;
+  right: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.22);
+}
+
+/* ═══ Chat Components ═══ */
+
+.chat-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--b-dim);
+}
+
+.chat-title-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  flex: 1;
+  min-width: 0;
+}
+.chat-title-btn:hover { background: var(--s-hover); }
+
+.chat-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--t-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-chevron { flex-shrink: 0; color: var(--t-dim); }
+
+.header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.header-btn {
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--b-dim);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t-dim);
+  transition: all 0.15s ease;
+}
+.header-btn:hover {
+  background: var(--s-hover);
+  border-color: var(--b-active);
+  color: var(--t-secondary);
+}
+
+/* Unpinned pin button — default */
+.header-btn.pin-default {
+  color: var(--t-dim);
+  border-color: var(--b-dim);
+}
+
+/* Pinned pin button — active, branded */
+.header-btn.pin-active {
+  background: var(--brand-muted);
+  border-color: var(--brand-border);
+  color: var(--brand-text);
+}
+.header-btn.pin-active:hover {
+  background: rgba(108, 99, 255, 0.18);
+  border-color: var(--brand-text);
+}
+
+/* ═══ Model bar ═══ */
+.model-bar {
+  padding: 4px 12px 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+.model-link {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--t-dim);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+.model-link:hover { color: var(--t-secondary); }
+
+/* ═══ Messages ═══ */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.msg { display: flex; flex-direction: column; }
+.msg-user { align-items: flex-end; }
+.msg-assistant { align-items: flex-start; }
+
+.bubble {
+  padding: 10px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 88%;
+  word-break: break-word;
+}
+.bubble strong { font-weight: 600; color: var(--t-primary); }
+
+.msg-user .bubble {
+  background: var(--brand-muted);
+  color: var(--t-primary);
+  border-radius: 16px 16px 4px 16px;
+}
+.msg-assistant .bubble {
+  background: var(--s-elevated);
+  color: var(--t-primary);
+  border-radius: 16px 16px 16px 4px;
+  border: 1px solid var(--b-dim);
+}
+
+.bq-rewrite {
+  position: relative;
+  border-left: 2px solid var(--brand-border);
+  background: var(--brand-dim);
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.bq-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--t-dim);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.bq-rewrite:hover .bq-copy { opacity: 1; }
+
+.msg-model {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--t-dim);
+  margin-top: 3px;
+  padding-left: 2px;
+}
+
+/* ═══ Input ═══ */
+.chat-input {
+  padding: 10px 12px;
+  border-top: 1px solid var(--b-dim);
+}
+.input-box {
+  width: 100%;
+  background: var(--s-input);
+  border: 1px solid var(--b-dim);
+  border-radius: 12px;
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+}
+.input-box textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--t-primary);
+  padding: 10px 42px 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-display);
+  resize: none;
+  outline: none;
+  line-height: 1.45;
+}
+.input-box textarea::placeholder { color: var(--t-dim); }
+
+.send-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.send-btn[disabled] {
+  background: var(--s-elevated);
+  color: var(--t-dim);
+  cursor: not-allowed;
+}
+
+/* ═══ Change callouts ═══ */
+.changes {
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--b-dim);
+  background: var(--s-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.change-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+.change-label { color: var(--t-dim); }
+.change-value { color: var(--t-secondary); }
+.change-highlight { color: var(--brand-text); font-weight: 600; }
+
+/* ═══ Scrollbar ═══ */
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--b-active); border-radius: 2px; }
+
+/* ═══ Interactive demo ═══ */
+.demo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.demo-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.45);
+}
+.demo-chat {
+  width: 380px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.demo-chat.unpinned {
+  background: #F2F2F4;
+  border: 1px solid rgba(0, 0, 0, 0.065);
+}
+.demo-chat.pinned {
+  background: #F7F6FB;
+  border: 1px solid rgba(108, 99, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(108,99,255,0.06), 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.pin-toggle-btn {
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.pin-toggle-btn.do-pin {
+  background: rgba(108, 99, 255, 0.15);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+  color: rgba(255,255,255,0.85);
+}
+.pin-toggle-btn.do-pin:hover {
+  background: rgba(108, 99, 255, 0.22);
+}
+.pin-toggle-btn.do-unpin {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255,255,255,0.6);
+}
+.pin-toggle-btn.do-unpin:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Demo internal elements that transition */
+.demo-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .demo-header { border-bottom: 1px solid rgba(0,0,0,0.065); }
+.pinned .demo-header { border-bottom: 1px solid rgba(108,99,255,0.07); }
+
+.demo-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  flex: 1;
+  transition: color 0.4s;
+}
+.unpinned .demo-title { color: rgba(18,18,25,0.90); }
+.pinned .demo-title { color: rgba(22,18,40,0.90); }
+
+.demo-pin-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .demo-pin-btn {
+  border: 1.5px solid rgba(0,0,0,0.065);
+  color: rgba(70,70,95,0.65);
+  background: transparent;
+}
+.pinned .demo-pin-btn {
+  border: 1.5px solid rgba(108,99,255,0.25);
+  color: #5B53E0;
+  background: rgba(108,99,255,0.07);
+}
+
+.demo-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.4s;
+}
+.unpinned .demo-close-btn {
+  border: 1.5px solid rgba(0,0,0,0.065);
+  color: rgba(70,70,95,0.65);
+}
+.pinned .demo-close-btn {
+  border: 1.5px solid rgba(108,99,255,0.07);
+  color: rgba(75,70,110,0.65);
+}
+
+.demo-messages {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.demo-bubble-user {
+  align-self: flex-end;
+  padding: 10px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.55;
+  border-radius: 16px 16px 4px 16px;
+  max-width: 85%;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .demo-bubble-user {
+  background: rgba(108,99,255,0.10);
+  color: rgba(18,18,25,0.90);
+}
+.pinned .demo-bubble-user {
+  background: rgba(108,99,255,0.12);
+  color: rgba(22,18,40,0.90);
+}
+
+.demo-bubble-assistant {
+  align-self: flex-start;
+  padding: 10px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.55;
+  border-radius: 16px 16px 16px 4px;
+  max-width: 85%;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .demo-bubble-assistant {
+  background: #EEEEF2;
+  border: 1px solid rgba(0,0,0,0.065);
+  color: rgba(18,18,25,0.90);
+}
+.pinned .demo-bubble-assistant {
+  background: #F4F2FC;
+  border: 1px solid rgba(108,99,255,0.07);
+  color: rgba(22,18,40,0.90);
+}
+
+.demo-bq {
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .demo-bq {
+  border-left: 2px solid rgba(108,99,255,0.22);
+  background: rgba(108,99,255,0.04);
+}
+.pinned .demo-bq {
+  border-left: 2px solid rgba(108,99,255,0.30);
+  background: rgba(108,99,255,0.06);
+}
+
+.demo-input-area {
+  padding: 10px 12px;
+  transition: border-color 0.4s;
+}
+.unpinned .demo-input-area { border-top: 1px solid rgba(0,0,0,0.065); }
+.pinned .demo-input-area { border-top: 1px solid rgba(108,99,255,0.07); }
+
+.demo-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  outline: none;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .demo-input {
+  background: #F4F4F6;
+  border: 1px solid rgba(0,0,0,0.065);
+  color: rgba(70,70,95,0.65);
+}
+.pinned .demo-input {
+  background: #F6F4FD;
+  border: 1px solid rgba(108,99,255,0.07);
+  color: rgba(75,70,110,0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <span class="page-title">Pinned State — Light Theme Transition</span>
+  <span class="page-desc">Pinning shifts the panel from Warm Gray (neutral, utilitarian) to Soft Lavender (branded, companion). The entire surface, borders, and tints transform. Scroll down to try the interactive toggle.</span>
+</div>
+
+<!-- ═══ STATIC COMPARISON ═══ -->
+<span class="row-label">Side by side</span>
+<div class="transition-row">
+
+  <!-- Unpinned -->
+  <div style="position:relative;margin-top:32px;">
+    <span class="state-label">Unpinned</span>
+    <span class="state-sublabel">Warm Gray</span>
+    <div class="window state-unpinned">
+      <div class="chat-header">
+        <button class="chat-title-btn">
+          <span class="chat-title">Rewrite team message</span>
+          <svg class="chat-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="header-actions">
+          <button class="header-btn pin-default" aria-label="Pin to screen">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+          </button>
+          <button class="header-btn" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="model-bar"><button class="model-link">claude-sonnet-4-5 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button></div>
+      <div class="messages">
+        <div class="msg msg-user"><div class="bubble">Make this more concise and friendly?</div></div>
+        <div class="msg msg-assistant">
+          <div class="bubble">
+            Here's a lighter version:
+            <div class="bq-rewrite">Following up on our Q3 timeline chat — here's where we are on the action items.<button class="bq-copy">Copy</button></div>
+            Shorter, warmer, same meaning.
+          </div>
+          <span class="msg-model">claude-sonnet-4-5</span>
+        </div>
+        <div class="msg msg-user"><div class="bubble">Perfect, thanks!</div></div>
+      </div>
+      <div class="chat-input">
+        <div class="input-box"><textarea rows="1" placeholder="Ask anything..."></textarea><button class="send-btn" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button></div>
+      </div>
+      <div class="changes">
+        <div class="change-row"><span class="change-label">surface</span><span class="change-value">#F2F2F4 warm gray</span></div>
+        <div class="change-row"><span class="change-label">borders</span><span class="change-value">black-alpha (neutral)</span></div>
+        <div class="change-row"><span class="change-label">pin button</span><span class="change-value">default (dim)</span></div>
+        <div class="change-row"><span class="change-label">window border</span><span class="change-value">neutral</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+    <span class="arrow-label">Pin</span>
+  </div>
+
+  <!-- Pinned -->
+  <div style="position:relative;margin-top:32px;">
+    <span class="state-label">Pinned</span>
+    <span class="state-sublabel">Soft Lavender</span>
+    <div class="window state-pinned">
+      <div class="chat-header">
+        <button class="chat-title-btn">
+          <span class="chat-title">Rewrite team message</span>
+          <svg class="chat-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="header-actions">
+          <button class="header-btn pin-active" aria-label="Unpin">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+          </button>
+          <button class="header-btn" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="model-bar"><button class="model-link">claude-sonnet-4-5 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button></div>
+      <div class="messages">
+        <div class="msg msg-user"><div class="bubble">Make this more concise and friendly?</div></div>
+        <div class="msg msg-assistant">
+          <div class="bubble">
+            Here's a lighter version:
+            <div class="bq-rewrite">Following up on our Q3 timeline chat — here's where we are on the action items.<button class="bq-copy">Copy</button></div>
+            Shorter, warmer, same meaning.
+          </div>
+          <span class="msg-model">claude-sonnet-4-5</span>
+        </div>
+        <div class="msg msg-user"><div class="bubble">Perfect, thanks!</div></div>
+      </div>
+      <div class="chat-input">
+        <div class="input-box"><textarea rows="1" placeholder="Ask anything..."></textarea><button class="send-btn" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button></div>
+      </div>
+      <div class="changes">
+        <div class="change-row"><span class="change-label">surface</span><span class="change-highlight">#F7F6FB lavender</span></div>
+        <div class="change-row"><span class="change-label">borders</span><span class="change-highlight">brand-alpha (tinted)</span></div>
+        <div class="change-row"><span class="change-label">pin button</span><span class="change-highlight">brand fill + border</span></div>
+        <div class="change-row"><span class="change-label">window border</span><span class="change-highlight">brand-tinted</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ INTERACTIVE TOGGLE ═══ -->
+<div class="demo-section">
+  <span class="demo-label">Click to feel the transition</span>
+
+  <div class="demo-chat unpinned" id="demoChat">
+    <div class="demo-header">
+      <span class="demo-title">Rewrite team message</span>
+      <div style="display:flex;gap:4px;">
+        <button class="demo-pin-btn" id="demoPinBtn" onclick="togglePin()" aria-label="Toggle pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="demo-close-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="demo-messages">
+      <div class="demo-bubble-user">Make this more concise and friendly?</div>
+      <div class="demo-bubble-assistant">
+        Here's a lighter version:
+        <div class="demo-bq">Following up on our Q3 timeline chat — here's where we are on the action items.</div>
+        Shorter, warmer, same meaning.
+      </div>
+      <div class="demo-bubble-user">Perfect, thanks!</div>
+    </div>
+    <div class="demo-input-area">
+      <input class="demo-input" type="text" placeholder="Ask anything..." readonly>
+    </div>
+  </div>
+
+  <button class="pin-toggle-btn do-pin" id="pinBtn" onclick="togglePin()">Pin to screen</button>
+</div>
+
+<script>
+let isPinned = false;
+function togglePin() {
+  isPinned = !isPinned;
+  const chat = document.getElementById('demoChat');
+  const btn = document.getElementById('pinBtn');
+
+  if (isPinned) {
+    chat.classList.remove('unpinned');
+    chat.classList.add('pinned');
+    btn.textContent = 'Unpin';
+    btn.classList.remove('do-pin');
+    btn.classList.add('do-unpin');
+  } else {
+    chat.classList.remove('pinned');
+    chat.classList.add('unpinned');
+    btn.textContent = 'Pin to screen';
+    btn.classList.remove('do-unpin');
+    btn.classList.add('do-pin');
+  }
+}
+</script>
+
+</body>
+</html>

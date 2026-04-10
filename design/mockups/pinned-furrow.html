@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Pinned Furrowed Brow</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #16151E;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 800px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.options {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.option-desc {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 200px;
+  line-height: 1.5;
+}
+
+.rec-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(108, 99, 255, 0.12);
+  border: 1px solid rgba(108, 99, 255, 0.2);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(133, 128, 255, 0.7);
+}
+
+/* Large preview box */
+.preview {
+  width: 100px;
+  height: 75px;
+  background: rgba(22, 21, 30, 0.6);
+  border: 1px solid rgba(108, 99, 255, 0.06);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Header context */
+.header-sim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border-radius: 12px 12px 0 0;
+  background: rgba(22, 21, 30, 0.96);
+  border-bottom: 1px solid rgba(108, 99, 255, 0.08);
+  width: 340px;
+}
+
+.header-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(242,240,255,0.93);
+  flex: 1;
+}
+
+.header-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-btn.default { border: 1.5px solid rgba(108,99,255,0.08); color: rgba(140,137,175,0.5); }
+.header-btn.pinned { border: 1.5px solid rgba(108,99,255,0.25); color: #8580FF; background: rgba(108,99,255,0.07); }
+.header-btn.new-chat { border: 1.5px solid rgba(108,99,255,0.13); color: #8580FF; }
+.header-sep { width: 1px; height: 18px; background: rgba(108,99,255,0.08); flex-shrink: 0; }
+
+/* Interactive demo */
+.demo-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.demo-panel {
+  width: 340px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.demo-panel.unpinned {
+  background: rgba(22, 21, 30, 0.96);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.30);
+  transform: scale(1);
+}
+.demo-panel.is-pinned {
+  background: rgba(22, 21, 30, 0.97);
+  border: 1.5px solid rgba(108, 99, 255, 0.20);
+  box-shadow: 0 8px 32px rgba(108,99,255,0.08), 0 20px 60px rgba(0,0,0,0.35);
+  transform: scale(1.015) translateY(-4px);
+}
+
+.demo-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(108, 99, 255, 0.08);
+}
+.demo-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(242,240,255,0.93);
+  flex: 1;
+}
+
+.demo-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.demo-pin.is-off { border: 1.5px solid rgba(108,99,255,0.08); color: rgba(140,137,175,0.5); background: transparent; }
+.demo-pin.is-on { border: 1.5px solid rgba(108,99,255,0.25); color: #8580FF; background: rgba(108,99,255,0.07); }
+
+.demo-body {
+  padding: 14px;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.demo-hint {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(140,137,175,0.45);
+}
+
+.toggle-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(108,99,255,0.12);
+  border: 1px solid rgba(108,99,255,0.20);
+  color: rgba(242,240,255,0.85);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.toggle-btn:hover { background: rgba(108,99,255,0.18); }
+
+/* SVG path transition for morphing */
+.morph-brow {
+  transition: d 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Pinned — Furrowed Brow (shape change, not position)</span>
+
+<!-- ═══ LARGE COMPARISON ═══ -->
+<span class="section-label">Large — resting vs furrowed</span>
+<div class="options">
+
+  <div class="option">
+    <span class="option-label">Resting</span>
+    <div class="preview">
+      <svg viewBox="60 140 420 280" width="56" height="37">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Normal curved eyebrow. Relaxed.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">A. Subtle</span>
+    <div class="preview">
+      <svg viewBox="60 140 420 280" width="56" height="37">
+        <path d="M98 200C180 198 340 218 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Left lifts slightly, right stays. Gentle straightening. Mild focus.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">B. Clear</span>
+    <div class="preview">
+      <svg viewBox="60 140 420 280" width="56" height="37">
+        <path d="M98 192C200 192 350 204 420 234" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="rec-badge">recommended</span>
+    <span class="option-desc">Left end lifts up clearly, right end stays put. Nearly straight diagonal. Focused, intrigued — "I'm paying attention."</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">C. Strong</span>
+    <div class="preview">
+      <svg viewBox="60 140 420 280" width="56" height="37">
+        <path d="M98 188C180 198 340 224 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Left lifts more dramatically. Clear diagonal slash. Very determined — might be too intense.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">D. Straight</span>
+    <div class="preview">
+      <svg viewBox="60 140 420 280" width="56" height="37">
+        <path d="M105 198C180 205 340 228 415 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Almost perfectly straight line, slight tilt. Clean, minimal. Less expressive but very readable shape change.</span>
+  </div>
+
+</div>
+
+<!-- ═══ AT 24px ═══ -->
+<span class="section-label">At actual header size (24×16px)</span>
+<div class="options">
+  <div class="option">
+    <span class="option-label">Resting</span>
+    <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+  </div>
+  <div class="option">
+    <span class="option-label">A. Subtle</span>
+    <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 200C180 198 340 218 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+  </div>
+  <div class="option">
+    <span class="option-label">B. Clear</span>
+    <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 192C200 192 350 204 420 234" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+  </div>
+  <div class="option">
+    <span class="option-label">C. Strong</span>
+    <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 188C180 198 340 224 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+  </div>
+  <div class="option">
+    <span class="option-label">D. Straight</span>
+    <svg viewBox="60 140 420 280" width="24" height="16"><path d="M105 198C180 205 340 228 415 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+  </div>
+</div>
+
+<!-- ═══ IN HEADER CONTEXT ═══ -->
+<span class="section-label">In header — resting vs pinned (Option B)</span>
+<div class="options">
+  <div class="option">
+    <span class="option-label">Unpinned</span>
+    <div class="header-sim">
+      <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+      <span class="header-title">Debug query</span>
+      <div style="flex:1;"></div>
+      <div class="header-btn new-chat"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+      <div class="header-sep"></div>
+      <div class="header-btn default"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+    </div>
+  </div>
+  <div class="option">
+    <span class="option-label">Pinned (focused)</span>
+    <div class="header-sim">
+      <svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 192C200 192 350 204 420 234" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+      <span class="header-title">Debug query</span>
+      <div style="flex:1;"></div>
+      <div class="header-btn new-chat"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+      <div class="header-sep"></div>
+      <div class="header-btn pinned"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ INTERACTIVE ═══ -->
+<span class="section-label">Click pin to toggle — SVG path swaps on pin</span>
+<div class="options">
+  <div class="demo-wrapper">
+    <div class="demo-panel unpinned" id="panel">
+      <div class="demo-header">
+        <svg viewBox="60 140 420 280" width="24" height="16" id="eyeSvg">
+          <path id="browPath" d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+        <span class="demo-title">Debug query</span>
+        <div style="flex:1;"></div>
+        <div class="demo-btn" style="border:1.5px solid rgba(108,99,255,0.13);color:#8580FF;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div style="width:1px;height:18px;background:rgba(108,99,255,0.08);flex-shrink:0;"></div>
+        <div class="demo-btn demo-pin is-off" id="pinBtn" onclick="togglePin()">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </div>
+      </div>
+      <div class="demo-body">
+        <span class="demo-hint" id="hint">Click pin →</span>
+      </div>
+    </div>
+    <button class="toggle-btn" onclick="togglePin()" id="tBtn">Pin to screen</button>
+  </div>
+</div>
+
+<script>
+const RESTING = "M98 212C152 174 365 158 420 248";
+const FURROWED = "M98 192C200 192 350 204 420 234";
+
+let pinned = false;
+function togglePin() {
+  pinned = !pinned;
+  const panel = document.getElementById('panel');
+  const brow = document.getElementById('browPath');
+  const pin = document.getElementById('pinBtn');
+  const btn = document.getElementById('tBtn');
+  const hint = document.getElementById('hint');
+
+  if (pinned) {
+    panel.classList.remove('unpinned');
+    panel.classList.add('is-pinned');
+    brow.setAttribute('d', FURROWED);
+    pin.classList.remove('is-off');
+    pin.classList.add('is-on');
+    btn.textContent = 'Unpin';
+    hint.textContent = 'Pinned — brow focused';
+  } else {
+    panel.classList.remove('is-pinned');
+    panel.classList.add('unpinned');
+    brow.setAttribute('d', RESTING);
+    pin.classList.remove('is-on');
+    pin.classList.add('is-off');
+    btn.textContent = 'Pin to screen';
+    hint.textContent = 'Click pin →';
+  }
+}
+</script>
+
+</body>
+</html>

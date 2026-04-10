@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pinned State — Color Options</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap');
+
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e12;
+    padding: 32px;
+    font-family: 'Outfit', sans-serif;
+    color: rgba(242, 240, 255, 0.93);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  h1 { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.5); }
+  .subtitle { font-size: 12px; color: rgba(255,255,255,0.3); margin-bottom: 8px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+
+  .option {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .label {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+  }
+  .label span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.25);
+    margin-left: 6px;
+  }
+
+  .panel {
+    width: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Unpinned base */
+  .panel.unpinned {
+    background: rgba(22, 21, 30, 0.96);
+  }
+
+  .panel-header {
+    padding: 11px 12px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(108, 99, 255, 0.08);
+    transition: border-color 0.45s;
+  }
+
+  .pinned .panel-header {
+    border-bottom-color: rgba(108, 99, 255, 0.15);
+  }
+
+  .eye { width: 20px; height: 14px; flex-shrink: 0; }
+
+  .title {
+    font-weight: 600;
+    font-size: 13px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pin-btn {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid rgba(108,99,255,0.13);
+    background: transparent;
+    color: rgba(140,137,175,0.5);
+    cursor: pointer;
+    transition: all 0.35s;
+    flex-shrink: 0;
+  }
+
+  .pinned .pin-btn {
+    border-color: rgba(108,99,255,0.35);
+    color: #8580FF;
+    background: rgba(108,99,255,0.10);
+  }
+
+  .messages {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 120px;
+  }
+
+  .bubble {
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 85%;
+    border-radius: 12px;
+  }
+
+  .b-user {
+    align-self: flex-end;
+    background: rgba(108, 99, 255, 0.12);
+    border-radius: 12px 12px 3px 12px;
+  }
+
+  .b-asst {
+    align-self: flex-start;
+    border: 1px solid rgba(108, 99, 255, 0.08);
+    border-radius: 12px 12px 12px 3px;
+    transition: background 0.45s, border-color 0.45s;
+  }
+
+  .unpinned .b-asst { background: rgba(31, 29, 42, 0.92); }
+
+  .model-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: rgba(140,137,175,0.5);
+    margin-top: 2px;
+    padding-left: 2px;
+  }
+
+  .input-area {
+    padding: 8px 12px 10px;
+    border-top: 1px solid rgba(108, 99, 255, 0.08);
+    transition: border-color 0.45s;
+  }
+
+  .pinned .input-area {
+    border-top-color: rgba(108, 99, 255, 0.12);
+  }
+
+  .input-field {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    border: 1px solid rgba(108, 99, 255, 0.08);
+    outline: none;
+    color: rgba(140,137,175,0.5);
+    transition: border-color 0.45s, background 0.45s;
+  }
+
+  .unpinned .input-field { background: rgba(26, 25, 36, 0.96); }
+
+  .pinned .input-field {
+    border-color: rgba(108, 99, 255, 0.15);
+  }
+
+  .footer {
+    padding: 4px 12px 8px;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: rgba(140,137,175,0.5);
+  }
+
+  /* ── Color variants for pinned ── */
+  .panel.opt-a { background: rgba(24, 22, 38, 0.98); }
+  .panel.opt-a .b-asst { background: rgba(32, 30, 48, 0.92); }
+  .panel.opt-a .input-field { background: rgba(28, 26, 42, 0.96); }
+
+  .panel.opt-b { background: rgba(28, 22, 36, 0.98); }
+  .panel.opt-b .b-asst { background: rgba(36, 30, 44, 0.92); }
+  .panel.opt-b .input-field { background: rgba(32, 26, 40, 0.96); }
+
+  .panel.opt-c { background: rgba(20, 22, 38, 0.98); }
+  .panel.opt-c .b-asst { background: rgba(28, 30, 48, 0.92); }
+  .panel.opt-c .input-field { background: rgba(24, 26, 42, 0.96); }
+
+  .panel.opt-d { background: rgba(28, 24, 42, 0.98); }
+  .panel.opt-d .b-asst { background: rgba(36, 32, 52, 0.92); }
+  .panel.opt-d .input-field { background: rgba(32, 28, 46, 0.96); }
+
+  /* Inset lines for pinned */
+  .panel.pinned {
+    box-shadow:
+      inset 0 1px 0 rgba(108, 99, 255, 0.12),
+      inset 0 -1px 0 rgba(108, 99, 255, 0.06);
+  }
+
+  /* Toggle button */
+  .toggle-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .toggle-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid rgba(108,99,255,0.3);
+    background: rgba(108,99,255,0.12);
+    color: rgba(255,255,255,0.8);
+    cursor: pointer;
+  }
+  .toggle-btn:hover { background: rgba(108,99,255,0.2); }
+
+  /* Reference: unpinned panel */
+  .ref-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.2);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Pinned State — Color Options (Dark Mode)</h1>
+<p class="subtitle">Click "Toggle" to compare pinned vs unpinned. All panels start pinned.</p>
+
+<div class="grid">
+
+  <!-- Option A -->
+  <div class="option">
+    <div class="label">A. 冷紫调 (current) <span>rgba(24, 22, 38)</span></div>
+    <div class="panel pinned opt-a" id="panelA">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelA','opt-a')">Toggle pin</button>
+  </div>
+
+  <!-- Option B -->
+  <div class="option">
+    <div class="label">B. 暖紫调 (violet) <span>rgba(28, 22, 36)</span></div>
+    <div class="panel pinned opt-b" id="panelB">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelB','opt-b')">Toggle pin</button>
+  </div>
+
+  <!-- Option C -->
+  <div class="option">
+    <div class="label">C. 深靛蓝 (indigo) <span>rgba(20, 22, 38)</span></div>
+    <div class="panel pinned opt-c" id="panelC">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelC','opt-c')">Toggle pin</button>
+  </div>
+
+  <!-- Option D -->
+  <div class="option">
+    <div class="label">D. 强紫调 (bold) <span>rgba(28, 24, 42)</span></div>
+    <div class="panel pinned opt-d" id="panelD">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelD','opt-d')">Toggle pin</button>
+  </div>
+
+</div>
+
+<script>
+function toggle(id, cls) {
+  const panel = document.getElementById(id);
+  const isPinned = panel.classList.contains('pinned');
+  if (isPinned) {
+    panel.classList.remove('pinned', cls);
+    panel.classList.add('unpinned');
+  } else {
+    panel.classList.remove('unpinned');
+    panel.classList.add('pinned', cls);
+  }
+}
+</script>
+
+</body>
+</html>

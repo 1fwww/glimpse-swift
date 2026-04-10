@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Attachment & Snippet Styles</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #0e0e12;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 800px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.compare {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+
+.option-desc {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* ═══ Input box simulation ═══ */
+
+.input-sim {
+  width: 360px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.input-sim-dark {
+  background: rgba(26,25,36,0.96);
+  border: 1px solid rgba(108,99,255,0.08);
+}
+
+.input-sim-light {
+  background: #F4F4F6;
+  border: 1px solid rgba(0,0,0,0.065);
+}
+
+/* ═══ OLD — Current values ═══ */
+
+.att-old-dark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.06);
+  border-left: 2px solid rgba(108,99,255,0.22);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(175,172,205,0.75);
+}
+
+.dismiss-old-dark {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(140,137,175,0.50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.snippet-old-dark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.06);
+  border-left: 2px solid rgba(108,99,255,0.40);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(175,172,205,0.75);
+}
+
+/* ═══ NEW — Updated values ═══ */
+
+.att-new-dark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.12);
+  border-left: 2px solid rgba(108,99,255,0.35);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(175,172,205,0.75);
+}
+
+.dismiss-new {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: rgba(175,172,205,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.dismiss-new:hover {
+  color: rgba(242,240,255,0.93);
+  background: rgba(255,255,255,0.06);
+}
+
+.snippet-new-dark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.12);
+  border-left: 2px solid rgba(108,99,255,0.50);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(175,172,205,0.75);
+}
+
+/* ═══ LIGHT — Old ═══ */
+
+.att-old-light {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.06);
+  border-left: 2px solid rgba(108,99,255,0.22);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(45,45,62,0.72);
+}
+
+.dismiss-old-light {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.05);
+  border: 1px solid rgba(0,0,0,0.08);
+  color: rgba(70,70,95,0.50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.snippet-old-light {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.06);
+  border-left: 2px solid rgba(108,99,255,0.40);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(45,45,62,0.72);
+}
+
+/* ═══ LIGHT — New ═══ */
+
+.att-new-light {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.06);
+  border-left: 2px solid rgba(108,99,255,0.22);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(45,45,62,0.72);
+}
+
+.dismiss-new-light {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: rgba(45,45,62,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.dismiss-new-light:hover {
+  color: rgba(18,18,25,0.90);
+  background: rgba(0,0,0,0.04);
+}
+
+.snippet-new-light {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px 2px;
+  padding: 5px 10px;
+  background: rgba(108,99,255,0.06);
+  border-left: 2px solid rgba(108,99,255,0.40);
+  border-radius: 2px 6px 6px 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(45,45,62,0.72);
+}
+
+/* ═══ Textarea sim ═══ */
+
+.textarea-sim {
+  padding: 8px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.input-sim-dark .textarea-sim { color: rgba(140,137,175,0.50); }
+.input-sim-light .textarea-sim { color: rgba(70,70,95,0.50); }
+
+/* Icon */
+.att-icon { flex-shrink: 0; }
+.input-sim-dark .att-icon { color: rgba(140,137,175,0.50); }
+.input-sim-light .att-icon { color: rgba(70,70,95,0.45); }
+
+.badge-fail {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.15);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(239,68,68,0.6);
+}
+
+.badge-pass {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(35,133,66,0.12);
+  border: 1px solid rgba(35,133,66,0.20);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(35,133,66,0.7);
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Attachment & Snippet — Before / After</span>
+
+<!-- ═══ DARK THEME ═══ -->
+<span class="section-label">Dark theme</span>
+<div class="compare">
+
+  <!-- Old dark -->
+  <div class="option">
+    <span class="option-label">Before</span>
+    <div class="input-sim input-sim-dark">
+      <div class="att-old-dark">
+        <svg class="att-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Screenshot attached</span>
+        <button class="dismiss-old-dark">×</button>
+      </div>
+      <div class="snippet-old-dark">
+        <span>"Per our previous discussion regarding the Q3..."</span>
+        <button class="dismiss-old-dark">×</button>
+      </div>
+      <div class="textarea-sim">Ask about this screenshot...</div>
+    </div>
+    <span class="badge-fail">bg invisible · dismiss 1.77:1</span>
+    <span class="option-desc">Background barely visible against input. Dismiss button has bg+border+dim text — too many faint layers.</span>
+  </div>
+
+  <!-- New dark -->
+  <div class="option">
+    <span class="option-label">After</span>
+    <div class="input-sim input-sim-dark">
+      <div class="att-new-dark">
+        <svg class="att-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Screenshot attached</span>
+        <button class="dismiss-new">×</button>
+      </div>
+      <div class="snippet-new-dark">
+        <span>"Per our previous discussion regarding the Q3..."</span>
+        <button class="dismiss-new">×</button>
+      </div>
+      <div class="textarea-sim">Ask about this screenshot...</div>
+    </div>
+    <span class="badge-pass">bg visible · dismiss 4.62:1 AA ✓</span>
+    <span class="option-desc">Stronger bg (0.12), stronger borders (0.35/0.50). Dismiss simplified to text-only × in --text-secondary. Hover the × to see it brighten.</span>
+  </div>
+
+</div>
+
+<!-- ═══ LIGHT THEME ═══ -->
+<span class="section-label">Light theme</span>
+<div class="compare">
+
+  <!-- Old light -->
+  <div class="option">
+    <span class="option-label">Before</span>
+    <div class="input-sim input-sim-light">
+      <div class="att-old-light">
+        <svg class="att-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Screenshot attached</span>
+        <button class="dismiss-old-light">×</button>
+      </div>
+      <div class="snippet-old-light">
+        <span>"Per our previous discussion regarding the Q3..."</span>
+        <button class="dismiss-old-light">×</button>
+      </div>
+      <div class="textarea-sim">Ask about this screenshot...</div>
+    </div>
+    <span class="badge-fail">dismiss 2.31:1</span>
+    <span class="option-desc">Bg is fine on light. Dismiss button too faint.</span>
+  </div>
+
+  <!-- New light -->
+  <div class="option">
+    <span class="option-label">After</span>
+    <div class="input-sim input-sim-light">
+      <div class="att-new-light">
+        <svg class="att-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Screenshot attached</span>
+        <button class="dismiss-new-light">×</button>
+      </div>
+      <div class="snippet-new-light">
+        <span>"Per our previous discussion regarding the Q3..."</span>
+        <button class="dismiss-new-light">×</button>
+      </div>
+      <div class="textarea-sim">Ask about this screenshot...</div>
+    </div>
+    <span class="badge-pass">dismiss 5.06:1 AA ✓</span>
+    <span class="option-desc">Same simplification — dismiss is text-only × in --text-secondary. Bg and borders unchanged (already visible on light).</span>
+  </div>
+
+</div>
+
+</body>
+</html>

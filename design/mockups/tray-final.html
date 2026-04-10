@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Tray Icon: E2 vs F2 Fine-tuning</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #16151E;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.6); max-width: 800px; width: 100%; }
+.section-label { font-family: var(--font-display); font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.2); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 100%; }
+.options { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+.option { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.option-label { font-family: var(--font-display); font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); }
+.option-desc { font-family: var(--font-display); font-size: 10px; color: rgba(255,255,255,0.25); text-align: center; max-width: 150px; line-height: 1.5; }
+.rec-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(108,99,255,0.12); border: 1px solid rgba(108,99,255,0.2); font-family: var(--font-display); font-size: 9px; font-weight: 500; color: rgba(133,128,255,0.7); }
+
+.preview {
+  width: 88px;
+  height: 88px;
+  background: rgba(22, 21, 30, 0.5);
+  border: 1px solid rgba(108, 99, 255, 0.06);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview-sm {
+  width: 44px;
+  height: 44px;
+  background: rgba(22, 21, 30, 0.3);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.tray-dark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  background: rgba(30,30,35,0.95);
+  border-radius: 5px;
+}
+.tray-light {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  background: rgba(240,240,245,0.90);
+  border-radius: 5px;
+}
+.tray-dot { width: 4px; height: 4px; border-radius: 50%; }
+.tray-dot-d { background: rgba(255,255,255,0.25); }
+.tray-dot-l { background: rgba(0,0,0,0.2); }
+.tray-clock { font-family: var(--font-display); font-size: 11px; font-weight: 500; }
+.tray-clock-d { color: rgba(255,255,255,0.7); }
+.tray-clock-l { color: rgba(0,0,0,0.6); }
+
+/* Guide overlay for showing crop edges */
+.preview-guide {
+  position: relative;
+}
+.preview-guide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgba(108,99,255,0.15);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Tray Icon — E2 vs F2 裁切微调</span>
+
+<!-- ═══ E2 VARIANTS ═══ -->
+<span class="section-label">E2 — Right crop, edge control</span>
+<div class="options">
+
+  <div class="option">
+    <span class="option-label">E2a. Original</span>
+    <div class="preview">
+      <svg viewBox="230 180 220 220" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Original viewBox. Some strokes just graze the left edge.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">E2b. Shifted right</span>
+    <div class="preview">
+      <svg viewBox="245 185 210 210" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Tighter. Left edge cuts boldly through the outer eye arc. Clean entrance.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">E2c. More zoom</span>
+    <div class="preview">
+      <svg viewBox="255 195 195 195" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Even tighter. Spiral fills more of the frame. Eyebrow enters from top clearly.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">E2d. Offset down</span>
+    <div class="preview">
+      <svg viewBox="240 200 210 210" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Shifted down slightly. Eyebrow tip visible at top. Spiral tail exits bottom clearly.</span>
+  </div>
+
+</div>
+
+<!-- ═══ F2 VARIANTS ═══ -->
+<span class="section-label">F2 — Corner crop, edge control</span>
+<div class="options">
+
+  <div class="option">
+    <span class="option-label">F2a. Original</span>
+    <div class="preview">
+      <svg viewBox="250 140 220 220" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Original. Eyebrow descends from top-right, spiral rises from bottom-left.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">F2b. Tighter</span>
+    <div class="preview">
+      <svg viewBox="260 155 200 200" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Tighter crop. Lines fill more of the frame. Eyebrow and spiral cross boldly.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">F2c. Centered cross</span>
+    <div class="preview">
+      <svg viewBox="255 160 205 205" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">The crossing point of eyebrow and spiral is centered in the frame. Balanced knot.</span>
+  </div>
+
+  <div class="option">
+    <span class="option-label">F2d. Higher</span>
+    <div class="preview">
+      <svg viewBox="250 130 210 210" width="88" height="88">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="option-desc">Shifted up. More eyebrow visible. Spiral tail exits bottom edge boldly.</span>
+  </div>
+
+</div>
+
+<!-- ═══ AT TRAY SIZE ═══ -->
+<span class="section-label">Best of each at 44px + 16px tray</span>
+<div class="options">
+
+  <div class="option">
+    <span class="option-label">E2c</span>
+    <div class="preview-sm"><svg viewBox="255 195 195 195" width="44" height="44"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/></svg></div>
+    <div class="tray-dark" style="margin-top:4px;">
+      <span class="tray-clock tray-clock-d">10:46</span>
+      <svg viewBox="255 195 195 195" width="16" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="24" stroke-linecap="round"/></svg>
+      <div class="tray-dot tray-dot-d"></div>
+    </div>
+  </div>
+
+  <div class="option">
+    <span class="option-label">F2c</span>
+    <div class="preview-sm"><svg viewBox="255 160 205 205" width="44" height="44"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/></svg></div>
+    <div class="tray-dark" style="margin-top:4px;">
+      <span class="tray-clock tray-clock-d">10:46</span>
+      <svg viewBox="255 160 205 205" width="16" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="22" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="24" stroke-linecap="round"/></svg>
+      <div class="tray-dot tray-dot-d"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Light -->
+<span class="section-label">Light menu bar</span>
+<div class="options">
+
+  <div class="option">
+    <span class="option-label">E2c</span>
+    <div class="tray-light">
+      <span class="tray-clock tray-clock-l">10:46</span>
+      <svg viewBox="255 195 195 195" width="16" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="black" stroke-width="22" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="black" stroke-width="24" stroke-linecap="round"/></svg>
+      <div class="tray-dot tray-dot-l"></div>
+    </div>
+  </div>
+
+  <div class="option">
+    <span class="option-label">F2c</span>
+    <div class="tray-light">
+      <span class="tray-clock tray-clock-l">10:46</span>
+      <svg viewBox="255 160 205 205" width="16" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="black" stroke-width="22" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="black" stroke-width="24" stroke-linecap="round"/></svg>
+      <div class="tray-dot tray-dot-l"></div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

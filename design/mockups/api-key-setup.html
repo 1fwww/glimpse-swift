@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — API Key Setup (Redesigned)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #0e0e12;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 960px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.flow-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.state-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* ═══ Chat Panel Shell ═══ */
+
+.chat-shell {
+  width: 380px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.chat-shell-dark {
+  background: #16151E;
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+.chat-shell-light {
+  background: #F2F2F4;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.10);
+}
+
+/* Simulated chat header */
+.sim-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-shell-dark .sim-header { border-bottom: 1px solid rgba(108,99,255,0.08); }
+.chat-shell-light .sim-header { border-bottom: 1px solid rgba(0,0,0,0.06); }
+
+.sim-eye { flex-shrink: 0; }
+
+.sim-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  flex: 1;
+}
+.chat-shell-dark .sim-title { color: rgba(242,240,255,0.93); }
+.chat-shell-light .sim-title { color: rgba(18,18,25,0.90); }
+
+.sim-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-shell-dark .sim-btn { border: 1.5px solid rgba(108,99,255,0.08); color: rgba(140,137,175,0.5); }
+.chat-shell-light .sim-btn { border: 1.5px solid rgba(0,0,0,0.06); color: rgba(70,70,95,0.5); }
+
+/* ═══ API Key Setup Area ═══ */
+
+.setup {
+  flex: 1;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+/* Header */
+.setup-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.setup-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+}
+.chat-shell-dark .setup-title { color: rgba(242,240,255,0.93); }
+.chat-shell-light .setup-title { color: rgba(18,18,25,0.90); }
+
+.setup-desc {
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.chat-shell-dark .setup-desc { color: rgba(175,172,205,0.75); }
+.chat-shell-light .setup-desc { color: rgba(45,45,62,0.72); }
+
+.setup-privacy {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.chat-shell-dark .setup-privacy { color: rgba(140,137,175,0.65); }
+.chat-shell-light .setup-privacy { color: rgba(70,70,95,0.60); }
+
+/* Provider cards */
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.provider-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chat-shell-dark .provider-card {
+  background: rgba(31,29,42,0.5);
+  border: 1px solid rgba(108,99,255,0.06);
+}
+.chat-shell-dark .provider-card:hover {
+  border-color: rgba(108,99,255,0.15);
+  background: rgba(31,29,42,0.7);
+}
+.chat-shell-light .provider-card {
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(0,0,0,0.05);
+}
+.chat-shell-light .provider-card:hover {
+  border-color: rgba(0,0,0,0.10);
+  background: rgba(255,255,255,0.8);
+}
+
+.provider-card.saved {
+  opacity: 0.55;
+  cursor: default;
+}
+.provider-card.saved:hover {
+  border-color: rgba(35,133,66,0.20) !important;
+  background: inherit;
+}
+
+.provider-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+}
+.chat-shell-dark .provider-name { color: rgba(242,240,255,0.93); }
+.chat-shell-light .provider-name { color: rgba(18,18,25,0.90); }
+
+.provider-chevron { flex-shrink: 0; }
+.chat-shell-dark .provider-chevron { color: rgba(140,137,175,0.60); }
+.chat-shell-light .provider-chevron { color: rgba(70,70,95,0.50); }
+
+.provider-check { flex-shrink: 0; color: #238542; }
+
+/* Key input */
+.key-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  transition: color 0.15s;
+  padding: 0;
+}
+.chat-shell-dark .back-btn { color: rgba(175,172,205,0.70); }
+.chat-shell-dark .back-btn:hover { color: rgba(242,240,255,0.93); }
+.chat-shell-light .back-btn { color: rgba(45,45,62,0.65); }
+.chat-shell-light .back-btn:hover { color: rgba(18,18,25,0.90); }
+
+.key-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.key-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.chat-shell-dark .key-input {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(108,99,255,0.08);
+  color: rgba(242,240,255,0.93);
+}
+.chat-shell-dark .key-input:focus { border-color: rgba(108,99,255,0.30); }
+.chat-shell-dark .key-input::placeholder { color: rgba(160,157,195,0.55); }
+.chat-shell-light .key-input {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  color: rgba(18,18,25,0.90);
+}
+.chat-shell-light .key-input:focus { border-color: rgba(108,99,255,0.30); }
+.chat-shell-light .key-input::placeholder { color: rgba(70,70,95,0.40); }
+
+.key-input.error-state {
+  border-color: rgba(239,68,68,0.30) !important;
+}
+.chat-shell-light .key-input.error-state {
+  border-color: rgba(207,34,46,0.25) !important;
+}
+
+.key-hint {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+
+.key-hint-link {
+  transition: color 0.15s;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-shell-dark .key-hint-link { color: #8580FF; text-decoration-color: rgba(133,128,255,0.3); }
+.chat-shell-dark .key-hint-link:hover { text-decoration-color: #8580FF; }
+.chat-shell-light .key-hint-link { color: #5B53E0; text-decoration-color: rgba(91,83,224,0.3); }
+.chat-shell-light .key-hint-link:hover { text-decoration-color: #5B53E0; }
+
+.key-error {
+  font-family: var(--font-display);
+  font-size: 11px;
+}
+.chat-shell-dark .key-error { color: #EF4444; }
+.chat-shell-light .key-error { color: #CF222E; }
+
+.key-error .key-hint-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-shell-dark .key-error .key-hint-link { color: #EF4444; text-decoration-color: rgba(239,68,68,0.4); }
+.chat-shell-dark .key-error .key-hint-link:hover { text-decoration-color: #EF4444; }
+.chat-shell-light .key-error .key-hint-link { color: #CF222E; text-decoration-color: rgba(207,34,46,0.4); }
+.chat-shell-light .key-error .key-hint-link:hover { text-decoration-color: #CF222E; }
+
+/* CTA button */
+.btn-cta {
+  width: 100%;
+  padding: 11px 20px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  background: #635AEE;
+  color: #fff;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(108,99,255,0.25);
+  margin-top: 4px;
+}
+.btn-cta:hover {
+  background: #5B53E0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(108,99,255,0.30);
+}
+.btn-cta:active { transform: translateY(0); }
+.btn-cta:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Verifying state */
+.btn-cta.verifying {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Continue button (after saving a key — secondary style) */
+.btn-continue {
+  width: 100%;
+  padding: 11px 20px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.chat-shell-dark .btn-continue {
+  background: rgba(108,99,255,0.12);
+  border: 1px solid rgba(108,99,255,0.20);
+  color: rgba(242,240,255,0.93);
+}
+.chat-shell-dark .btn-continue:hover {
+  background: rgba(108,99,255,0.18);
+  border-color: rgba(108,99,255,0.30);
+}
+.chat-shell-light .btn-continue {
+  background: rgba(108,99,255,0.08);
+  border: 1px solid rgba(108,99,255,0.16);
+  color: rgba(18,18,25,0.90);
+}
+.chat-shell-light .btn-continue:hover {
+  background: rgba(108,99,255,0.14);
+  border-color: rgba(108,99,255,0.25);
+}
+
+/* Footer */
+.setup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.setup-footer-link {
+  font-family: var(--font-display);
+  font-size: 11px;
+  transition: color 0.15s;
+}
+.chat-shell-dark .setup-footer-link { color: rgba(160,157,195,0.60); }
+.chat-shell-dark .setup-footer-link:hover { color: rgba(175,172,205,0.80); }
+.chat-shell-light .setup-footer-link { color: rgba(70,70,95,0.60); }
+.chat-shell-light .setup-footer-link:hover { color: rgba(45,45,62,0.72); }
+
+.footer-dot {
+  font-size: 11px;
+}
+.chat-shell-dark .footer-dot { color: rgba(160,157,195,0.45); }
+.chat-shell-light .footer-dot { color: rgba(70,70,95,0.45); }
+
+/* Invite code mode */
+.invite-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.chat-shell-dark .invite-input {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(108,99,255,0.08);
+  color: rgba(242,240,255,0.93);
+}
+.chat-shell-dark .invite-input:focus { border-color: rgba(108,99,255,0.30); }
+.chat-shell-dark .invite-input::placeholder { color: rgba(160,157,195,0.55); }
+.chat-shell-light .invite-input {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  color: rgba(18,18,25,0.90);
+}
+.chat-shell-light .invite-input:focus { border-color: rgba(108,99,255,0.30); }
+.chat-shell-light .invite-input::placeholder { color: rgba(70,70,95,0.50); }
+
+/* Eye wiggle for verification */
+.eye-squint svg path:first-child {
+  transform-origin: 260px 212px;
+  animation: thinkLoop 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes thinkLoop {
+  0% { transform: translateY(0) rotate(0deg); }
+  18% { transform: translateY(22px) rotate(3deg); }
+  32% { transform: translateY(22px) rotate(3deg); }
+  52% { transform: translateY(-10px) rotate(-4deg); }
+  68% { transform: translateY(0) rotate(0.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+.eye-blink svg path:first-child {
+  transform-origin: 260px 230px;
+  animation: doubleBlink 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes doubleBlink {
+  0% { transform: translateY(0); }
+  15% { transform: translateY(26px); }
+  30% { transform: translateY(0); }
+  45% { transform: translateY(22px); }
+  60% { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">API Key Setup — In-chat first-time flow</span>
+
+<!-- ═══ DARK THEME STATES ═══ -->
+<span class="section-label">Dark — key states</span>
+<div class="flow-row">
+
+  <!-- State 1: Provider list -->
+  <div>
+    <div class="state-label">Provider selection</div>
+    <div class="chat-shell chat-shell-dark">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+        <span class="setup-desc">Keys stay on your device.</span>
+
+        <div class="provider-list">
+          <button class="provider-card" aria-label="Add Anthropic key">
+            <span class="provider-name">Anthropic (Claude)</span>
+            <svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <button class="provider-card" aria-label="Add OpenAI key">
+            <span class="provider-name">OpenAI</span>
+            <svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <button class="provider-card" aria-label="Add Gemini key">
+            <span class="provider-name">Google Gemini</span>
+            <svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        <div class="setup-footer">
+          <button class="setup-footer-link">Use invite code</button>
+          <span class="footer-dot">·</span>
+          <button class="setup-footer-link">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 2: Key input -->
+  <div>
+    <div class="state-label">Key input</div>
+    <div class="chat-shell chat-shell-dark">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+
+        <div class="key-input-section">
+          <button class="back-btn" aria-label="Back to provider list">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            Anthropic (Claude)
+          </button>
+          <div class="key-field">
+            <input class="key-input" type="password" placeholder="sk-ant-..." value="" autofocus>
+            <span class="key-hint"><a class="key-hint-link" href="#">Get key from Anthropic Console</a></span>
+          </div>
+          <button class="btn-cta" disabled>Connect</button>
+        </div>
+
+        <div class="setup-footer">
+          <button class="setup-footer-link">Use invite code</button>
+          <span class="footer-dot">·</span>
+          <button class="setup-footer-link">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 3: Verifying -->
+  <div>
+    <div class="state-label">Verifying key</div>
+    <div class="chat-shell chat-shell-dark">
+      <div class="sim-header">
+        <div class="eye-squint"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+
+        <div class="key-input-section">
+          <button class="back-btn" aria-label="Back to provider list">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            Anthropic (Claude)
+          </button>
+          <div class="key-field">
+            <input class="key-input" type="password" value="sk-ant-api03-xxxxxxxxxxx" disabled>
+          </div>
+          <button class="btn-cta verifying" disabled>Verifying...</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Row 2: Error, Success, One saved -->
+<span class="section-label">Dark — error, success, continue</span>
+<div class="flow-row">
+
+  <!-- State 4: Error -->
+  <div>
+    <div class="state-label">Invalid key</div>
+    <div class="chat-shell chat-shell-dark">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+        <div class="key-input-section">
+          <button class="back-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Anthropic (Claude)</button>
+          <div class="key-field">
+            <input class="key-input error-state" type="password" value="sk-ant-invalid-key">
+            <span class="key-error">Invalid key — <a class="key-hint-link" href="#">get a new one</a></span>
+          </div>
+          <button class="btn-cta">Connect</button>
+        </div>
+        <div class="setup-footer">
+          <button class="setup-footer-link">Use invite code</button>
+          <span class="footer-dot">·</span>
+          <button class="setup-footer-link">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 5: One key saved, add more or continue -->
+  <div>
+    <div class="state-label">Key saved — add more or continue</div>
+    <div class="chat-shell chat-shell-dark">
+      <div class="sim-header">
+        <div class="eye-blink"><svg viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg></div>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+        <span class="setup-desc">Add more keys or start chatting.</span>
+
+        <div class="provider-list">
+          <button class="provider-card saved" disabled>
+            <span class="provider-name">Anthropic (Claude)</span>
+            <svg class="provider-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          </button>
+          <button class="provider-card" aria-label="Add OpenAI key">
+            <span class="provider-name">OpenAI</span>
+            <svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <button class="provider-card" aria-label="Add Gemini key">
+            <span class="provider-name">Google Gemini</span>
+            <svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        <button class="btn-continue">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 6: Invite code -->
+  <div>
+    <div class="state-label">Invite code mode</div>
+    <div class="chat-shell chat-shell-dark">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+
+        <div class="key-field">
+          <input class="invite-input" type="text" placeholder="Enter invite code" value="">
+        </div>
+
+        <button class="btn-cta" disabled>Connect</button>
+
+        <div class="setup-footer">
+          <button class="setup-footer-link">Use API keys</button>
+          <span class="footer-dot">·</span>
+          <button class="setup-footer-link">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ LIGHT THEME ═══ -->
+<span class="section-label">Light — key states</span>
+<div class="flow-row">
+
+  <!-- Light: Provider list -->
+  <div>
+    <div class="state-label">Provider selection</div>
+    <div class="chat-shell chat-shell-light">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+        <span class="setup-desc">Keys stay on your device.</span>
+        <div class="provider-list">
+          <button class="provider-card"><span class="provider-name">Anthropic (Claude)</span><svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          <button class="provider-card"><span class="provider-name">OpenAI</span><svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+          <button class="provider-card"><span class="provider-name">Google Gemini</span><svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <div class="setup-footer">
+          <button class="setup-footer-link">Use invite code</button>
+          <span class="footer-dot">·</span>
+          <button class="setup-footer-link">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Light: Error -->
+  <div>
+    <div class="state-label">Invalid key</div>
+    <div class="chat-shell chat-shell-light">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+        <div class="key-input-section">
+          <button class="back-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> OpenAI</button>
+          <div class="key-field">
+            <input class="key-input error-state" type="password" value="sk-invalid-key">
+            <span class="key-error">Invalid API key. Check your key and try again.</span>
+            <span class="key-hint"><a class="key-hint-link" href="#">Get key from OpenAI</a></span>
+          </div>
+          <button class="btn-cta">Connect</button>
+        </div>
+        <div class="setup-footer">
+          <button class="setup-footer-link">Use invite code</button>
+          <span class="footer-dot">·</span>
+          <button class="setup-footer-link">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Light: Key saved -->
+  <div>
+    <div class="state-label">Key saved</div>
+    <div class="chat-shell chat-shell-light">
+      <div class="sim-header">
+        <svg class="sim-eye" viewBox="60 140 420 280" width="24" height="16"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="sim-title">New Thread</span>
+        <div style="flex:1;"></div>
+        <button class="sim-btn" aria-label="Pin"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></button>
+      </div>
+      <div class="setup">
+        <div class="setup-header">
+          <span class="setup-title">Connect to AI</span>
+        </div>
+        <span class="setup-desc">Add more keys or start chatting.</span>
+        <div class="provider-list">
+          <button class="provider-card saved" disabled><span class="provider-name">Anthropic (Claude)</span><svg class="provider-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></button>
+          <button class="provider-card saved" disabled><span class="provider-name">OpenAI</span><svg class="provider-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></button>
+          <button class="provider-card"><span class="provider-name">Google Gemini</span><svg class="provider-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <button class="btn-continue">Continue</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

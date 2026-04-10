@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Tray Intro v4: In-place Reveal</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #F2F2F4;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  align-items: center;
+}
+
+.page-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: rgba(18,18,25,0.6); max-width: 600px; width: 100%; }
+.option-desc { font-family: var(--font-display); font-size: 11px; color: rgba(45,45,62,0.45); text-align: center; max-width: 400px; line-height: 1.6; }
+.section-label { font-family: var(--font-display); font-size: 11px; font-weight: 500; color: rgba(45,45,62,0.35); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 100%; }
+
+.play-btn {
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(108, 99, 255, 0.08);
+  border: 1px solid rgba(108, 99, 255, 0.2);
+  color: rgba(18,18,25,0.75);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.play-btn:hover { background: rgba(108, 99, 255, 0.22); }
+
+/* ═══ Stage ═══ */
+
+.stage {
+  position: relative;
+  width: 340px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+  Eye rendered at 120x80px
+  viewBox: 60 140 420 280
+
+  Crop region in eye coordinates: x=230, y=180, w=220, h=220
+  In pixels: left=49px from eye left, top=11px from eye top, 63x63px
+
+  Eye is centered in stage (340x160), so eye left edge = (340-120)/2 = 110
+  Eye top edge = (160-80)/2 = 40
+
+  Crop frame absolute position:
+  left: 110 + 49 = 159
+  top: 40 + 11 = 51
+  width: 63, height: 63
+*/
+
+.eye-container {
+  position: relative;
+  width: 120px;
+  height: 80px;
+  opacity: 0;
+}
+
+/* Crop frame — pixel-perfect positioned over the eye */
+.crop-frame {
+  position: absolute;
+  top: 11px;
+  left: 49px;
+  width: 63px;
+  height: 63px;
+  border: 1.5px solid rgba(108, 99, 255, 0);
+  border-radius: 5px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Dim overlay — covers the eye EXCEPT the crop area */
+/* Using clip-path to cut a hole */
+.dim-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 120px;
+  height: 80px;
+  background: rgba(242, 242, 244, 0.88);
+  z-index: 3;
+  opacity: 0;
+  /* Clip path: full rect minus the crop hole */
+  clip-path: polygon(
+    0% 0%, 100% 0%, 100% 100%, 0% 100%,   /* outer rect */
+    0% 0%,                                    /* back to top-left */
+    0% 14%,                                   /* down to crop top: 11/80 = 14% */
+    40.8% 14%,                                /* right to crop left: 49/120 = 40.8% */
+    40.8% 92.5%,                              /* down to crop bottom: (11+63)/80 = 92.5% */
+    93.3% 92.5%,                              /* right to crop right: (49+63)/120 = 93.3% */
+    93.3% 14%,                                /* up to crop top */
+    0% 14%                                    /* back to left */
+  );
+}
+
+/* Hint text below */
+.hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(45, 45, 62, 0.55);
+  white-space: nowrap;
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hint-icon {
+  width: 16px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(108, 99, 255, 0.08);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ═══ Animation ═══
+
+  0.0-0.6s   Eye fades in
+  0.6-1.2s   Hold — see the full eye
+  1.2-1.7s   Crop frame border appears
+  1.7-2.3s   Dim overlay fades in (everything outside crop dims)
+  2.3-2.5s   Hold — see the cropped region highlighted
+  2.5-3.0s   Hint fades in below
+
+═══ */
+
+.playing .eye-container {
+  animation: eyeIn 0.4s ease-out forwards;
+}
+@keyframes eyeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Crop frame expands from a point — like dragging a selection */
+.playing .crop-frame {
+  animation: cropExpand 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.7s forwards;
+}
+@keyframes cropExpand {
+  0% {
+    border-color: rgba(108, 99, 255, 0.5);
+    top: 11px;
+    left: 49px;
+    width: 0px;
+    height: 0px;
+    opacity: 1;
+  }
+  100% {
+    border-color: rgba(108, 99, 255, 0.5);
+    top: 11px;
+    left: 49px;
+    width: 63px;
+    height: 63px;
+    opacity: 1;
+  }
+}
+
+/* Snap! — dim + color change happen fast together */
+.playing .dim-overlay {
+  animation: dimIn 0.1s ease-out 1.4s forwards;
+}
+@keyframes dimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.playing .white-overlay {
+  animation: whiteIn 0.1s ease-out 1.4s forwards;
+}
+@keyframes whiteIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.playing .hint {
+  animation: hintIn 0.4s ease-out 1.9s forwards;
+}
+@keyframes hintIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ═══ Welcome context ═══ */
+
+.welcome-sim {
+  width: 380px;
+  border-radius: 20px;
+  background: #F2F2F4;
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 32px 24px;
+  gap: 10px;
+}
+.w-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: rgba(18,18,25,0.90); }
+.w-desc { font-family: var(--font-display); font-size: 13px; color: rgba(45,45,62,0.72); text-align: center; }
+.w-btn {
+  width: 100%; max-width: 260px; padding: 12px 20px; border-radius: 12px;
+  background: #635AEE; color: #fff; font-family: var(--font-display);
+  font-size: 14px; font-weight: 500; text-align: center;
+  box-shadow: 0 2px 8px rgba(108,99,255,0.25); margin-top: 8px;
+}
+
+/* Welcome stage — smaller eye (100x67) */
+/*
+  Eye 100x67: crop at (40,10) size 52x52
+*/
+.w-stage {
+  position: relative;
+  width: 280px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.w-eye-container {
+  position: relative;
+  width: 100px;
+  height: 67px;
+  opacity: 0;
+}
+
+.w-crop-frame {
+  position: absolute;
+  top: 10px;
+  left: 40px;
+  width: 52px;
+  height: 52px;
+  border: 1.5px solid rgba(108, 99, 255, 0);
+  border-radius: 4px;
+  z-index: 5;
+}
+
+.w-dim-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100px;
+  height: 67px;
+  background: rgba(242, 242, 244, 0.88);
+  z-index: 3;
+  opacity: 0;
+  clip-path: polygon(
+    0% 0%, 100% 0%, 100% 100%, 0% 100%,
+    0% 0%,
+    0% 14.9%,    /* 10/67 */
+    40% 14.9%,   /* 40/100 */
+    40% 92.5%,   /* (10+52)/67 */
+    92% 92.5%,   /* (40+52)/100 */
+    92% 14.9%,
+    0% 14.9%
+  );
+}
+
+/* Mini menu bar — appears after snap */
+.w-menubar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  opacity: 0;
+}
+.w-mb-dots { display: flex; gap: 4px; }
+.w-mb-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(0,0,0,0.15); }
+.w-mb-time { font-family: var(--font-display); font-size: 9px; color: rgba(0,0,0,0.3); }
+.w-mb-tray {
+  display: flex; align-items: center; justify-content: center;
+  padding: 2px 4px;
+  background: rgba(108, 99, 255, 0.08);
+  border-radius: 3px;
+}
+
+.playing-w .w-eye-container {
+  animation: eyeIn 0.4s ease-out forwards;
+}
+.playing-w .w-crop-frame {
+  animation: wCropExpand 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.7s forwards;
+}
+@keyframes wCropExpand {
+  0% {
+    border-color: rgba(108, 99, 255, 0.5);
+    top: 10px;
+    left: 40px;
+    width: 0px;
+    height: 0px;
+    opacity: 1;
+  }
+  100% {
+    border-color: rgba(108, 99, 255, 0.5);
+    top: 10px;
+    left: 40px;
+    width: 52px;
+    height: 52px;
+    opacity: 1;
+  }
+}
+.playing-w .w-dim-overlay {
+  animation: dimIn 0.1s ease-out 1.4s forwards;
+}
+.playing-w .w-white-overlay {
+  animation: whiteIn 0.1s ease-out 1.4s forwards;
+}
+/* Mini menu bar slides in after snap */
+.playing-w .w-menubar {
+  animation: menubarIn 0.4s ease-out 1.9s forwards;
+}
+@keyframes menubarIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Tray Intro v4 — In-place Reveal (no movement)</span>
+
+<!-- ═══ FULL DEMO ═══ -->
+<span class="section-label">Full demo</span>
+<div class="stage" id="main">
+  <div class="eye-container">
+    <svg viewBox="60 140 420 280" width="120" height="80">
+      <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+      <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+    </svg>
+    <div class="crop-frame"></div>
+    <div class="dim-overlay"></div>
+    <!-- White version of the eye, clipped to crop area, fades in last -->
+    <div class="white-overlay" style="position:absolute; top:11px; left:49px; width:63px; height:63px; opacity:0; z-index:4; overflow:hidden; border-radius:5px;">
+      <svg viewBox="230 180 220 220" width="63" height="63">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#1a1a1a" stroke-width="22" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#1a1a1a" stroke-width="24" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="hint">
+    <span>Find</span>
+    <span class="hint-icon">
+      <svg viewBox="230 180 220 220" width="12" height="9"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="rgba(45,45,62,0.55)" stroke-width="26" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="rgba(45,45,62,0.55)" stroke-width="28" stroke-linecap="round"/></svg>
+    </span>
+    <span>in your menu bar</span>
+  </div>
+</div>
+<button class="play-btn" onclick="replay('main','playing')">Play</button>
+<span class="option-desc">Eye appears → frame highlights the crop region → everything outside dims → the remaining shape IS the tray icon. No movement, just reveal.</span>
+
+<!-- ═══ WELCOME — Final Step 4 ═══ -->
+<span class="section-label">Welcome Step 4 — Final</span>
+<div class="welcome-sim">
+  <span class="w-title">You're all set</span>
+  <span class="w-desc">Glimpse runs quietly in your menu bar.</span>
+
+  <div class="w-stage" id="welc">
+    <!-- Eye + crop animation -->
+    <div class="w-eye-container">
+      <svg viewBox="60 140 420 280" width="100" height="67">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+      <div class="w-crop-frame"></div>
+      <div class="w-dim-overlay"></div>
+      <div class="w-white-overlay" style="position:absolute; top:10px; left:40px; width:52px; height:52px; opacity:0; z-index:4; overflow:hidden; border-radius:4px;">
+        <svg viewBox="230 180 220 220" width="52" height="52">
+          <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#1a1a1a" stroke-width="22" stroke-linecap="round"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#1a1a1a" stroke-width="24" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Mini menu bar — appears after snap, connects the cropped result to "menu bar" -->
+    <div class="w-menubar">
+      <div class="w-mb-dots">
+        <span class="w-mb-dot"></span>
+        <span class="w-mb-dot"></span>
+      </div>
+      <div class="w-mb-tray">
+        <svg viewBox="230 180 220 220" width="12" height="9">
+          <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="rgba(18,18,25,0.65)" stroke-width="26" stroke-linecap="round"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="rgba(18,18,25,0.65)" stroke-width="28" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="w-mb-dots">
+        <span class="w-mb-dot"></span>
+      </div>
+      <span class="w-mb-time">10:46</span>
+    </div>
+  </div>
+
+  <!-- Dots: 4th active (no dot for page 0) -->
+  <div style="display:flex; gap:7px; margin: 4px 0;">
+    <div style="width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,0.10);"></div>
+    <div style="width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,0.10);"></div>
+    <div style="width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,0.10);"></div>
+    <div style="width:6px;height:6px;border-radius:50%;background:#6C63FF;transform:scale(1.2);"></div>
+  </div>
+
+  <div class="w-btn">Start Using Glimpse</div>
+</div>
+<button class="play-btn" onclick="replay('welc','playing-w')">Play in context</button>
+
+<script>
+function replay(id, cls) {
+  const el = document.getElementById(id);
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+window.addEventListener('load', () => {
+  setTimeout(() => replay('main', 'playing'), 500);
+  setTimeout(() => replay('welc', 'playing-w'), 500);
+});
+</script>
+
+</body>
+</html>

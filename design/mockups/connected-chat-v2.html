@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Connected! v2: Wake + Settle into Title</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: var(--surface-base);
+  padding: var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  align-items: center;
+}
+
+.page-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text-secondary); max-width: 600px; width: 100%; }
+.option-desc { font-family: var(--font-display); font-size: var(--text-xs); color: var(--text-dim); text-align: center; max-width: 420px; line-height: 1.6; }
+
+.play-btn {
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  background: var(--brand-dim);
+  border: 1px solid var(--brand-border);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.play-btn:hover { background: var(--brand-muted); }
+
+/* ═══ Chat panel simulation ═══ */
+
+.chat-sim {
+  width: 380px;
+  height: 420px;
+  border-radius: 16px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-dim);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Header — no icon before connect */
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-dim);
+  position: relative;
+  z-index: 20;
+}
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-header-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+/* Title icon — hidden initially, appears after animation */
+.chat-header-icon {
+  width: 20px;
+  height: 14px;
+  opacity: 0;
+  flex-shrink: 0;
+}
+.chat-header-btn {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+  border: none; background: none; cursor: pointer;
+}
+
+/* Welcome area */
+.chat-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  position: relative;
+}
+
+/* Eye — larger for the big moment: 80x54 */
+.c-eye-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c-eye {
+  position: relative;
+  width: 100px;
+  height: 67px;
+}
+
+.c-closed {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100px;
+  height: 67px;
+  opacity: 0;
+}
+.c-closed .brow {
+  transform: translateY(28px);
+  transform-origin: 260px 212px;
+}
+.c-closed .spiral {
+  stroke-dasharray: 820;
+  stroke-dashoffset: 820;
+}
+
+.c-awake {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100px;
+  height: 67px;
+  opacity: 0;
+  z-index: 2;
+}
+
+.c-text {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  opacity: 0;
+}
+
+/* Input bar */
+.chat-input-bar {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-input-fake {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-dim);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  color: var(--text-dim);
+}
+
+/* ═══ Animation ═══
+
+  Phase 1 — Connecting (0-1.65s):
+    0-0.15s    Closed eye fades in (dim, brow down)
+    0.15-1.65s Spiral draws on → off → on
+
+  Phase 2 — Connected (1.8s):
+    1.8s       Brow lifts with overshoot + awake pops in
+    1.8s       "Connected. Happy Glimpsing!" appears
+
+  Phase 3 — Delight (2.6s):
+    2.6s       Wink
+
+  Phase 4 — Settle into title (3.4-4.0s):
+    3.4s       Text fades out
+    3.4s       Eye shrinks + moves up to title bar position
+    3.8s       Title icon fades in (eye is now in its home)
+    4.0s       Big eye hidden (title icon takes over)
+
+═══ */
+
+/* Phase 1 */
+.playing .c-closed {
+  animation:
+    cClosedIn 0.15s ease-out forwards,
+    cClosedOut 0.15s ease-out 1.9s forwards;
+}
+@keyframes cClosedIn {
+  from { opacity: 0; }
+  to { opacity: 0.25; }
+}
+@keyframes cClosedOut {
+  from { opacity: 0.25; }
+  to { opacity: 0; }
+}
+
+.playing .c-closed .spiral {
+  animation: cSpiralDraw 1.5s ease-in-out 0.15s forwards;
+}
+@keyframes cSpiralDraw {
+  0%   { stroke-dashoffset: 820; }
+  35%  { stroke-dashoffset: 0; }
+  65%  { stroke-dashoffset: -820; }
+  100% { stroke-dashoffset: -1640; }
+}
+
+/* Phase 2 */
+.playing .c-closed .brow {
+  animation: cBrowLift 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1.8s forwards;
+}
+@keyframes cBrowLift {
+  0%   { transform: translateY(28px); }
+  50%  { transform: translateY(-8px); }
+  75%  { transform: translateY(2px); }
+  100% { transform: translateY(0px); }
+}
+
+.playing .c-awake {
+  animation:
+    cAwakeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) 1.8s forwards;
+}
+@keyframes cAwakeIn {
+  0%   { opacity: 0; transform: scale(0.9); }
+  60%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.playing .c-text {
+  animation:
+    cFadeUp 0.3s ease-out 1.8s forwards,
+    cFadeOut 0.3s ease-out 3.4s forwards;
+}
+@keyframes cFadeUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Phase 3 — Wink */
+.playing .c-awake .brow {
+  transform-origin: 260px 212px;
+  animation: cWink 0.45s cubic-bezier(0.22, 1, 0.36, 1) 2.6s;
+}
+@keyframes cWink {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(22px); }
+  38% { transform: translateY(22px); }
+  100% { transform: translateY(0); }
+}
+
+/* Phase 4 — Eye flies to title bar
+   From: centered in chat-welcome (roughly center of the panel)
+   To: top-left where the title icon sits
+
+   chat-welcome center is ~190px from left, ~210px from top of .chat-sim
+   title icon position is ~16px from left, ~15px from top
+   So the eye needs to move roughly: translate(-150px, -170px) and scale to 20/80 = 0.25
+*/
+.playing .c-eye-wrapper {
+  animation: cFlyToTitle 0.5s cubic-bezier(0.22, 1, 0.36, 1) 3.4s forwards;
+}
+@keyframes cFlyToTitle {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(-155px, -175px) scale(0.2); opacity: 0; }
+}
+
+/* Title icon appears as the big eye arrives */
+.playing .chat-header-icon {
+  animation: titleIconIn 0.25s ease-out 3.7s forwards;
+}
+@keyframes titleIconIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Connected! — Wake + Settle into Title</span>
+
+<div class="chat-sim">
+  <div class="chat-header">
+    <div class="chat-header-left">
+      <svg class="chat-header-icon" viewBox="60 140 420 280" width="20" height="14" aria-hidden="true">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="var(--brand)" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="var(--brand)" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+      <span class="chat-header-title">New Chat</span>
+    </div>
+    <button class="chat-header-btn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <div class="chat-welcome" id="demo1">
+    <div class="c-eye-wrapper">
+      <div class="c-eye">
+        <svg class="c-closed" viewBox="60 140 420 280" width="100" height="67" aria-hidden="true">
+          <path class="brow" d="M98 212C152 174 365 158 420 248" fill="none" stroke="var(--brand)" stroke-width="20" stroke-linecap="round"/>
+          <path class="spiral" d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="var(--brand)" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+        <svg class="c-awake" viewBox="60 140 420 280" width="100" height="67" aria-hidden="true">
+          <path class="brow" d="M98 212C152 174 365 158 420 248" fill="none" stroke="var(--brand)" stroke-width="20" stroke-linecap="round"/>
+          <path class="spiral" d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="var(--brand)" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <span class="c-text">Connected. Happy Glimpsing!</span>
+  </div>
+
+  <div class="chat-input-bar">
+    <div class="chat-input-fake">Ask anything...</div>
+  </div>
+</div>
+
+<button class="play-btn" onclick="replay('demo1','playing')">Play</button>
+<span class="option-desc">Big eye wakes up → wink → shrinks and flies to title bar → icon settles in its home. Title has no icon before connect.</span>
+
+<script>
+function replay(id, cls) {
+  const el = document.getElementById(id);
+  // Also reset title icon
+  document.querySelector('.chat-header-icon').style.opacity = '0';
+  document.querySelector('.chat-header-icon').style.transform = '';
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+window.addEventListener('load', () => {
+  setTimeout(() => replay('demo1', 'playing'), 500);
+});
+</script>
+
+</body>
+</html>

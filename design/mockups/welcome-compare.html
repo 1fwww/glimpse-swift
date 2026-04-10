@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Welcome: Dark vs Light</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100vh;
+    background: #1a1a1e;
+    padding: 48px 32px;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .col-label {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.3px;
+  }
+
+  .label {
+    position: absolute;
+    top: -24px;
+    left: 0;
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .theme-dark .label { color: rgba(255,255,255,0.3); }
+  .theme-light .label { color: rgba(0,0,0,0.3); }
+
+  /* ─── Window Shell ─── */
+  .window {
+    position: relative;
+    width: 400px;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-dim);
+    box-shadow: var(--shadow-elevated);
+    flex-shrink: 0;
+  }
+
+  .drag-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 14px 0;
+    flex-shrink: 0;
+  }
+
+  .close-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .theme-dark .close-btn:hover { color: var(--text-secondary); background: rgba(255,255,255,0.05); }
+  .theme-light .close-btn:hover { color: var(--text-secondary); background: rgba(0,0,0,0.04); }
+
+  /* ─── Welcome Content ─── */
+  .welcome-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 40px 24px;
+    gap: 20px;
+  }
+
+  .logo-wrapper {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .logo-wrapper:hover { transform: scale(1.04); }
+
+  .app-name {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+  }
+
+  .tagline {
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    text-align: center;
+    max-width: 300px;
+  }
+
+  .btn-primary {
+    margin-top: 8px;
+    width: 100%;
+    max-width: 280px;
+    padding: 12px 20px;
+    background: var(--brand-muted);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:hover {
+    background: rgba(108, 99, 255, 0.22);
+    border-color: rgba(108, 99, 255, 0.4);
+  }
+
+  .version-hint {
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 0 22px;
+    flex-shrink: 0;
+  }
+
+  .dots { display: flex; gap: 7px; }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  .theme-dark .dot { background: rgba(255,255,255,0.15); }
+  .theme-light .dot { background: rgba(0,0,0,0.12); }
+  .dot.active { background: var(--brand) !important; transform: scale(1.15); }
+
+  /* ─── Home Content ─── */
+  .home-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 28px 16px;
+  }
+
+  .home-drag-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 0;
+    flex-shrink: 0;
+  }
+
+  .settings-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .brand-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0 24px;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.3px;
+  }
+
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .section-gap { height: 20px; }
+
+  .shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 7px;
+    margin-bottom: 3px;
+  }
+
+  .sc-text {
+    font-family: var(--font-display);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .sc-keys { display: flex; gap: 3px; }
+  .sc-keys kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border: 1px solid var(--border-dim);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .theme-dark kbd { background: rgba(255,255,255,0.04); }
+  .theme-light kbd { background: rgba(0,0,0,0.03); }
+
+  .recent-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.1s;
+    text-align: left;
+  }
+  .theme-dark .recent-item:hover { background: rgba(255,255,255,0.04); }
+  .theme-light .recent-item:hover { background: rgba(0,0,0,0.03); }
+
+  .recent-icon { flex-shrink: 0; color: var(--text-dim); }
+
+  .recent-title {
+    font-family: var(--font-display);
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .recent-item:hover .recent-title { color: var(--text-secondary); }
+
+  .recent-time {
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .clear-btn {
+    background: none;
+    border: none;
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px 10px;
+    margin-top: 2px;
+    transition: color 0.15s;
+  }
+  .clear-btn:hover { color: var(--error); }
+
+  .home-footer {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 16px;
+    flex-shrink: 0;
+  }
+  .bg-hint {
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     COLUMN 1: WARM DARK
+     ═══════════════════════════════════════ -->
+<div class="column">
+  <span class="col-label">Option A — Warm Dark (default)</span>
+
+  <!-- Welcome Step 1 -->
+  <div class="window theme-dark" style="background: var(--surface-base); height: 500px;">
+    <span class="label">Welcome</span>
+    <div class="drag-bar">
+      <button class="close-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="welcome-content">
+      <div class="logo-wrapper">
+        <svg viewBox="60 140 420 280" width="64" height="43">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="app-name">Glimpse</span>
+      <p class="tagline">Snap it. Ask it. Never lose your flow.</p>
+      <button class="btn-primary">Get Started</button>
+      <span class="version-hint">v1.0 for macOS</span>
+    </div>
+    <div class="footer">
+      <div class="dots">
+        <div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Home -->
+  <div class="window theme-dark" style="background: var(--surface-base); height: 420px;">
+    <span class="label">Home</span>
+    <div class="home-drag-bar">
+      <button class="settings-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button class="close-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="brand-area">
+      <svg viewBox="60 140 420 280" width="48" height="32">
+        <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">Glimpse</span>
+    </div>
+    <div class="home-content">
+      <span class="section-label">Get started</span>
+      <div class="shortcut-row"><span class="sc-text">Screenshot</span><span class="sc-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></span></div>
+      <div class="shortcut-row"><span class="sc-text">Text chat</span><span class="sc-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></span></div>
+      <div class="section-gap"></div>
+      <span class="section-label">Continue chatting</span>
+      <button class="recent-item">
+        <svg class="recent-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="recent-title">Debug query results</span>
+        <span class="recent-time">2m ago</span>
+      </button>
+      <button class="recent-item">
+        <svg class="recent-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="recent-title">Rewrite outreach email</span>
+        <span class="recent-time">1h ago</span>
+      </button>
+      <button class="clear-btn">Clear all chats</button>
+    </div>
+    <div class="home-footer">
+      <span class="bg-hint">Glimpse still runs when you close this window</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     COLUMN 2: SOFT LIGHT
+     ═══════════════════════════════════════ -->
+<div class="column">
+  <span class="col-label">Option B — Soft Light (default)</span>
+
+  <!-- Welcome Step 1 -->
+  <div class="window theme-light" style="background: var(--surface-base); height: 500px;">
+    <span class="label">Welcome</span>
+    <div class="drag-bar">
+      <button class="close-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="welcome-content">
+      <div class="logo-wrapper">
+        <svg viewBox="60 140 420 280" width="64" height="43">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="app-name">Glimpse</span>
+      <p class="tagline">Snap it. Ask it. Never lose your flow.</p>
+      <button class="btn-primary">Get Started</button>
+      <span class="version-hint">v1.0 for macOS</span>
+    </div>
+    <div class="footer">
+      <div class="dots">
+        <div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Home -->
+  <div class="window theme-light" style="background: var(--surface-base); height: 420px;">
+    <span class="label">Home</span>
+    <div class="home-drag-bar">
+      <button class="settings-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button class="close-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="brand-area">
+      <svg viewBox="60 140 420 280" width="48" height="32">
+        <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">Glimpse</span>
+    </div>
+    <div class="home-content">
+      <span class="section-label">Get started</span>
+      <div class="shortcut-row"><span class="sc-text">Screenshot</span><span class="sc-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></span></div>
+      <div class="shortcut-row"><span class="sc-text">Text chat</span><span class="sc-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></span></div>
+      <div class="section-gap"></div>
+      <span class="section-label">Continue chatting</span>
+      <button class="recent-item">
+        <svg class="recent-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="recent-title">Debug query results</span>
+        <span class="recent-time">2m ago</span>
+      </button>
+      <button class="recent-item">
+        <svg class="recent-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="recent-title">Rewrite outreach email</span>
+        <span class="recent-time">1h ago</span>
+      </button>
+      <button class="clear-btn">Clear all chats</button>
+    </div>
+    <div class="home-footer">
+      <span class="bg-hint">Glimpse still runs when you close this window</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

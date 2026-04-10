@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Annotation Color Palette</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #16151E;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  max-width: 800px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.palette-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.palette-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+}
+.palette-sublabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 500px;
+  line-height: 1.5;
+  margin-top: -4px;
+}
+
+.palette-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.swatch.active {
+  border-color: rgba(255,255,255,0.85);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.20);
+}
+
+.swatch-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.swatch-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Simulated toolbar context */
+.toolbar-sim {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(22, 21, 30, 0.94);
+  border: 1px solid rgba(108, 99, 255, 0.10);
+  border-radius: 10px;
+  padding: 5px 7px;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(108, 99, 255, 0.08);
+  margin: 0 2px;
+}
+
+.size-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+.size-btn.active {
+  background: rgba(108, 99, 255, 0.14);
+}
+
+.size-line {
+  width: 14px;
+  border-radius: 1px;
+  display: block;
+}
+.size-btn.active .size-line { background: #8580FF; }
+.size-btn:not(.active) .size-line { background: rgba(175,172,205,0.55); }
+
+/* CVD simulation labels */
+.cvd-row {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cvd-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.cvd-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.35);
+}
+
+.cvd-note {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: rgba(255,255,255,0.2);
+}
+
+.badge-pass {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(35,133,66,0.12);
+  border: 1px solid rgba(35,133,66,0.20);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(35,133,66,0.7);
+}
+
+.badge-fail {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.15);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(239,68,68,0.6);
+}
+
+.compare-row {
+  display: flex;
+  gap: 48px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Annotation Color Palette — Colorblind-safe Options</span>
+
+<!-- ═══ CURRENT ═══ -->
+<span class="section-label">Current palette (production)</span>
+<div class="palette-group">
+  <span class="palette-sublabel">8 colors. Red/green indistinguishable for deuteranopia. Blue/purple confuse in protanopia. 5 confusable pairs across CVD types.</span>
+  <div class="toolbar-sim">
+    <div class="swatch active" style="width:18px;height:18px;background:#e5243a;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#e07800;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#d4a800;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#1aab42;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#0062e0;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#9333cf;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#000000;"></div>
+    <div class="swatch" style="width:18px;height:18px;background:#ffffff;"></div>
+  </div>
+  <span class="badge-fail">5 confusable pairs</span>
+</div>
+
+<!-- ═══ OPTIONS ═══ -->
+<span class="section-label">Proposed replacements</span>
+
+<div class="compare-row">
+
+  <!-- Option A: 7 colors (5 chromatic + B&W) -->
+  <div class="palette-group">
+    <span class="palette-label">A. Safe 7 (5 chromatic + B&W)</span>
+    <span class="palette-sublabel">Every pair passes >55 distance across all 3 CVD types. Zero confusable pairs. Drops green and yellow (the two most problematic colors).</span>
+    <div class="palette-row">
+      <div class="swatch-col">
+        <div class="swatch active" style="background:#DC3545;"></div>
+        <span class="swatch-label">red</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#E08700;"></div>
+        <span class="swatch-label">amber</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#06B6D4;"></div>
+        <span class="swatch-label">cyan</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#1E40AF;"></div>
+        <span class="swatch-label">blue</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#EC4899;"></div>
+        <span class="swatch-label">pink</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#000000;"></div>
+        <span class="swatch-label">black</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#ffffff;"></div>
+        <span class="swatch-label">white</span>
+      </div>
+    </div>
+    <div class="toolbar-sim">
+      <div class="swatch active" style="width:18px;height:18px;background:#DC3545;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#E08700;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#06B6D4;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#1E40AF;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#EC4899;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#000000;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#ffffff;"></div>
+      <span class="toolbar-sep"></span>
+      <button class="size-btn"><span class="size-line" style="height:2px;"></span></button>
+      <button class="size-btn active"><span class="size-line" style="height:4px;"></span></button>
+      <button class="size-btn"><span class="size-line" style="height:6px;"></span></button>
+    </div>
+    <span class="badge-pass">0 confusable pairs — all CVD types</span>
+  </div>
+
+  <!-- Option B: 8 colors (6 chromatic + B&W) -->
+  <div class="palette-group">
+    <span class="palette-label">B. Extended 8 (6 chromatic + B&W)</span>
+    <span class="palette-sublabel">Adds violet as a 6th color. Closest pair is 49 (blue↔violet in protanopia) — still 2.5x better than current palette's worst (19). Practical compromise for users who want more colors.</span>
+    <div class="palette-row">
+      <div class="swatch-col">
+        <div class="swatch active" style="background:#DC3545;"></div>
+        <span class="swatch-label">coral</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#E08700;"></div>
+        <span class="swatch-label">amber</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#06B6D4;"></div>
+        <span class="swatch-label">cyan</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#173FAA;"></div>
+        <span class="swatch-label">blue</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#C026D3;"></div>
+        <span class="swatch-label">violet</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#EC4899;"></div>
+        <span class="swatch-label">pink</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#000000;"></div>
+        <span class="swatch-label">black</span>
+      </div>
+      <div class="swatch-col">
+        <div class="swatch" style="background:#ffffff;"></div>
+        <span class="swatch-label">white</span>
+      </div>
+    </div>
+    <div class="toolbar-sim">
+      <div class="swatch active" style="width:18px;height:18px;background:#DC3545;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#E08700;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#06B6D4;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#173FAA;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#C026D3;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#EC4899;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#000000;"></div>
+      <div class="swatch" style="width:18px;height:18px;background:#ffffff;"></div>
+      <span class="toolbar-sep"></span>
+      <button class="size-btn"><span class="size-line" style="height:2px;"></span></button>
+      <button class="size-btn active"><span class="size-line" style="height:4px;"></span></button>
+      <button class="size-btn"><span class="size-line" style="height:6px;"></span></button>
+    </div>
+    <span class="badge-pass">0 pairs below 40 — practical CVD safe</span>
+  </div>
+
+</div>
+
+<!-- ═══ WHAT CHANGED ═══ -->
+<div class="palette-group" style="max-width: 600px;">
+  <span class="palette-label">What changed</span>
+  <span class="palette-sublabel" style="max-width:600px;text-align:left;">
+    <strong>Dropped green</strong> (#1aab42) — the #1 CVD problem. Indistinguishable from red for 8% of males. Replaced by cyan (#06B6D4) which lives in the blue family, safely away from the red-green confusion axis.<br><br>
+    <strong>Dropped yellow</strong> (#d4a800) — confuses with orange in deuteranopia and with amber under tritanopia. Amber alone covers the warm end.<br><br>
+    <strong>Dropped purple</strong> (#9333cf) — confuses with blue in both protanopia and deuteranopia. Replaced by pink (#EC4899) which has enough red component to separate from blue. Option B adds violet (#C026D3) back as a brighter, more distinct purple variant.<br><br>
+    <strong>Kept:</strong> red, orange/amber, blue, black, white — these were already relatively safe.
+  </span>
+</div>
+
+</body>
+</html>

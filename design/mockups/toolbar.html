@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Toolbar (Redesigned)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #0e0e12;
+    padding: 60px 40px;
+    gap: 48px;
+  }
+
+  .label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 12px;
+    letter-spacing: 0.3px;
+  }
+
+  .demo-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ─── Screenshot mock behind toolbar ─── */
+  .screenshot-area {
+    position: relative;
+    width: 700px;
+    height: 280px;
+    background:
+      linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-radius: var(--radius-lg);
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .screenshot-area::before {
+    content: 'Selected region';
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: rgba(255,255,255,0.15);
+  }
+
+  /* ─── Selection Border (redesigned) ─── */
+  .selection-border {
+    position: absolute;
+    inset: 0;
+    border: 1.5px solid rgba(108, 99, 255, 0.6);
+    border-radius: var(--radius-lg);
+    pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(108, 99, 255, 0.15);
+  }
+
+  /* Round resize handles */
+  .sel-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--brand);
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.9);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .sel-nw { top: -4px; left: -4px; cursor: nwse-resize; }
+  .sel-ne { top: -4px; right: -4px; cursor: nesw-resize; }
+  .sel-sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+  .sel-se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+
+  /* Dimension badge */
+  .dim-badge {
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    background: var(--surface-panel);
+    border: 1px solid var(--border-dim);
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    backdrop-filter: blur(12px);
+  }
+
+  /* ═══ Toolbar ═══ */
+  .toolbar-wrapper {
+    position: absolute;
+    bottom: -64px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: var(--surface-panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-active);
+    border-radius: var(--radius-md);
+    padding: 5px;
+    box-shadow: var(--shadow-panel);
+  }
+
+  .tool-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .tool-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-primary);
+  }
+  .tool-btn.active {
+    background: var(--brand-muted);
+    color: var(--brand);
+  }
+  .tool-btn.disabled {
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .tool-btn.primary {
+    color: rgba(52, 199, 89, 0.55);
+  }
+  .tool-btn.primary:hover {
+    color: rgba(52, 199, 89, 0.85);
+    background: rgba(52, 199, 89, 0.08);
+  }
+
+  .tool-btn.cancel {
+    color: rgba(255, 69, 58, 0.45);
+  }
+  .tool-btn.cancel:hover {
+    color: rgba(255, 69, 58, 0.70);
+    background: rgba(255, 69, 58, 0.08);
+  }
+
+  .toolbar-sep {
+    width: 1px;
+    height: 22px;
+    background: var(--border-dim);
+    margin: 0 3px;
+    flex-shrink: 0;
+  }
+
+  /* ─── AI Toggle ─── */
+  .ai-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--surface-base);
+    border: 1px solid var(--border-active);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-panel);
+    flex-shrink: 0;
+  }
+  .ai-toggle:hover {
+    border-color: var(--brand-border);
+    color: var(--brand);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-elevated);
+  }
+  .ai-toggle.active {
+    border-color: rgba(108, 99, 255, 0.35);
+    background: rgba(20, 20, 28, 0.95);
+    box-shadow: var(--shadow-panel), 0 0 12px rgba(108, 99, 255, 0.08);
+  }
+
+  /* ═══ Options Row ═══ */
+  .options-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--surface-panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-active);
+    border-radius: 10px;
+    padding: 5px 7px;
+    box-shadow: var(--shadow-panel);
+    margin-top: 6px;
+  }
+
+  .color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.12);
+    cursor: pointer;
+    transition: border-color 0.12s;
+    padding: 0;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+  }
+  .color-dot:hover {
+    border-color: rgba(255,255,255,0.35);
+  }
+  .color-dot.active {
+    border-color: rgba(255,255,255,0.85);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.25);
+  }
+
+  .size-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s;
+  }
+  .size-btn:hover { background: rgba(255,255,255,0.06); }
+  .size-btn.active { background: var(--brand-muted); }
+
+  .size-line {
+    width: 14px;
+    background: var(--text-secondary);
+    border-radius: 1px;
+    display: block;
+  }
+  .size-btn.active .size-line {
+    background: var(--brand);
+  }
+
+  /* ─── Comparison layout ─── */
+  .compare {
+    display: flex;
+    gap: 64px;
+    align-items: flex-start;
+  }
+  .compare-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .compare-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+  }
+
+  /* Old selection style for comparison */
+  .old-selection {
+    width: 280px;
+    height: 100px;
+    border: 1.5px solid #00e5ff;
+    border-radius: 4px;
+    position: relative;
+    box-shadow: 0 0 1px #00e5ff, 0 0 8px rgba(0,229,255,0.35), 0 0 24px rgba(0,229,255,0.1);
+    animation: oldPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes oldPulse {
+    0%, 100% { box-shadow: 0 0 1px #00e5ff, 0 0 8px rgba(0,229,255,0.35), 0 0 24px rgba(0,229,255,0.1); }
+    50% { box-shadow: 0 0 2px #00e5ff, 0 0 14px rgba(0,229,255,0.35), 0 0 36px rgba(0,229,255,0.15); }
+  }
+  .old-selection::before, .old-selection::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: #00e5ff;
+    border-style: solid;
+  }
+  .old-selection::before { top: -2px; left: -2px; border-width: 2px 0 0 2px; }
+  .old-selection::after { bottom: -2px; right: -2px; border-width: 0 2px 2px 0; }
+  .old-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: rgba(0,229,255,0.9);
+    border-radius: 1px;
+  }
+
+  .new-selection {
+    width: 280px;
+    height: 100px;
+    border: 1.5px solid rgba(108, 99, 255, 0.6);
+    border-radius: var(--radius-md);
+    position: relative;
+    box-shadow: 0 0 0 1px rgba(108, 99, 255, 0.12);
+  }
+  .new-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--brand);
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.9);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+</style>
+</head>
+<body class="theme-dark">
+
+<!-- ═══ Full Toolbar Demo ═══ -->
+<div class="demo-section">
+  <div class="label">Toolbar with selection</div>
+  <div class="screenshot-area">
+    <div class="selection-border"></div>
+    <div class="sel-handle sel-nw"></div>
+    <div class="sel-handle sel-ne"></div>
+    <div class="sel-handle sel-sw"></div>
+    <div class="sel-handle sel-se"></div>
+    <div class="dim-badge">1280 × 720</div>
+
+    <div class="toolbar-wrapper">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+        <div class="toolbar">
+          <!-- Settings -->
+          <button class="tool-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <span class="toolbar-sep"></span>
+          <!-- Tools -->
+          <button class="tool-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+          <button class="tool-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg></button>
+          <button class="tool-btn active"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5M19 5H9M19 5v10"/></svg></button>
+          <button class="tool-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5"/></svg></button>
+          <button class="tool-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21l1-6L16.5 2.5a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L9 20l-6 1z"/><path d="M15 4l5 5"/></svg></button>
+          <button class="tool-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h12M12 4v16"/><path d="M8 20h8"/></svg></button>
+          <button class="tool-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="9.5" y="2" width="5" height="5" fill="currentColor" opacity="0.25"/><rect x="17" y="2" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="2" y="9.5" width="5" height="5" fill="currentColor" opacity="0.25"/><rect x="9.5" y="9.5" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="17" y="9.5" width="5" height="5" fill="currentColor" opacity="0.25"/></svg></button>
+          <span class="toolbar-sep"></span>
+          <!-- Undo / Reset -->
+          <button class="tool-btn disabled"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M7 6L3 10l4 4"/></svg></button>
+          <button class="tool-btn disabled" style="font-family:var(--font-display);font-size:10px;font-weight:500;letter-spacing:0.3px;">Reset</button>
+          <span class="toolbar-sep"></span>
+          <!-- Copy / Save -->
+          <button class="tool-btn primary"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          <button class="tool-btn primary"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+          <span class="toolbar-sep"></span>
+          <button class="tool-btn cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </div>
+
+        <!-- Options row (shown because arrow tool is active) -->
+        <div class="options-row">
+          <button class="color-dot active" style="background:#e5243a;"></button>
+          <button class="color-dot" style="background:#e07800;"></button>
+          <button class="color-dot" style="background:#d4a800;"></button>
+          <button class="color-dot" style="background:#1aab42;"></button>
+          <button class="color-dot" style="background:#0062e0;"></button>
+          <button class="color-dot" style="background:#9333cf;"></button>
+          <button class="color-dot" style="background:#000000;"></button>
+          <button class="color-dot" style="background:#ffffff;"></button>
+          <span class="toolbar-sep"></span>
+          <button class="size-btn"><span class="size-line" style="height:2px;"></span></button>
+          <button class="size-btn active"><span class="size-line" style="height:4px;"></span></button>
+          <button class="size-btn"><span class="size-line" style="height:6px;"></span></button>
+        </div>
+      </div>
+
+      <button class="ai-toggle active">
+        <svg viewBox="60 140 420 280" width="28" height="19">
+          <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+          <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Selection Comparison ═══ -->
+<div class="demo-section" style="margin-top: 60px;">
+  <div class="label">Selection border — before & after</div>
+  <div class="compare">
+    <div class="compare-item">
+      <div class="old-selection">
+        <div class="old-handle" style="top:-4px;left:-4px;"></div>
+        <div class="old-handle" style="top:-4px;right:-4px;"></div>
+        <div class="old-handle" style="bottom:-4px;left:-4px;"></div>
+        <div class="old-handle" style="bottom:-4px;right:-4px;"></div>
+      </div>
+      <span class="compare-label">Current — cyan glow, brackets, pulsing, square handles</span>
+    </div>
+    <div class="compare-item">
+      <div class="new-selection">
+        <div class="new-handle" style="top:-4px;left:-4px;"></div>
+        <div class="new-handle" style="top:-4px;right:-4px;"></div>
+        <div class="new-handle" style="bottom:-4px;left:-4px;"></div>
+        <div class="new-handle" style="bottom:-4px;right:-4px;"></div>
+      </div>
+      <span class="compare-label">Proposed — brand color, static, rounded handles</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

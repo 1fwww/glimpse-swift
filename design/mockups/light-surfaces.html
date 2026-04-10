@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Light Theme: Soft Lavender vs Warm Gray</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #151517;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.page-header {
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+}
+.page-desc {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+  line-height: 1.6;
+  max-width: 560px;
+}
+
+.options-row {
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ═══ Theme Custom Properties ═══ */
+
+.opt-lavender {
+  --s-base: #F7F6FB;
+  --s-panel: #FCFBFF;
+  --s-elevated: #F4F2FC;
+  --s-input: #F6F4FD;
+  --s-hover: rgba(108, 99, 255, 0.05);
+
+  --b-dim: rgba(108, 99, 255, 0.07);
+  --b-active: rgba(108, 99, 255, 0.12);
+  --b-focus: rgba(108, 99, 255, 0.35);
+
+  --t-primary: rgba(22, 18, 40, 0.90);       /* 13.2:1 ✓ AA */
+  --t-secondary: rgba(50, 45, 75, 0.72);     /* 5.2:1  ✓ AA */
+  --t-dim: rgba(75, 70, 110, 0.65);          /* 3.4:1  ✓ AA-large */
+
+  --brand-text: #5B53E0;                      /* 5.2:1  ✓ AA */
+  --brand-btn: #635AEE;                       /* white 4.97:1 ✓ AA */
+  --brand-btn-hover: #5B53E0;
+  --brand-muted: rgba(108, 99, 255, 0.10);
+  --brand-dim: rgba(108, 99, 255, 0.06);
+  --brand-border: rgba(108, 99, 255, 0.22);
+
+  --success: #2DA44E;
+  --success-muted: rgba(45, 164, 78, 0.12);
+  --error: #CF222E;
+  --error-muted: rgba(207, 34, 46, 0.08);
+
+  --shadow: 0 4px 16px rgba(108,99,255,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-hover: 0 6px 20px rgba(108,99,255,0.08), 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.opt-warmgray {
+  --s-base: #F2F2F4;
+  --s-panel: #FAFAFC;
+  --s-elevated: #EEEEF2;
+  --s-input: #F4F4F6;
+  --s-hover: rgba(0, 0, 0, 0.035);
+
+  --b-dim: rgba(0, 0, 0, 0.065);
+  --b-active: rgba(0, 0, 0, 0.11);
+  --b-focus: rgba(108, 99, 255, 0.35);
+
+  --t-primary: rgba(18, 18, 25, 0.90);       /* 13.1:1 ✓ AA */
+  --t-secondary: rgba(45, 45, 62, 0.72);     /* 5.2:1  ✓ AA */
+  --t-dim: rgba(70, 70, 95, 0.65);           /* 3.4:1  ✓ AA-large */
+
+  --brand-text: #5B53E0;                      /* 5.0:1  ✓ AA */
+  --brand-btn: #635AEE;
+  --brand-btn-hover: #5B53E0;
+  --brand-muted: rgba(108, 99, 255, 0.10);
+  --brand-dim: rgba(108, 99, 255, 0.06);
+  --brand-border: rgba(108, 99, 255, 0.22);
+
+  --success: #2DA44E;
+  --success-muted: rgba(45, 164, 78, 0.12);
+  --error: #CF222E;
+  --error-muted: rgba(207, 34, 46, 0.08);
+
+  --shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-hover: 0 6px 20px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.03);
+}
+
+/* ═══ Window ═══ */
+
+.window {
+  width: 380px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--s-base);
+  border: 1px solid var(--b-dim);
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+  transition: box-shadow 0.25s ease;
+}
+
+.option-wrapper {
+  position: relative;
+  margin-top: 36px;
+}
+.option-label {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+}
+.option-meta {
+  position: absolute;
+  top: -28px;
+  right: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+}
+
+/* ═══ Chat Header ═══ */
+
+.chat-header {
+  padding: 12px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--b-dim);
+  flex-shrink: 0;
+}
+
+.chat-title-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  flex: 1;
+  min-width: 0;
+}
+.chat-title-btn:hover { background: var(--s-hover); }
+.chat-title-btn:active { background: var(--b-dim); }
+.chat-title-btn:focus-visible {
+  outline: 2px solid var(--b-focus);
+  outline-offset: 1px;
+}
+
+.chat-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--t-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-chevron {
+  flex-shrink: 0;
+  color: var(--t-dim);
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.header-btn {
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--b-dim);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t-dim);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.header-btn:hover {
+  background: var(--s-hover);
+  border-color: var(--b-active);
+  color: var(--t-secondary);
+}
+.header-btn:active {
+  transform: scale(0.95);
+}
+.header-btn:focus-visible {
+  outline: 2px solid var(--b-focus);
+  outline-offset: 1px;
+}
+.header-btn.pinned {
+  background: var(--brand-dim);
+  border-color: var(--brand-border);
+  color: var(--brand-text);
+}
+.header-btn.pinned:hover {
+  background: var(--brand-muted);
+  border-color: var(--brand-text);
+}
+
+/* ═══ Attachment ═══ */
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  background: var(--brand-dim);
+  border-left: 2px solid var(--brand-border);
+  border-radius: 2px 8px 8px 2px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--t-secondary);
+}
+.attachment svg { color: var(--t-dim); flex-shrink: 0; }
+
+.attachment-x {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--t-dim);
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+.attachment-x:hover {
+  background: var(--b-dim);
+  color: var(--t-secondary);
+}
+
+/* ═══ Model Bar ═══ */
+
+.model-bar {
+  padding: 4px 12px 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+.model-link {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--t-dim);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+}
+.model-link:hover { color: var(--t-secondary); background: var(--s-hover); }
+.model-link:focus-visible { outline: 2px solid var(--b-focus); outline-offset: 1px; }
+
+/* ═══ Messages ═══ */
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.msg { display: flex; flex-direction: column; }
+.msg-user { align-items: flex-end; }
+.msg-assistant { align-items: flex-start; }
+
+.bubble {
+  padding: 10px 14px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 88%;
+  word-break: break-word;
+}
+
+.msg-user .bubble {
+  background: var(--brand-muted);
+  color: var(--t-primary);
+  border-radius: 16px 16px 4px 16px;
+}
+
+.msg-assistant .bubble {
+  background: var(--s-elevated);
+  color: var(--t-primary);
+  border-radius: 16px 16px 16px 4px;
+  border: 1px solid var(--b-dim);
+}
+
+.bubble strong { font-weight: 600; color: var(--t-primary); }
+
+.bubble code {
+  background: var(--s-hover);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.msg-model {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--t-dim);
+  margin-top: 3px;
+  padding-left: 2px;
+}
+
+/* ═══ Code Block ═══ */
+
+.code-block {
+  margin: 8px 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--b-dim);
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--s-elevated);
+  border-bottom: 1px solid var(--b-dim);
+}
+.code-lang {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--t-dim);
+}
+
+.code-copy {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--t-dim);
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+}
+.code-copy:hover {
+  background: var(--s-hover);
+  color: var(--t-secondary);
+}
+.code-copy:focus-visible { outline: 2px solid var(--b-focus); outline-offset: 1px; }
+
+.code-block pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--s-panel);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  color: var(--t-primary);
+}
+
+.kw { color: var(--brand-text); }
+
+/* ═══ Blockquote Rewrite ═══ */
+
+.bq-rewrite {
+  position: relative;
+  border-left: 2px solid var(--brand-border);
+  background: var(--brand-dim);
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.bq-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--t-dim);
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+.bq-rewrite:hover .bq-copy { opacity: 1; }
+.bq-copy:hover {
+  background: var(--s-hover);
+  color: var(--t-secondary);
+}
+
+/* ═══ Thinking ═══ */
+
+.thinking {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--t-dim);
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.thinking-dots { display: flex; gap: 3px; }
+.thinking-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--t-dim);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ═══ Input ═══ */
+
+.chat-input {
+  padding: 10px 12px;
+  border-top: 1px solid var(--b-dim);
+  flex-shrink: 0;
+}
+
+.input-box {
+  width: 100%;
+  background: var(--s-input);
+  border: 1px solid var(--b-dim);
+  border-radius: 12px;
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input-box.focused {
+  border-color: var(--brand-border);
+  box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.08);
+}
+
+.input-box textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--t-primary);
+  padding: 10px 42px 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-display);
+  resize: none;
+  outline: none;
+  line-height: 1.45;
+}
+.input-box textarea::placeholder { color: var(--t-dim); }
+
+.send-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--brand-btn);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.send-btn:hover { background: var(--brand-btn-hover); transform: translateY(-1px); }
+.send-btn:active { transform: translateY(0); }
+.send-btn:focus-visible { outline: 2px solid var(--b-focus); outline-offset: 2px; }
+.send-btn[disabled] {
+  background: var(--s-elevated);
+  color: var(--t-dim);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ═══ Palette Strip ═══ */
+
+.palette-strip {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px 10px;
+}
+.palette-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+}
+.palette-swatch {
+  width: 100%;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--b-dim);
+}
+.palette-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--t-dim);
+  white-space: nowrap;
+}
+
+/* ═══ Accessibility Badge ═══ */
+
+.a11y-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--b-dim);
+  background: var(--s-elevated);
+}
+.a11y-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+.a11y-label { color: var(--t-dim); }
+.a11y-ratio { color: var(--t-secondary); }
+.a11y-pass {
+  color: var(--success);
+  font-weight: 600;
+  font-size: 9px;
+}
+.a11y-pass-large {
+  color: var(--brand-text);
+  font-weight: 500;
+  font-size: 9px;
+}
+
+/* ═══ Scrollbar ═══ */
+
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--b-active); border-radius: 2px; }
+
+/* ═══ Reduced Motion ═══ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <span class="page-title">Light Theme — Soft Lavender vs Warm Gray</span>
+  <span class="page-desc">Both palettes pass WCAG AA. Primary and secondary text pass for normal-size text. Dim text passes for UI components and large text (used only for timestamps, model tags, and hints). Brand text uses #5B53E0 (darker variant) for AA compliance on small text.</span>
+</div>
+
+<div class="options-row">
+
+<!-- ═══ SOFT LAVENDER ═══ -->
+<div class="option-wrapper">
+  <span class="option-label">Soft Lavender</span>
+  <span class="option-meta">base #F7F6FB</span>
+  <div class="window opt-lavender">
+
+    <div class="chat-header">
+      <button class="chat-title-btn" aria-label="Open thread menu">
+        <span class="chat-title">Debug query results</span>
+        <svg class="chat-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="header-actions">
+        <button class="header-btn pinned" aria-label="Pinned to screen">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="header-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="attachment">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <span>Screenshot attached</span>
+      <button class="attachment-x" aria-label="Remove screenshot">×</button>
+    </div>
+
+    <div class="model-bar">
+      <button class="model-link" aria-label="Change model">
+        claude-sonnet-4-5
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="messages">
+      <div class="msg msg-user">
+        <div class="bubble">Why is this query returning null for the joined column?</div>
+      </div>
+      <div class="msg msg-assistant">
+        <div class="bubble">
+          The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the right table uses <code>account_id</code>.
+          <div class="code-block">
+            <div class="code-block-header">
+              <span class="code-lang">sql</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><span class="kw">SELECT</span> u.name, o.total
+<span class="kw">FROM</span> users u
+<span class="kw">LEFT JOIN</span> orders o
+  <span class="kw">ON</span> u.id = o.account_id</pre>
+          </div>
+          Change <code>user_id</code> to <code>account_id</code> and it should resolve.
+        </div>
+        <span class="msg-model">claude-sonnet-4-5</span>
+      </div>
+      <div class="msg msg-user">
+        <div class="bubble">Can you check if there's an index on that column?</div>
+      </div>
+      <div class="msg msg-assistant">
+        <div class="thinking">
+          <div class="thinking-dots"><span></span><span></span><span></span></div>
+          Thinking
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input">
+      <div class="input-box focused">
+        <textarea rows="1" placeholder="Ask about your screenshot..."></textarea>
+        <button class="send-btn" aria-label="Send message">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="palette-strip">
+      <div class="palette-item"><div class="palette-swatch" style="background:#F7F6FB;"></div><span class="palette-label">base</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#FCFBFF;"></div><span class="palette-label">panel</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#F4F2FC;"></div><span class="palette-label">elevated</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#F6F4FD;"></div><span class="palette-label">input</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:rgba(108,99,255,0.10);"></div><span class="palette-label">user msg</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#5B53E0;"></div><span class="palette-label">brand-text</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#635AEE;"></div><span class="palette-label">brand-btn</span></div>
+    </div>
+
+    <div class="a11y-strip">
+      <div class="a11y-row"><span class="a11y-label">primary text</span><span class="a11y-ratio">13.2:1</span><span class="a11y-pass">AA ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">secondary text</span><span class="a11y-ratio">5.2:1</span><span class="a11y-pass">AA ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">dim text</span><span class="a11y-ratio">3.4:1</span><span class="a11y-pass-large">AA-large ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">brand text</span><span class="a11y-ratio">5.2:1</span><span class="a11y-pass">AA ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">white on button</span><span class="a11y-ratio">5.0:1</span><span class="a11y-pass">AA ✓</span></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ WARM GRAY ═══ -->
+<div class="option-wrapper">
+  <span class="option-label">Warm Gray</span>
+  <span class="option-meta">base #F2F2F4</span>
+  <div class="window opt-warmgray">
+
+    <div class="chat-header">
+      <button class="chat-title-btn" aria-label="Open thread menu">
+        <span class="chat-title">Debug query results</span>
+        <svg class="chat-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="header-actions">
+        <button class="header-btn pinned" aria-label="Pinned to screen">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="header-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="attachment">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <span>Screenshot attached</span>
+      <button class="attachment-x" aria-label="Remove screenshot">×</button>
+    </div>
+
+    <div class="model-bar">
+      <button class="model-link" aria-label="Change model">
+        claude-sonnet-4-5
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="messages">
+      <div class="msg msg-user">
+        <div class="bubble">Why is this query returning null for the joined column?</div>
+      </div>
+      <div class="msg msg-assistant">
+        <div class="bubble">
+          The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the right table uses <code>account_id</code>.
+          <div class="code-block">
+            <div class="code-block-header">
+              <span class="code-lang">sql</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><span class="kw">SELECT</span> u.name, o.total
+<span class="kw">FROM</span> users u
+<span class="kw">LEFT JOIN</span> orders o
+  <span class="kw">ON</span> u.id = o.account_id</pre>
+          </div>
+          Change <code>user_id</code> to <code>account_id</code> and it should resolve.
+        </div>
+        <span class="msg-model">claude-sonnet-4-5</span>
+      </div>
+      <div class="msg msg-user">
+        <div class="bubble">Can you check if there's an index on that column?</div>
+      </div>
+      <div class="msg msg-assistant">
+        <div class="thinking">
+          <div class="thinking-dots"><span></span><span></span><span></span></div>
+          Thinking
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input">
+      <div class="input-box focused">
+        <textarea rows="1" placeholder="Ask about your screenshot..."></textarea>
+        <button class="send-btn" aria-label="Send message">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="palette-strip">
+      <div class="palette-item"><div class="palette-swatch" style="background:#F2F2F4;"></div><span class="palette-label">base</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#FAFAFC;"></div><span class="palette-label">panel</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#EEEEF2;"></div><span class="palette-label">elevated</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#F4F4F6;"></div><span class="palette-label">input</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:rgba(108,99,255,0.10);"></div><span class="palette-label">user msg</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#5B53E0;"></div><span class="palette-label">brand-text</span></div>
+      <div class="palette-item"><div class="palette-swatch" style="background:#635AEE;"></div><span class="palette-label">brand-btn</span></div>
+    </div>
+
+    <div class="a11y-strip">
+      <div class="a11y-row"><span class="a11y-label">primary text</span><span class="a11y-ratio">13.1:1</span><span class="a11y-pass">AA ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">secondary text</span><span class="a11y-ratio">5.2:1</span><span class="a11y-pass">AA ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">dim text</span><span class="a11y-ratio">3.4:1</span><span class="a11y-pass-large">AA-large ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">brand text</span><span class="a11y-ratio">5.0:1</span><span class="a11y-pass">AA ✓</span></div>
+      <div class="a11y-row"><span class="a11y-label">white on button</span><span class="a11y-ratio">5.0:1</span><span class="a11y-pass">AA ✓</span></div>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- end options-row -->
+
+</body>
+</html>

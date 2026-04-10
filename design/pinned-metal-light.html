@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pinned State — Metal / Aluminum / Liquid Directions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap');
+
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: #E8E8EC;
+    padding: 32px;
+    font-family: 'Outfit', sans-serif;
+    color: rgba(18, 18, 25, 0.90);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  h1 { font-size: 15px; font-weight: 600; color: rgba(0,0,0,0.5); }
+  .subtitle { font-size: 12px; color: rgba(0,0,0,0.35); margin-bottom: 8px; line-height: 1.6; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+
+  .option { display: flex; flex-direction: column; gap: 8px; }
+
+  .label { font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.5); }
+  .label-desc { font-size: 11px; color: rgba(0,0,0,0.3); margin-top: 2px; }
+
+  .panel {
+    width: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .panel.unpinned {
+    background: #FAFAFC;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  }
+
+  .panel-header {
+    padding: 11px 12px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.065);
+    transition: all 0.45s;
+  }
+
+  .eye { width: 20px; height: 14px; flex-shrink: 0; }
+
+  .title {
+    font-weight: 600; font-size: 13px;
+    color: rgba(18,18,25,0.90);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .pin-btn {
+    width: 24px; height: 24px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid rgba(0,0,0,0.11);
+    background: transparent; color: rgba(70,70,95,0.5);
+    cursor: pointer; transition: all 0.35s; flex-shrink: 0;
+  }
+  .pinned .pin-btn {
+    border-color: rgba(108,99,255,0.35); color: #5B53E0;
+    background: rgba(108,99,255,0.10);
+  }
+
+  .messages {
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 8px; min-height: 120px;
+  }
+
+  .bubble {
+    padding: 8px 12px; font-size: 13px; line-height: 1.5;
+    max-width: 85%; border-radius: 12px;
+  }
+  .b-user {
+    align-self: flex-end;
+    background: rgba(108, 99, 255, 0.10);
+    border-radius: 12px 12px 3px 12px;
+  }
+  .b-asst {
+    align-self: flex-start; border-radius: 12px 12px 12px 3px;
+    transition: all 0.45s;
+  }
+  .unpinned .b-asst { background: #EEEEF2; border: 1px solid rgba(0,0,0,0.065); }
+
+  .model-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: rgba(70,70,95,0.5);
+    margin-top: 2px; padding-left: 2px;
+  }
+
+  .input-area {
+    padding: 8px 12px 10px;
+    border-top: 1px solid rgba(0,0,0,0.065);
+    transition: all 0.45s;
+  }
+
+  .input-field {
+    width: 100%; padding: 8px 12px; border-radius: 10px;
+    font-family: 'Outfit', sans-serif; font-size: 13px;
+    outline: none; transition: all 0.45s;
+  }
+  .unpinned .input-field {
+    background: #F4F4F6; border: 1px solid rgba(0,0,0,0.065);
+    color: rgba(70,70,95,0.5);
+  }
+
+  .footer {
+    padding: 4px 12px 8px;
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: rgba(70,70,95,0.5);
+  }
+
+  /* ═══ A. Brushed Aluminum ═══ */
+  .panel.opt-a {
+    background: linear-gradient(180deg, #F6F7F9 0%, #EEEFF3 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.8),
+      0 2px 8px rgba(0,0,0,0.08),
+      0 1px 2px rgba(0,0,0,0.04);
+  }
+  .panel.opt-a .panel-header {
+    border-bottom-color: rgba(0,0,0,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 100%);
+  }
+  .panel.opt-a .b-asst {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .panel.opt-a .input-field {
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(0,0,0,0.07);
+  }
+  .panel.opt-a .input-area { border-top-color: rgba(0,0,0,0.08); }
+
+  /* ═══ B. Liquid Silver ═══ */
+  .panel.opt-b {
+    background: linear-gradient(180deg, #F8F9FB 0%, #E8E9EF 50%, #F0F1F5 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      inset 0 -1px 0 rgba(255,255,255,0.4),
+      0 4px 16px rgba(0,0,0,0.08),
+      0 1px 3px rgba(0,0,0,0.04);
+  }
+  .panel.opt-b .panel-header {
+    border-bottom-color: rgba(0,0,0,0.06);
+    background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%);
+  }
+  .panel.opt-b .b-asst {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .panel.opt-b .input-field {
+    background: rgba(255,255,255,0.45);
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .panel.opt-b .input-area { border-top-color: rgba(0,0,0,0.06); }
+
+  /* ═══ C. Frosted Glass ═══ */
+  .panel.opt-c {
+    background: rgba(245, 246, 250, 0.92);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.7),
+      0 2px 12px rgba(0,0,0,0.06),
+      0 1px 2px rgba(0,0,0,0.03);
+  }
+  .panel.opt-c .panel-header {
+    border-bottom-color: rgba(0,0,0,0.05);
+  }
+  .panel.opt-c .b-asst {
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(0,0,0,0.04);
+  }
+  .panel.opt-c .input-field {
+    background: rgba(255,255,255,0.4);
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .panel.opt-c .input-area { border-top-color: rgba(0,0,0,0.05); }
+
+  /* ═══ D. Polished Chrome ═══ */
+  .panel.opt-d {
+    background: linear-gradient(180deg, #F4F5F8 0%, #E6E7ED 40%, #ECEDF2 60%, #F2F3F7 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.95),
+      inset 0 -1px 0 rgba(0,0,0,0.03),
+      0 4px 20px rgba(0,0,0,0.10),
+      0 1px 3px rgba(0,0,0,0.05);
+  }
+  .panel.opt-d .panel-header {
+    border-bottom-color: rgba(0,0,0,0.07);
+    background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%);
+  }
+  .panel.opt-d .b-asst {
+    background: rgba(255,255,255,0.65);
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .panel.opt-d .input-field {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .panel.opt-d .input-area { border-top-color: rgba(0,0,0,0.07); }
+
+  .toggle-btn {
+    padding: 8px 16px; border-radius: 8px;
+    font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500;
+    border: 1px solid rgba(0,0,0,0.12);
+    background: rgba(0,0,0,0.04); color: rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  .toggle-btn:hover { background: rgba(0,0,0,0.08); }
+</style>
+</head>
+<body>
+
+<h1>Pinned State — Metal / Aluminum / Liquid (Light Theme)</h1>
+<p class="subtitle">Pinned = "materialized." The chat becomes a physical object on your screen.<br>Click Toggle to compare with unpinned (flat warm gray).</p>
+
+<div class="grid">
+
+  <div class="option">
+    <div class="label">A. Brushed Aluminum</div>
+    <div class="label-desc">Subtle vertical gradient + top highlight. macOS native feel.</div>
+    <div class="panel pinned opt-a" id="panelA">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelA','opt-a')">Toggle pin</button>
+  </div>
+
+  <div class="option">
+    <div class="label">B. Liquid Silver</div>
+    <div class="label-desc">3-stop gradient with belly dip. Mercury-like light play.</div>
+    <div class="panel pinned opt-b" id="panelB">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelB','opt-b')">Toggle pin</button>
+  </div>
+
+  <div class="option">
+    <div class="label">C. Frosted Glass</div>
+    <div class="label-desc">Slightly translucent flat surface. Quiet, minimal.</div>
+    <div class="panel pinned opt-c" id="panelC">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelC','opt-c')">Toggle pin</button>
+  </div>
+
+  <div class="option">
+    <div class="label">D. Polished Chrome</div>
+    <div class="label-desc">4-stop gradient with highlight band. Most "physical" feel.</div>
+    <div class="panel pinned opt-d" id="panelD">
+      <div class="panel-header">
+        <svg class="eye" viewBox="60 140 420 280"><path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        <span class="title">SQL Query Review</span>
+        <div class="pin-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg></div>
+      </div>
+      <div class="messages">
+        <div class="bubble b-user">What does this error mean?</div>
+        <div class="bubble b-asst">That's a type mismatch — the function expects a string but received an integer.</div>
+        <span class="model-tag">Sonnet 4</span>
+      </div>
+      <div class="input-area"><input class="input-field" placeholder="Continue discussion..." readonly></div>
+      <div class="footer"><span>⚙</span><span>Sonnet 4</span></div>
+    </div>
+    <button class="toggle-btn" onclick="toggle('panelD','opt-d')">Toggle pin</button>
+  </div>
+
+</div>
+
+<script>
+function toggle(id, cls) {
+  const panel = document.getElementById(id);
+  const isPinned = panel.classList.contains('pinned');
+  if (isPinned) {
+    panel.classList.remove('pinned', cls);
+    panel.classList.add('unpinned');
+  } else {
+    panel.classList.remove('unpinned');
+    panel.classList.add('pinned', cls);
+  }
+}
+</script>
+
+</body>
+</html>

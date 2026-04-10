@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Welcome (Redesigned)</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #0e0e12;
+    padding: 40px;
+    gap: 48px;
+  }
+
+  .label {
+    position: absolute;
+    top: -28px;
+    left: 0;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.3px;
+  }
+
+  /* ─── Welcome Window ─── */
+  .welcome-window {
+    position: relative;
+    width: 420px;
+    height: 520px;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-dim);
+    box-shadow: var(--shadow-elevated);
+    flex-shrink: 0;
+  }
+
+  /* ─── Drag Bar ─── */
+  .drag-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 14px 0;
+    flex-shrink: 0;
+  }
+
+  .close-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .close-btn:hover {
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.05);
+  }
+
+  /* ─── Content ─── */
+  .welcome-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 40px 24px;
+    gap: 20px;
+  }
+
+  /* ─── Logo ─── */
+  .logo-wrapper {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .logo-wrapper:hover {
+    transform: scale(1.04);
+  }
+  .logo-wrapper:active {
+    transform: scale(0.97);
+  }
+
+  /* Wiggle animation — one shot, triggered by class */
+  .logo-wiggle svg path:first-child {
+    animation: eyebrowWiggle 1s ease-in-out;
+    transform-origin: 270px 210px;
+  }
+  @keyframes eyebrowWiggle {
+    0%, 100% { transform: rotate(0deg); }
+    15% { transform: rotate(-5deg); }
+    35% { transform: rotate(3deg); }
+    55% { transform: rotate(4deg); }
+    75% { transform: rotate(-2deg); }
+  }
+
+  .app-name {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+  }
+
+  .tagline {
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    text-align: center;
+    max-width: 300px;
+  }
+
+  .get-started-btn {
+    margin-top: 8px;
+    width: 100%;
+    max-width: 280px;
+    padding: 12px 20px;
+    background: var(--brand-muted);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .get-started-btn:hover {
+    background: rgba(108, 99, 255, 0.22);
+    border-color: rgba(108, 99, 255, 0.4);
+  }
+
+  .version-hint {
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  /* ─── Footer Dots ─── */
+  .welcome-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 0 22px;
+    flex-shrink: 0;
+  }
+
+  .dots {
+    display: flex;
+    gap: 7px;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    transition: all 0.2s;
+  }
+  .dot.active {
+    background: var(--brand);
+    transform: scale(1.15);
+  }
+
+  /* ─── Step 2: Permissions ─── */
+  .permissions-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 36px 24px;
+    gap: 16px;
+  }
+
+  .step-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 20px;
+  }
+
+  .step-desc {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .perm-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .perm-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-dim);
+    border-radius: var(--radius-md);
+    transition: border-color 0.25s ease;
+  }
+  .perm-card.granted {
+    border-color: rgba(52, 199, 89, 0.25);
+  }
+
+  .perm-icon {
+    flex-shrink: 0;
+    color: var(--text-dim);
+    width: 20px;
+    height: 20px;
+  }
+  .perm-card.granted .perm-icon {
+    color: var(--success);
+  }
+
+  .perm-info {
+    flex: 1;
+  }
+  .perm-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .perm-why {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .perm-grant-btn {
+    padding: 5px 12px;
+    background: var(--brand-dim);
+    border: 1px solid var(--brand-border);
+    border-radius: 6px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--brand);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .perm-grant-btn:hover {
+    background: var(--brand-muted);
+    border-color: rgba(108, 99, 255, 0.4);
+  }
+
+  .perm-check {
+    flex-shrink: 0;
+    color: var(--success);
+  }
+
+  .continue-btn {
+    margin-top: auto;
+    width: 100%;
+    padding: 12px 20px;
+    background: var(--brand-muted);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .continue-btn:hover {
+    background: rgba(108, 99, 255, 0.22);
+    border-color: rgba(108, 99, 255, 0.4);
+  }
+  .continue-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ STEP 1: Welcome Intro ═══ -->
+<div class="welcome-window theme-dark" style="background: var(--surface-base);">
+  <span class="label">Step 1 — Welcome</span>
+  <div class="drag-bar">
+    <button class="close-btn">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="welcome-content">
+    <div class="logo-wrapper logo-wiggle" onclick="this.classList.remove('logo-wiggle'); void this.offsetWidth; this.classList.add('logo-wiggle');">
+      <svg viewBox="60 140 420 280" width="68" height="45">
+        <path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/>
+        <path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="app-name">Glimpse</span>
+    <p class="tagline">Snap it. Ask it. Never lose your flow.</p>
+    <button class="get-started-btn">Get Started</button>
+    <span class="version-hint">v1.0 for macOS</span>
+  </div>
+  <div class="welcome-footer">
+    <div class="dots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2: Permissions ═══ -->
+<div class="welcome-window theme-dark" style="background: var(--surface-base);">
+  <span class="label">Step 2 — Permissions</span>
+  <div class="drag-bar">
+    <button class="close-btn">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="permissions-content">
+    <span class="step-title">Quick setup</span>
+    <p class="step-desc">Glimpse needs two permissions to capture your screen and respond to shortcuts.</p>
+
+    <div class="perm-list">
+      <div class="perm-card granted">
+        <svg class="perm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
+        </svg>
+        <div class="perm-info">
+          <div class="perm-name">Screen Recording</div>
+          <div class="perm-why">Capture screenshots of your screen</div>
+        </div>
+        <svg class="perm-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+
+      <div class="perm-card">
+        <svg class="perm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <div class="perm-info">
+          <div class="perm-name">Accessibility</div>
+          <div class="perm-why">Detect windows and respond to shortcuts</div>
+        </div>
+        <button class="perm-grant-btn">Grant</button>
+      </div>
+    </div>
+
+    <button class="continue-btn" disabled>Continue</button>
+  </div>
+  <div class="welcome-footer">
+    <div class="dots">
+      <div class="dot"></div>
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

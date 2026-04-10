@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Tray Icon Rounded Ends v2</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: var(--surface-base);
+  padding: var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text-secondary); max-width: 600px; width: 100%; }
+.section-label { font-family: var(--font-display); font-size: var(--text-xs); font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 100%; }
+
+.row { display: flex; gap: 48px; align-items: flex-start; }
+.variant { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.label { font-family: var(--font-display); font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
+.sublabel { font-family: var(--font-display); font-size: 10px; color: var(--text-dim); text-align: center; max-width: 140px; line-height: 1.5; }
+
+.preview {
+  width: 160px; height: 160px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.06);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.mb { display:flex; align-items:center; gap:14px; padding:4px 16px; height:28px; border-radius:6px; }
+.mb-l { background:#F6F6F9; border:1px solid rgba(0,0,0,0.06); }
+.mb-d { background:#2C2C2E; border:1px solid rgba(255,255,255,0.06); }
+.mb-dot { width:3px; height:3px; border-radius:50%; }
+.mb-dot-l { background:rgba(0,0,0,0.15); }
+.mb-dot-d { background:rgba(255,255,255,0.15); }
+.mb-time { font-family:var(--font-display); font-size:11px; }
+.mb-time-l { color:rgba(0,0,0,0.5); }
+.mb-time-d { color:rgba(255,255,255,0.5); }
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Tray Icon — Rounded Ends v2 (path trimmed)</span>
+
+<!--
+  Tray icon: right-side crop of Glimpse logo with rounded stroke ends.
+  viewBox: 212 168 238 232
+
+  Original full-logo paths:
+    Brow: M98 212 C152 174 365 158 420 248
+    Body: M262 374 C228 373 176 360 128 321 C176 276 314 200 390 270
+          C462 336 350 379 322 374 C248 361 262 276 322 279 C378 282 363 346 322 332
+
+  Split via De Casteljau at viewBox boundary, then extended ~2-3px further
+  left for visual balance. Left endpoints staggered: 233, 234, 225
+  (top two nearly aligned, bottom stub extends furthest as counterweight).
+
+  Final 3 sub-paths:
+  1. Brow:             M233 182 C307 181 389 198 420 248
+  2. Body lower stub:  M262 374 C252 373 240 371 225 367
+  3. Body main+spiral: M234 257 C288 237 349 232 390 270
+                       C462 336 350 379 322 374 C248 361 262 276 322 279
+                       C378 282 363 346 322 332
+
+  All stroke-linecap="round". Round caps visible at all 4 new endpoints.
+-->
+
+<span class="section-label">Large — 160px</span>
+<div class="row">
+
+  <!-- Current: hard clip -->
+  <div class="variant">
+    <div class="preview">
+      <svg viewBox="212 168 238 232" width="110" height="110">
+        <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#1a1a1a" stroke-width="26" stroke-linecap="round"/>
+        <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#1a1a1a" stroke-width="28" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="label">Current</span>
+    <span class="sublabel">Hard viewBox clip. Flat ends at left.</span>
+  </div>
+
+  <!-- New: trimmed with round caps -->
+  <div class="variant">
+    <div class="preview">
+      <svg viewBox="212 168 238 232" width="110" height="110">
+        <!-- Brow: De Casteljau split at t=0.44 -->
+        <path d="M233 182C307 181 389 198 420 248" fill="none" stroke="#1a1a1a" stroke-width="26" stroke-linecap="round"/>
+        <!-- Body lower stub: De Casteljau split at t=0.29 -->
+        <path d="M262 374C252 373 240 371 225 367" fill="none" stroke="#1a1a1a" stroke-width="28" stroke-linecap="round"/>
+        <!-- Body main: De Casteljau split at t=0.46 + remaining segments -->
+        <path d="M234 257C288 237 349 232 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#1a1a1a" stroke-width="28" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="label">Rounded</span>
+    <span class="sublabel">Same curves, round caps at cut points. 3 sub-paths.</span>
+  </div>
+
+  <!-- Your reference -->
+  <div class="variant">
+    <div class="preview">
+      <img src="/Users/yiifuwu/Downloads/tray.png" width="110" height="110" style="object-fit:contain;"/>
+    </div>
+    <span class="label">Your ref</span>
+    <span class="sublabel">Hand-drawn target</span>
+  </div>
+
+</div>
+
+<!-- ═══ MENU BAR ═══ -->
+<span class="section-label">Menu bar — light</span>
+<div class="mb mb-l">
+  <span class="mb-dot mb-dot-l"></span>
+  <span class="mb-dot mb-dot-l"></span>
+  <!-- Current -->
+  <svg viewBox="212 168 238 232" width="16" height="16">
+    <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="#1a1a1a" stroke-width="26" stroke-linecap="round"/>
+    <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#1a1a1a" stroke-width="28" stroke-linecap="round"/>
+  </svg>
+  <span style="width:8px"></span>
+  <!-- Rounded -->
+  <svg viewBox="212 168 238 232" width="16" height="16">
+    <path d="M233 182C307 181 389 198 420 248" fill="none" stroke="#1a1a1a" stroke-width="26" stroke-linecap="round"/>
+    <path d="M262 374C252 373 240 371 225 367" fill="none" stroke="#1a1a1a" stroke-width="28" stroke-linecap="round"/>
+    <path d="M234 257C288 237 349 232 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="#1a1a1a" stroke-width="28" stroke-linecap="round"/>
+  </svg>
+  <span style="width:16px"></span>
+  <span class="mb-time mb-time-l">Current &nbsp;&nbsp; Rounded</span>
+</div>
+
+<span class="section-label">Menu bar — dark</span>
+<div class="mb mb-d">
+  <span class="mb-dot mb-dot-d"></span>
+  <span class="mb-dot mb-dot-d"></span>
+  <!-- Current -->
+  <svg viewBox="212 168 238 232" width="16" height="16">
+    <path d="M98 212C152 174 365 158 420 248" fill="none" stroke="white" stroke-width="26" stroke-linecap="round"/>
+    <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  </svg>
+  <span style="width:8px"></span>
+  <!-- Rounded -->
+  <svg viewBox="212 168 238 232" width="16" height="16">
+    <path d="M233 182C307 181 389 198 420 248" fill="none" stroke="white" stroke-width="26" stroke-linecap="round"/>
+    <path d="M262 374C252 373 240 371 225 367" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+    <path d="M234 257C288 237 349 232 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  </svg>
+  <span style="width:16px"></span>
+  <span class="mb-time mb-time-d">Current &nbsp;&nbsp; Rounded</span>
+</div>
+
+</body>
+</html>

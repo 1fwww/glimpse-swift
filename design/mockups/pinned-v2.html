@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Pinned State v2: Depth & Structure</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #151517;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.page-header {
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+}
+.page-desc {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+  line-height: 1.7;
+  max-width: 640px;
+}
+
+/* ═══ Simulated desktop background ═══ */
+.desktop {
+  position: relative;
+  width: 460px;
+  min-height: 520px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.desktop-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, #2a2a3e 0%, #1e1e2e 40%, #252540 100%);
+  z-index: 0;
+}
+
+/* Fake desktop content behind the panel */
+.desktop-content {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fake-line {
+  height: 10px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+}
+.fake-line.short { width: 60%; }
+.fake-line.med { width: 80%; }
+.fake-line.long { width: 95%; }
+.fake-line.gap { height: 20px; background: transparent; }
+
+/* ═══ Chat panel ═══ */
+.chat-panel {
+  position: relative;
+  z-index: 10;
+  width: 370px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-display);
+
+  /* Transition everything */
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Unpinned state ── */
+.chat-panel.unpinned {
+  background: rgba(242, 242, 244, 0.97);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.08),
+    0 1px 2px rgba(0,0,0,0.04);
+  transform: scale(1) translateY(0);
+}
+
+/* ── Pinned state ── */
+.chat-panel.pinned {
+  background: rgba(248, 247, 252, 0.92);
+  border: 1.5px solid rgba(108, 99, 255, 0.22);
+  box-shadow:
+    0 8px 32px rgba(108, 99, 255, 0.10),
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    0 2px 6px rgba(108, 99, 255, 0.06);
+  transform: scale(1.015) translateY(-4px);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+}
+
+/* ── Accent bar (removed — other signals are sufficient) ── */
+.accent-bar {
+  display: none;
+}
+
+/* ═══ Header ═══ */
+.chat-header {
+  padding: 11px 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  transition: border-color 0.4s;
+}
+.pinned .chat-header {
+  border-bottom-color: rgba(108, 99, 255, 0.08);
+}
+
+.chat-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(18,18,25,0.90);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron { color: rgba(70,70,95,0.5); flex-shrink: 0; }
+
+.header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.h-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  flex-shrink: 0;
+}
+
+/* Pin button transitions */
+.pin-btn.is-unpinned {
+  border: 1.5px solid rgba(0,0,0,0.065);
+  color: rgba(70,70,95,0.5);
+  background: transparent;
+}
+.pin-btn.is-pinned {
+  border: 1.5px solid rgba(108,99,255,0.35);
+  color: #5B53E0;
+  background: rgba(108,99,255,0.10);
+}
+
+.close-btn-h {
+  border: 1.5px solid rgba(0,0,0,0.065);
+  color: rgba(70,70,95,0.5);
+  background: transparent;
+}
+.close-btn-h:hover {
+  background: rgba(0,0,0,0.04);
+  color: rgba(45,45,62,0.72);
+}
+
+/* ═══ Messages ═══ */
+.model-bar {
+  padding: 4px 12px 6px;
+  display: flex;
+  justify-content: flex-end;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(70,70,95,0.5);
+}
+
+.messages {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 88%;
+}
+
+.b-user {
+  align-self: flex-end;
+  background: rgba(108, 99, 255, 0.10);
+  color: rgba(18,18,25,0.90);
+  border-radius: 16px 16px 4px 16px;
+}
+
+.b-asst {
+  align-self: flex-start;
+  color: rgba(18,18,25,0.90);
+  border-radius: 16px 16px 16px 4px;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .b-asst {
+  background: #EEEEF2;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.pinned .b-asst {
+  background: rgba(244, 242, 252, 0.95);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+}
+
+.bq {
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: all 0.4s;
+  border-left: 2px solid rgba(108,99,255,0.25);
+  background: rgba(108,99,255,0.04);
+}
+
+.msg-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(70,70,95,0.45);
+  margin-top: 3px;
+  padding-left: 2px;
+}
+
+/* ═══ Input ═══ */
+.chat-input-area {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  transition: border-color 0.4s;
+}
+.pinned .chat-input-area {
+  border-top-color: rgba(108,99,255,0.08);
+}
+
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  outline: none;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.unpinned .input-field {
+  background: #F4F4F6;
+  border: 1px solid rgba(0,0,0,0.065);
+  color: rgba(70,70,95,0.5);
+}
+.pinned .input-field {
+  background: rgba(246,244,253,0.95);
+  border: 1px solid rgba(108,99,255,0.08);
+  color: rgba(75,70,110,0.5);
+}
+
+/* ═══ Layout ═══ */
+.demos {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.demo-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.demo-title-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.demo-sublabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+.toggle-btn {
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(108, 99, 255, 0.15);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+  color: rgba(255,255,255,0.85);
+  transition: all 0.2s;
+}
+.toggle-btn:hover { background: rgba(108, 99, 255, 0.22); }
+.toggle-btn.is-active {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.6);
+}
+
+/* ═══ What changed list ═══ */
+.change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.05);
+  width: 380px;
+}
+.change-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+.change-icon { flex-shrink: 0; }
+.change-item strong { color: rgba(255,255,255,0.6); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <span class="page-title">Pinned State v2 — Depth, not just color</span>
+  <span class="page-desc">The pin transition uses structural changes that are visible regardless of color perception: shadow lift, scale, border weight, accent bar, and backdrop blur. Color tint is layered on top for those who can see it, but it's not the primary signal.</span>
+</div>
+
+<div class="demos">
+
+  <!-- ═══ INTERACTIVE DEMO ═══ -->
+  <div class="demo-wrapper">
+    <span class="demo-title-label">Click the pin icon or button below</span>
+
+    <div class="desktop">
+      <div class="desktop-bg"></div>
+      <div class="desktop-content">
+        <div class="fake-line long"></div>
+        <div class="fake-line med"></div>
+        <div class="fake-line long"></div>
+        <div class="fake-line short"></div>
+        <div class="fake-line gap"></div>
+        <div class="fake-line long"></div>
+        <div class="fake-line med"></div>
+        <div class="fake-line long"></div>
+        <div class="fake-line short"></div>
+        <div class="fake-line gap"></div>
+        <div class="fake-line med"></div>
+        <div class="fake-line long"></div>
+        <div class="fake-line short"></div>
+        <div class="fake-line long"></div>
+        <div class="fake-line med"></div>
+      </div>
+
+      <div class="chat-panel unpinned" id="chatPanel">
+        <div class="accent-bar"></div>
+        <div class="chat-header">
+          <span class="chat-title">Rewrite team message</span>
+          <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          <div style="flex:1;"></div>
+          <div class="header-actions">
+            <button class="h-btn pin-btn is-unpinned" id="pinIcon" onclick="togglePin()" aria-label="Pin to screen">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+            </button>
+            <button class="h-btn close-btn-h" aria-label="Close">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="model-bar">claude-sonnet-4-5</div>
+        <div class="messages">
+          <div class="bubble b-user">Make this more concise and friendly?</div>
+          <div class="bubble b-asst">
+            Here's a lighter version:
+            <div class="bq">Following up on our Q3 timeline chat — here's where we are on the action items.</div>
+            Shorter, warmer, same meaning.
+          </div>
+          <span class="msg-tag">claude-sonnet-4-5</span>
+          <div class="bubble b-user">Perfect, thanks!</div>
+        </div>
+        <div class="chat-input-area">
+          <input class="input-field" type="text" placeholder="Ask anything..." readonly>
+        </div>
+      </div>
+    </div>
+
+    <button class="toggle-btn" id="toggleBtn" onclick="togglePin()">Pin to screen</button>
+
+    <span class="demo-sublabel">The panel lifts, gains a brand accent bar, thicker border, deeper shadow, slight scale, and backdrop blur. These are all perceivable without color vision.</span>
+  </div>
+
+  <!-- ═══ WHAT CHANGES ═══ -->
+  <div class="demo-wrapper" style="justify-content: center;">
+    <span class="demo-title-label">What changes on pin</span>
+
+    <div class="change-list">
+      <div class="change-item">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(108,99,255,0.7)" stroke-width="1.5"><path d="M2 14h12"/><rect x="4" y="6" width="8" height="6" rx="1"/><path d="M4 6l4-4 4 4"/></svg>
+        <span><strong>Shadow lift:</strong> flat → deep layered shadow with brand tint. Panel feels elevated.</span>
+      </div>
+      <div class="change-item">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(108,99,255,0.7)" stroke-width="1.5"><rect x="3" y="3" width="10" height="10" rx="2" stroke-dasharray="2 1.5"/></svg>
+        <span><strong>Border:</strong> 1px neutral → 1.5px brand-tinted. Thicker and colored.</span>
+      </div>
+      <div class="change-item">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(108,99,255,0.7)" stroke-width="1.5"><path d="M4 8h8M8 4v8"/><circle cx="8" cy="8" r="6"/></svg>
+        <span><strong>Scale:</strong> 1.0 → 1.015. Subtle but creates a "came toward you" feeling.</span>
+      </div>
+      <div class="change-item">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(108,99,255,0.7)" stroke-width="1.5"><circle cx="8" cy="8" r="5" opacity="0.3"/><circle cx="8" cy="8" r="3" opacity="0.5"/><circle cx="8" cy="8" r="1"/></svg>
+        <span><strong>Backdrop blur:</strong> 20px blur + saturation boost. Content behind becomes frosted.</span>
+      </div>
+      <div class="change-item">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(108,99,255,0.7)" stroke-width="1.5"><path d="M3 8l3 3 7-7"/></svg>
+        <span><strong>Pin button:</strong> dim → brand-filled. Both color AND fill density change.</span>
+      </div>
+      <div class="change-item">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(108,99,255,0.7)" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="3" fill="rgba(108,99,255,0.1)"/></svg>
+        <span><strong>Surface tint:</strong> warm gray → soft lavender. Layered on top, not the primary signal.</span>
+      </div>
+    </div>
+
+    <div class="change-list" style="border-color: rgba(52,199,89,0.15);">
+      <div class="change-item" style="color: rgba(52,199,89,0.6);">
+        <svg class="change-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="rgba(52,199,89,0.6)" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M5 8h6"/></svg>
+        <span><strong>Accessibility:</strong> Shadow, scale, accent bar, border weight, and blur are all perceivable without color vision. Color tint is additive, not the sole signal.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let pinned = false;
+function togglePin() {
+  pinned = !pinned;
+  const panel = document.getElementById('chatPanel');
+  const icon = document.getElementById('pinIcon');
+  const btn = document.getElementById('toggleBtn');
+
+  if (pinned) {
+    panel.classList.remove('unpinned');
+    panel.classList.add('pinned');
+    icon.classList.remove('is-unpinned');
+    icon.classList.add('is-pinned');
+    btn.textContent = 'Unpin';
+    btn.classList.add('is-active');
+  } else {
+    panel.classList.remove('pinned');
+    panel.classList.add('unpinned');
+    icon.classList.remove('is-pinned');
+    icon.classList.add('is-unpinned');
+    btn.textContent = 'Pin to screen';
+    btn.classList.remove('is-active');
+  }
+}
+</script>
+
+</body>
+</html>

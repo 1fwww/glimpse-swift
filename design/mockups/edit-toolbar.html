@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse — Edit Toolbar Redesign</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+
+body {
+  background: #0e0e12;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  align-self: flex-start;
+  max-width: 900px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.compare {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+}
+.option-desc {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  line-height: 1.5;
+  max-width: 520px;
+}
+
+/* ═══ Screenshot area simulation ═══ */
+
+.screenshot-sim {
+  position: relative;
+  width: 620px;
+  height: 260px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+.screenshot-sim::before {
+  content: 'Selected region';
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(255,255,255,0.1);
+}
+
+/* Selection border — redesigned */
+.sel-border {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid rgba(108, 99, 255, 0.55);
+  border-radius: 14px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(108, 99, 255, 0.12);
+}
+
+/* Round handles */
+.sel-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #6C63FF;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.85);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.sh-nw { top: -4px; left: -4px; }
+.sh-ne { top: -4px; right: -4px; }
+.sh-sw { bottom: -4px; left: -4px; }
+.sh-se { bottom: -4px; right: -4px; }
+
+/* Dimension badge */
+.dim-badge {
+  position: absolute;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(175, 172, 205, 0.75);
+  background: rgba(22, 21, 30, 0.95);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  padding: 3px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  backdrop-filter: blur(12px);
+}
+
+/* ═══ TOOLBAR — Current production ═══ */
+
+.tb-old {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(12, 18, 30, 0.88);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 0 1px rgba(0,229,255,0.35), 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.tb-old-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(160, 185, 210, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tb-old-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(230, 240, 255, 0.95);
+}
+.tb-old-btn.active {
+  background: rgba(0, 229, 255, 0.12);
+  color: #00e5ff;
+}
+.tb-old-btn.disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+.tb-old-btn.primary {
+  color: rgba(52, 199, 89, 0.6);
+}
+.tb-old-btn.cancel {
+  color: rgba(255, 69, 58, 0.5);
+}
+
+.tb-old-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(0, 229, 255, 0.1);
+  margin: 0 3px;
+}
+
+.tb-old-reset {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: rgba(160, 185, 210, 0.8);
+}
+
+.tb-old-ai {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #141414;
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 1px rgba(0,229,255,0.35), 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* Old options row */
+.tb-old-options {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(12, 18, 30, 0.88);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: 0 0 1px rgba(0,229,255,0.35), 0 4px 20px rgba(0,0,0,0.5);
+  margin-top: 4px;
+}
+
+/* ═══ TOOLBAR — Redesigned ═══ */
+
+.tb-new {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(22, 21, 30, 0.94);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(108, 99, 255, 0.10);
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.tb-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(175, 172, 205, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tb-btn:hover {
+  background: rgba(255,255,255,0.05);
+  color: rgba(242, 240, 255, 0.93);
+}
+.tb-btn.active {
+  background: rgba(108, 99, 255, 0.14);
+  color: #8580FF;
+}
+.tb-btn.disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+.tb-btn:focus-visible {
+  outline: 2px solid rgba(108, 99, 255, 0.40);
+  outline-offset: 1px;
+}
+
+.tb-btn.primary {
+  color: rgba(45, 164, 78, 0.55);
+}
+.tb-btn.primary:hover {
+  color: rgba(45, 164, 78, 0.85);
+  background: rgba(45, 164, 78, 0.08);
+}
+
+.tb-btn.cancel {
+  color: rgba(175, 172, 205, 0.45);
+}
+.tb-btn.cancel:hover {
+  color: rgba(255, 69, 58, 0.70);
+  background: rgba(255, 69, 58, 0.08);
+}
+
+.tb-reset {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(175, 172, 205, 0.65);
+}
+.tb-btn:hover .tb-reset {
+  color: rgba(242, 240, 255, 0.93);
+}
+
+.tb-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(108, 99, 255, 0.08);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+/* AI toggle — redesigned */
+.tb-ai {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(22, 21, 30, 0.95);
+  border: 1px solid rgba(108, 99, 255, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.tb-ai:hover {
+  border-color: rgba(108, 99, 255, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+.tb-ai.active {
+  border-color: rgba(108, 99, 255, 0.30);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 10px rgba(108, 99, 255, 0.06);
+}
+
+/* ═══ Options row — Redesigned ═══ */
+
+.tb-options {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(22, 21, 30, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(108, 99, 255, 0.10);
+  border-radius: 10px;
+  padding: 5px 7px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+  margin-top: 4px;
+}
+
+/* Color dots */
+.color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.10);
+  cursor: pointer;
+  transition: border-color 0.12s;
+  padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+}
+.color-dot:hover {
+  border-color: rgba(255,255,255,0.30);
+}
+.color-dot.active {
+  border-color: rgba(255,255,255,0.85);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.20);
+}
+.color-dot:focus-visible {
+  outline: 2px solid rgba(108, 99, 255, 0.40);
+  outline-offset: 2px;
+}
+
+/* Size buttons */
+.size-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+.size-btn:hover { background: rgba(255,255,255,0.05); }
+.size-btn.active { background: rgba(108, 99, 255, 0.14); }
+
+.size-line {
+  width: 14px;
+  background: rgba(175, 172, 205, 0.55);
+  border-radius: 1px;
+  display: block;
+}
+.size-btn.active .size-line {
+  background: #8580FF;
+}
+
+/* Font size select */
+.font-select {
+  background: rgba(26, 25, 36, 0.96);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  border-radius: 5px;
+  color: rgba(242, 240, 255, 0.93);
+  font-family: var(--font-display);
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+}
+.font-select:focus {
+  border-color: rgba(108, 99, 255, 0.25);
+}
+
+/* ═══ Tooltip ═══ */
+
+.tb-tooltip {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(22, 21, 30, 0.95);
+  border: 1px solid rgba(108, 99, 255, 0.08);
+  color: rgba(175, 172, 205, 0.75);
+  font-family: var(--font-display);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ═══ Layout wrappers ═══ */
+
+.toolbar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.toolbar-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.annotations {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.anno {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.anno-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+
+<span class="page-title">Edit Toolbar — Current vs Redesigned</span>
+
+<!-- ═══ CURRENT PRODUCTION ═══ -->
+<span class="section-label">Current production</span>
+<div class="option" style="align-items:center;">
+  <span class="option-desc">Cyan-tinted borders and glow. "RESET" in 9px monospace uppercase. Cyan active state. Tooltips in monospace.</span>
+  <div class="toolbar-top">
+    <div class="toolbar-group">
+      <div class="tb-old">
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <span class="tb-old-sep"></span>
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg></button>
+        <button class="tb-old-btn active"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5M19 5H9M19 5v10"/></svg></button>
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5"/></svg></button>
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21l1-6L16.5 2.5a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L9 20l-6 1z"/><path d="M15 4l5 5"/></svg></button>
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h12M12 4v16"/><path d="M8 20h8"/></svg></button>
+        <button class="tb-old-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="9.5" y="2" width="5" height="5" fill="currentColor" opacity="0.25"/><rect x="17" y="2" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="2" y="9.5" width="5" height="5" fill="currentColor" opacity="0.25"/><rect x="9.5" y="9.5" width="5" height="5" fill="currentColor" opacity="0.5"/></svg></button>
+        <span class="tb-old-sep"></span>
+        <button class="tb-old-btn disabled"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M7 6L3 10l4 4"/></svg></button>
+        <button class="tb-old-btn disabled"><span class="tb-old-reset">RESET</span></button>
+        <span class="tb-old-sep"></span>
+        <button class="tb-old-btn primary"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        <button class="tb-old-btn primary"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        <span class="tb-old-sep"></span>
+        <button class="tb-old-btn cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="tb-old-ai">
+        <svg viewBox="60 140 420 280" width="28" height="19"><path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:4px;">
+    <div class="tb-old-options">
+      <button class="color-dot active" style="background:#e5243a;border-color:rgba(255,255,255,0.85);"></button>
+      <button class="color-dot" style="background:#e07800;"></button>
+      <button class="color-dot" style="background:#d4a800;"></button>
+      <button class="color-dot" style="background:#1aab42;"></button>
+      <button class="color-dot" style="background:#0062e0;"></button>
+      <button class="color-dot" style="background:#9333cf;"></button>
+      <button class="color-dot" style="background:#000000;"></button>
+      <button class="color-dot" style="background:#ffffff;"></button>
+      <span class="tb-old-sep"></span>
+      <button class="size-btn"><span class="size-line" style="height:2px;"></span></button>
+      <button class="size-btn active" style="background:rgba(0,229,255,0.12);"><span class="size-line" style="height:4px;background:#00e5ff;"></span></button>
+      <button class="size-btn"><span class="size-line" style="height:6px;"></span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ REDESIGNED ═══ -->
+<span class="section-label" style="margin-top:16px;">Redesigned</span>
+
+<!-- Full toolbar in screenshot context -->
+<div class="option" style="align-items:center;">
+  <span class="option-desc">Brand-tinted surfaces, no glow. "Reset" in Outfit. Brand color for active states. Softer cancel. Tooltips in Outfit. Same layout and progressive disclosure — just restyled.</span>
+
+  <div class="screenshot-sim">
+    <div class="sel-border"></div>
+    <div class="sel-handle sh-nw"></div>
+    <div class="sel-handle sh-ne"></div>
+    <div class="sel-handle sh-sw"></div>
+    <div class="sel-handle sh-se"></div>
+    <div class="dim-badge">1280 × 720</div>
+  </div>
+
+  <div style="margin-top:16px;">
+    <div class="toolbar-top">
+      <div class="toolbar-group">
+        <div class="tb-new">
+          <!-- Settings -->
+          <button class="tb-btn" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <span class="tb-sep"></span>
+          <!-- Drawing tools -->
+          <button class="tb-btn" aria-label="Rectangle"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+          <button class="tb-btn" aria-label="Ellipse"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg></button>
+          <button class="tb-btn active" aria-label="Arrow"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5M19 5H9M19 5v10"/></svg></button>
+          <button class="tb-btn" aria-label="Line"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5"/></svg></button>
+          <button class="tb-btn" aria-label="Draw"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21l1-6L16.5 2.5a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L9 20l-6 1z"/><path d="M15 4l5 5"/></svg></button>
+          <button class="tb-btn" aria-label="Text"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h12M12 4v16"/><path d="M8 20h8"/></svg></button>
+          <button class="tb-btn" aria-label="Mosaic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="9.5" y="2" width="5" height="5" fill="currentColor" opacity="0.25"/><rect x="17" y="2" width="5" height="5" fill="currentColor" opacity="0.5"/><rect x="2" y="9.5" width="5" height="5" fill="currentColor" opacity="0.25"/><rect x="9.5" y="9.5" width="5" height="5" fill="currentColor" opacity="0.5"/></svg></button>
+          <span class="tb-sep"></span>
+          <!-- Undo / Reset -->
+          <button class="tb-btn disabled" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M7 6L3 10l4 4"/></svg></button>
+          <button class="tb-btn disabled" aria-label="Reset annotations"><span class="tb-reset">Reset</span></button>
+          <span class="tb-sep"></span>
+          <!-- Copy / Save -->
+          <button class="tb-btn primary" aria-label="Copy"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          <button class="tb-btn primary" aria-label="Save"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+          <span class="tb-sep"></span>
+          <!-- Cancel -->
+          <button class="tb-btn cancel" aria-label="Cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </div>
+
+        <!-- AI toggle -->
+        <button class="tb-ai active" aria-label="Toggle AI chat">
+          <svg viewBox="60 140 420 280" width="28" height="19"><path d="M104.539 204.375C153.938 173.009 385 145.971 437.19 251.313" fill="none" stroke="#6C63FF" stroke-width="20" stroke-linecap="round"/><path d="M262 374.28C230.253 373.396 178.271 361.552 128 321.247C177.587 275.666 316.314 196.628 390.289 269.765C467.605 346.206 348.474 380.522 321.426 374.28C237.073 368.093 260.551 273.518 321.426 278.821C382.301 284.124 362.664 347.764 321.426 331.854" fill="none" stroke="#6C63FF" stroke-width="22" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Options row — arrow tool active -->
+    <div class="tb-options">
+      <button class="color-dot active" style="background:#e5243a;"></button>
+      <button class="color-dot" style="background:#e07800;"></button>
+      <button class="color-dot" style="background:#d4a800;"></button>
+      <button class="color-dot" style="background:#1aab42;"></button>
+      <button class="color-dot" style="background:#0062e0;"></button>
+      <button class="color-dot" style="background:#9333cf;"></button>
+      <button class="color-dot" style="background:#000000;"></button>
+      <button class="color-dot" style="background:#ffffff;"></button>
+      <span class="tb-sep"></span>
+      <button class="size-btn"><span class="size-line" style="height:2px;"></span></button>
+      <button class="size-btn active"><span class="size-line" style="height:4px;"></span></button>
+      <button class="size-btn"><span class="size-line" style="height:6px;"></span></button>
+    </div>
+
+    <!-- Options row — text tool active -->
+    <div class="tb-options" style="margin-top:8px;">
+      <button class="color-dot" style="background:#e5243a;"></button>
+      <button class="color-dot" style="background:#e07800;"></button>
+      <button class="color-dot" style="background:#d4a800;"></button>
+      <button class="color-dot" style="background:#1aab42;"></button>
+      <button class="color-dot active" style="background:#0062e0;"></button>
+      <button class="color-dot" style="background:#9333cf;"></button>
+      <button class="color-dot" style="background:#000000;"></button>
+      <button class="color-dot" style="background:#ffffff;"></button>
+      <span class="tb-sep"></span>
+      <select class="font-select">
+        <option>12pt</option>
+        <option>16pt</option>
+        <option selected>20pt</option>
+        <option>28pt</option>
+        <option>36pt</option>
+        <option>48pt</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="anno"><span class="anno-dot" style="background:#8580FF;"></span>active tool = brand color</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(45,164,78,0.55);"></span>copy/save = success green</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(175,172,205,0.45);"></span>cancel = dim default, red on hover</span>
+    <span class="anno"><span class="anno-dot" style="background:rgba(175,172,205,0.65);"></span>"Reset" in Outfit 11px</span>
+  </div>
+</div>
+
+</body>
+</html>

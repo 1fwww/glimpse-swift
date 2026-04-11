@@ -171,6 +171,9 @@
   cursor: crosshair;
   user-select: none;
   -webkit-app-region: no-drag;
+  /* GPU compositing hints for smooth selection rendering */
+  will-change: background-image;
+  transform: translateZ(0);
 }
 
 /* Exit animation */
@@ -188,6 +191,8 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  will-change: contents;
+  transform: translateZ(0);
 }
 
 .mask-svg {
@@ -226,6 +231,8 @@
   pointer-events: none;
   box-sizing: border-box;
   border: 1.5px solid var(--brand);
+  will-change: transform, left, top, width, height;
+  transform: translateZ(0);
 }
 
 /* Round resize handles */

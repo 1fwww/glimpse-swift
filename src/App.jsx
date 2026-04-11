@@ -65,6 +65,7 @@ export default function App() {
     if (!window.electronAPI) return
 
     const resetState = () => {
+      setScreenImage(null)
       setSelection(null)
       setChatVisible(false)
       setChatFullSize(false)
@@ -77,8 +78,9 @@ export default function App() {
     }
 
     const removeScreenCaptured = window.electronAPI.onScreenCaptured((dataUrl, bounds, dispInfo, offset) => {
-      setScreenImage(dataUrl)
-      tm.refreshProviders() // Ensure providers are current (key may have been added in chat-only)
+      resetState()  // Clear all state first (including screenImage)
+      setScreenImage(dataUrl)  // Then set new image (AFTER reset, so it's not cleared)
+      tm.refreshProviders()
       setDisplayInfo(dispInfo || null)
       setWindowOffset(offset || { x: 0, y: 0 })
       const off = offset || { x: 0, y: 0 }
@@ -87,17 +89,14 @@ export default function App() {
         x: win.x - off.x,
         y: win.y - off.y,
       })))
-      resetState()
-      // Ensure overlay has keyboard focus for ESC handling
       window.focus()
-
       tm.refreshWithHeuristic()
     })
 
     const removeNewCapture = window.electronAPI.onNewCapture((dataUrl, dispInfo) => {
+      resetState()
       setScreenImage(dataUrl)
       setDisplayInfo(dispInfo || null)
-      resetState()
     })
 
     const removeReset = window.electronAPI.onResetOverlay?.(() => {

@@ -1,5 +1,8 @@
 # Glimpse (Swift) — Developer Guide
 
+## Workflow Rules
+- **Do NOT update GitHub releases** (push DMG, edit release notes, etc.) unless explicitly asked. Only commit and push code.
+
 ## Project Overview
 macOS screenshot + AI chat tool. **Native Swift shell** + WKWebView loading React frontend. Same architecture as Raycast, Alfred, CleanShot X.
 

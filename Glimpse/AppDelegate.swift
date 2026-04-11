@@ -534,18 +534,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
-        // Destroy and recreate overlay for guaranteed clean React state.
-        // The frozen screen covers the transition so the user never sees stale state.
-        overlayPanel?.orderOut(nil)
-        overlayPanel = nil
-        overlayWebView = nil
-        overlayReady = false
-        if isFullscreen {
-            NSApp.setActivationPolicy(.accessory)
+        // Reuse overlay WebView if possible — reset React state instead of recreating.
+        // The frozen screen covers the async reset so stale state is never visible.
+        // Only recreate for fullscreen Spaces (window must be re-associated with the Space).
+        if overlayReady && !isFullscreen {
+            // Reset React state (clears screenImage, selection, chat, etc.)
+            overlayIPC.emit("reset-overlay")
+            overlayPanel?.orderOut(nil)
+        } else {
+            // Must recreate: first launch, or fullscreen Space association
+            overlayPanel?.orderOut(nil)
+            overlayPanel = nil
+            overlayWebView = nil
+            overlayReady = false
+            if isFullscreen {
+                NSApp.setActivationPolicy(.accessory)
+            }
+            prewarmOverlay()
         }
-        prewarmOverlay()
 
-        // Capture in parallel with WebView loading.
+        // Capture in parallel with WebView loading (or immediately if reusing).
         // If chat was visible, wait 200ms for compositor to remove it from the framebuffer.
         let compositorDelay = chatWasVisible ? 0.2 : 0.0
         DispatchQueue.main.asyncAfter(deadline: .now() + compositorDelay) { [weak self] in
@@ -621,7 +629,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         self.showOverlay()
                     }
                     self.emitCaptureToOverlay(result)
-                    self.dismissFrozenScreen()
+                    // Delay frozen screen dismissal to let React render the new image.
+                    // evaluateJavaScript is async — React needs ~1-2 frames to process.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                        self?.dismissFrozenScreen()
+                    }
                 } else {
                     // WebView still loading — store for handleOverlayReady
                     self.pendingCaptureResult = result
@@ -795,11 +807,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Overlay ready")
         if let result = pendingCaptureResult {
             pendingCaptureResult = nil
-            // Show overlay now that WebView is loaded, then emit data
             showOverlay()
             emitCaptureToOverlay(result)
-            // Dismiss frozen screen now that real overlay is visible with data
-            dismissFrozenScreen()
+            // Delay dismissal to let React render the image (~1-2 frames)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.dismissFrozenScreen()
+            }
         }
     }
 

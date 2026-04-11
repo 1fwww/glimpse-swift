@@ -78,8 +78,8 @@ class ToastManager {
             iconView.image = checkmark
             iconView.imageScaling = .scaleProportionallyUpOrDown
 
-            // Label — rgba(230,240,255,0.9), 13px system font
-            let font = NSFont.systemFont(ofSize: 13, weight: .regular)
+            // Label — rgba(230,240,255,0.9), 13px Outfit font
+            let font = NSFont(name: "Outfit", size: 13) ?? NSFont.systemFont(ofSize: 13)
             let label = NSTextField(labelWithString: message)
             label.font = font
             label.textColor = NSColor(

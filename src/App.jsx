@@ -7,6 +7,7 @@ import './app.css'
 
 export default function App() {
   const [screenImage, setScreenImage] = useState(null)
+  const screenImageRef = useRef(null)
   const [selection, setSelection] = useState(null)
   const [isSelecting, setIsSelecting] = useState(false)
   const [startPos, setStartPos] = useState(null)
@@ -80,6 +81,7 @@ export default function App() {
     const removeScreenCaptured = window.electronAPI.onScreenCaptured((dataUrl, bounds, dispInfo, offset) => {
       resetState()  // Clear all state first (including screenImage)
       setScreenImage(dataUrl)  // Then set new image (AFTER reset, so it's not cleared)
+      screenImageRef.current = dataUrl
       tm.refreshProviders()
       setDisplayInfo(dispInfo || null)
       setWindowOffset(offset || { x: 0, y: 0 })
@@ -107,10 +109,26 @@ export default function App() {
       }
     })
 
+    // Native selection handoff: selection rect pre-computed by Swift CAShapeLayer overlay.
+    // Fires after screen-captured, so screenImage is already set.
+    const removeApplySelection = window.electronAPI.onApplySelection?.((sel) => {
+      if (sel && sel.w > 10 && sel.h > 10) {
+        setSelection(sel)
+        setIsSelecting(false)
+        // Crop + show chat — same as mouseUp with valid selection
+        setTimeout(() => {
+          cropSelection(sel, screenImageRef.current)
+          setChatVisible(true)
+          setChatFullSize(false)
+        }, 50)
+      }
+    })
+
     return () => {
       removeScreenCaptured?.()
       removeNewCapture?.()
       removeReset?.()
+      removeApplySelection?.()
     }
   }, [])
 

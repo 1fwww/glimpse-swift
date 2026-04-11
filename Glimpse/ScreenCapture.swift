@@ -113,7 +113,7 @@ struct ScreenCapture {
     }
 
     /// Get visible window bounds on the given screen rect.
-    private static func getWindowBounds(on screenRect: CGRect) -> [[String: Any]] {
+    static func getWindowBounds(on screenRect: CGRect) -> [[String: Any]] {
         guard let windowList = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID

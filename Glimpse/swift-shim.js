@@ -164,6 +164,7 @@ window.electronAPI = {
     }
   }),
   onNewCapture: (cb) => listen('new-capture', (data) => cb(data.dataUrl, data.displayInfo)),
+  onApplySelection: (cb) => listen('apply-selection', cb),
   onPinState: (cb) => listen('pin-state', cb),
   onLoadThreadData: (cb) => listen('load-thread-data', cb),
   onSetCroppedImage: (cb) => listen('set-cropped-image', cb),

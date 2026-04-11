@@ -71,6 +71,12 @@ if [ -f "$SCRIPT_DIR/icons/icon.icns" ]; then
     echo "       Icon: icon.icns"
 fi
 
+# Bundled fonts
+if [ -f "$SCRIPT_DIR/fonts/Outfit-Variable.ttf" ]; then
+    cp "$SCRIPT_DIR/fonts/Outfit-Variable.ttf" "$APP_DIR/Contents/Resources/Outfit-Variable.ttf"
+    echo "       Font: Outfit-Variable.ttf"
+fi
+
 # Tray icon
 if [ -f "$SCRIPT_DIR/icons/tray-icon.png" ]; then
     cp "$SCRIPT_DIR/icons/tray-icon.png" "$APP_DIR/Contents/Resources/tray-icon.png"

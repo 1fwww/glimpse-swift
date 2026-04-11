@@ -14,7 +14,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayIPC = IPCBridge()
     var overlayReady = false
     var pendingCaptureResult: ScreenCapture.CaptureResult?
+    var pendingSelection: [String: Any]?
     var frozenScreenWindow: NSWindow?
+    var nativeSelectionOverlay: NativeSelectionOverlay?
 
     // Welcome / onboarding
     var welcomePanel: GlimpsePanel?
@@ -39,6 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("[App] Starting Glimpse (Swift)")
+        registerBundledFonts()
 
         // Wire up stores
         ipcBridge.settingsStore = settingsStore
@@ -432,7 +435,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shortcutManager.hasVisibleWindow =
             (chatPanel?.isVisible == true) || (overlayPanel?.isVisible == true) ||
             (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true) ||
-            (frozenScreenWindow?.isVisible == true)
+            (frozenScreenWindow?.isVisible == true) || (nativeSelectionOverlay != nil)
     }
 
     /// Restore Regular activation policy after showing windows on fullscreen Spaces.
@@ -518,6 +521,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             hideOverlay()
             return
         }
+        // Dismiss if native selection is active (toggle)
+        if nativeSelectionOverlay != nil {
+            dismissNativeSelection()
+            return
+        }
 
         // Hide chat before capture so it doesn't appear in the screenshot.
         let chatWasVisible = chatPanel?.isVisible == true
@@ -526,25 +534,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             isPinned = false
         }
 
-        // ── INSTANT FROZEN SCREEN ──
-        // Skip frozen screen when transitioning from chat — CGDisplayCreateImage reads
-        // the raw framebuffer which may still show the chat (compositor lag).
-        // The frozen screen is most useful when no Glimpse window is visible.
-        if !chatWasVisible {
-            showFrozenScreen()
-        }
-
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
-        // Reuse overlay WebView if possible — reset React state instead of recreating.
-        // The frozen screen covers the async reset so stale state is never visible.
-        // Only recreate for fullscreen Spaces (window must be re-associated with the Space).
+        // Prewarm WebView overlay in parallel (for post-selection annotations/chat)
         if overlayReady && !isFullscreen {
-            // Reset React state (clears screenImage, selection, chat, etc.)
             overlayIPC.emit("reset-overlay")
             overlayPanel?.orderOut(nil)
         } else {
-            // Must recreate: first launch, or fullscreen Space association
             overlayPanel?.orderOut(nil)
             overlayPanel = nil
             overlayWebView = nil
@@ -555,12 +551,79 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             prewarmOverlay()
         }
 
-        // Capture in parallel with WebView loading (or immediately if reusing).
-        // If chat was visible, wait 200ms for compositor to remove it from the framebuffer.
-        let compositorDelay = chatWasVisible ? 0.2 : 0.0
-        DispatchQueue.main.asyncAfter(deadline: .now() + compositorDelay) { [weak self] in
-            self?.performCapture()
+        // ── NATIVE SELECTION OVERLAY ──
+        // Show native CAShapeLayer overlay for selection (zero WebKit overhead).
+        // After selection completes, capture screen + hand off to WebView overlay.
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+            ?? NSScreen.main ?? NSScreen.screens.first!
+
+        // Get window bounds for hover/snap (same logic as ScreenCapture)
+        let mainHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
+        let cgOriginX = screen.frame.origin.x
+        let cgOriginY = mainHeight - screen.frame.origin.y - screen.frame.height
+        let screenRect = CGRect(x: cgOriginX, y: cgOriginY, width: screen.frame.width, height: screen.frame.height)
+        let windowBounds = ScreenCapture.getWindowBounds(on: screenRect)
+
+        nativeSelectionOverlay = NativeSelectionOverlay.show(
+            on: screen,
+            windowBounds: windowBounds,
+            completion: { [weak self] rect, bounds in
+                self?.handleNativeSelectionComplete(rect, windowBounds: bounds)
+            },
+            dismiss: { [weak self] in
+                self?.dismissNativeSelection()
+            }
+        )
+        updateVisibleWindowFlag()
+    }
+
+    private func handleNativeSelectionComplete(_ selectionRect: CGRect, windowBounds: [[String: Any]]) {
+        // Dismiss native overlay first so it doesn't appear in the screenshot
+        nativeSelectionOverlay?.dismiss()
+        nativeSelectionOverlay = nil
+        updateVisibleWindowFlag()
+
+        // Wait one frame for compositor to remove the native overlay window
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self else { return }
+
+            // Capture on background thread
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let result = ScreenCapture.capture() else {
+                    NSLog("[App] Capture FAILED after native selection")
+                    return
+                }
+                NSLog("[App] Capture OK after native selection: \(result.windowBounds.count) windows")
+
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+
+                    let selectionData: [String: Any] = [
+                        "x": Int(selectionRect.origin.x),
+                        "y": Int(selectionRect.origin.y),
+                        "w": Int(selectionRect.width),
+                        "h": Int(selectionRect.height)
+                    ]
+
+                    if self.overlayReady {
+                        self.showOverlay()
+                        self.emitCaptureToOverlay(result)
+                        // Apply pre-computed selection so React skips selection phase
+                        self.overlayIPC.emit("apply-selection", data: selectionData)
+                    } else {
+                        self.pendingCaptureResult = result
+                        self.pendingSelection = selectionData
+                    }
+                }
+            }
         }
+    }
+
+    private func dismissNativeSelection() {
+        nativeSelectionOverlay?.dismiss()
+        nativeSelectionOverlay = nil
+        updateVisibleWindowFlag()
+        restoreActivationPolicyIfNeeded()
     }
 
     /// Show a native frozen-screen window instantly using CGDisplayCreateImage.
@@ -647,6 +710,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func handleEscape() {
         // Settings always closes first (ESC highest priority)
         if let panel = settingsPanel, panel.isVisible { hideSettings(); return }
+        // Native selection in progress, ESC cancels it
+        if nativeSelectionOverlay != nil { dismissNativeSelection(); return }
         // Frozen screen = screenshot in progress, ESC cancels it
         if frozenScreenWindow != nil { dismissFrozenScreen(); return }
         if let panel = overlayPanel,  panel.isVisible { hideOverlay();  return }
@@ -811,7 +876,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             pendingCaptureResult = nil
             showOverlay()
             emitCaptureToOverlay(result)
-            // Delay dismissal to let React render the image (~1-2 frames)
+            // Apply pre-computed selection if native selection was used
+            if let sel = pendingSelection {
+                pendingSelection = nil
+                overlayIPC.emit("apply-selection", data: sel)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 self?.dismissFrozenScreen()
             }
@@ -902,6 +971,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func menuScreenshotShortcut() {
         handleScreenshotShortcut()
+    }
+
+    // MARK: - Bundled Fonts
+
+    private func registerBundledFonts() {
+        // Register Outfit variable font for native UI (toast, selection HUD)
+        if let fontURL = Bundle.main.url(forResource: "Outfit-Variable", withExtension: "ttf") {
+            CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, nil)
+            NSLog("[App] Registered Outfit font")
+        }
+        #if DEBUG
+        // Dev fallback
+        let devPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("fonts/Outfit-Variable.ttf")
+        if FileManager.default.fileExists(atPath: devPath.path) {
+            CTFontManagerRegisterFontsForURL(devPath as CFURL, .process, nil)
+            NSLog("[App] Registered Outfit font (dev path)")
+        }
+        #endif
     }
 
     // MARK: - Resource Loading

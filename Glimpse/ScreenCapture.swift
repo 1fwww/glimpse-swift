@@ -6,13 +6,17 @@ import CoreGraphics
 struct ScreenCapture {
 
     struct CaptureResult {
-        let dataUrl: String                 // data:image/png;base64,...
+        let imageURL: String                // file:// URL to JPEG in temp directory
         let windowBounds: [[String: Any]]   // [{ x, y, w, h, owner, name }]
         let displayInfo: [String: Any]      // { width, height }
         let offset: [String: Any]           // { x, y }
         let cursorX: Int                    // cursor position in CSS coords (top-left)
         let cursorY: Int
     }
+
+    /// Temp file path for screenshot — reused each capture to avoid accumulating files.
+    private static let tempURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("glimpse-capture.jpg")
 
     /// Capture the screen where the cursor is. Runs synchronously — call from background thread.
     /// Excludes windows owned by "Glimpse" from the capture image, so our own chat panel
@@ -28,9 +32,6 @@ struct ScreenCapture {
 
         // Screen geometry
         let screenFrame = screen.frame
-        // Offset: screen origin relative to global coordinate space
-        // macOS puts (0,0) at bottom-left of main display; CGWindowList uses top-left
-        // Convert screen origin to CGWindowList coordinate space (top-left origin)
         guard let mainScreen = NSScreen.screens.first else {
             NSLog("[Capture] No main screen")
             return nil
@@ -47,7 +48,8 @@ struct ScreenCapture {
             height: screenFrame.height
         )
 
-        // Capture screen image (caller must hide Glimpse windows before calling)
+        // Capture screen image
+        let startTime = CFAbsoluteTimeGetCurrent()
         guard let cgImage = CGWindowListCreateImage(
             captureRect,
             .optionOnScreenOnly,
@@ -57,16 +59,29 @@ struct ScreenCapture {
             NSLog("[Capture] CGWindowListCreateImage failed")
             return nil
         }
+        let captureMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
 
-        // Convert to PNG base64 data URL
+        // Encode as JPEG and write to temp file (much faster than PNG + base64)
+        let encodeStart = CFAbsoluteTimeGetCurrent()
         let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
-        guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
-            NSLog("[Capture] PNG conversion failed")
+        guard let jpegData = bitmapRep.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: 0.85]
+        ) else {
+            NSLog("[Capture] JPEG conversion failed")
             return nil
         }
-        let base64 = pngData.base64EncodedString()
-        let dataUrl = "data:image/png;base64,\(base64)"
-        NSLog("[Capture] Image: \(cgImage.width)x\(cgImage.height), data size: \(pngData.count / 1024)KB")
+
+        do {
+            try jpegData.write(to: tempURL)
+        } catch {
+            NSLog("[Capture] Failed to write temp file: \(error)")
+            return nil
+        }
+        let encodeMs = (CFAbsoluteTimeGetCurrent() - encodeStart) * 1000
+
+        let imageURL = tempURL.absoluteString
+        NSLog("[Capture] \(cgImage.width)x\(cgImage.height), \(jpegData.count / 1024)KB JPEG, capture: \(Int(captureMs))ms, encode+write: \(Int(encodeMs))ms")
 
         // Get window bounds
         let windowBounds = getWindowBounds(on: captureRect)
@@ -77,7 +92,7 @@ struct ScreenCapture {
             "height": Int(screenFrame.height)
         ]
 
-        // Offset for multi-monitor: the screen's origin in global coordinates
+        // Offset for multi-monitor
         let offset: [String: Any] = [
             "x": Int(cgOriginX),
             "y": Int(cgOriginY)
@@ -88,7 +103,7 @@ struct ScreenCapture {
         let cursorY = Int(screenFrame.height - (mouseLocation.y - screenFrame.origin.y))
 
         return CaptureResult(
-            dataUrl: dataUrl,
+            imageURL: imageURL,
             windowBounds: windowBounds,
             displayInfo: displayInfo,
             offset: offset,
@@ -98,7 +113,6 @@ struct ScreenCapture {
     }
 
     /// Get visible window bounds on the given screen rect.
-    /// Returns array of { x, y, w, h, owner, name } in CGWindowList coordinates.
     private static func getWindowBounds(on screenRect: CGRect) -> [[String: Any]] {
         guard let windowList = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
@@ -110,24 +124,20 @@ struct ScreenCapture {
         var bounds: [[String: Any]] = []
 
         for window in windowList {
-            // Skip windows without bounds
             guard let boundsDict = window[kCGWindowBounds as String] as? [String: Any],
                   let x = boundsDict["X"] as? CGFloat,
                   let y = boundsDict["Y"] as? CGFloat,
                   let w = boundsDict["Width"] as? CGFloat,
                   let h = boundsDict["Height"] as? CGFloat else { continue }
 
-            // Skip tiny windows (menu bar items, status icons, etc.)
             guard w >= 50 && h >= 50 else { continue }
 
-            // Skip windows not on our target screen
             let windowRect = CGRect(x: x, y: y, width: w, height: h)
             guard windowRect.intersects(screenRect) else { continue }
 
             let owner = window[kCGWindowOwnerName as String] as? String ?? ""
             let name = window[kCGWindowName as String] as? String ?? ""
 
-            // Skip our own app and system UI elements
             if owner == "Glimpse" { continue }
             if owner == "Dock" { continue }
             if owner == "Notification Center" { continue }
@@ -144,9 +154,6 @@ struct ScreenCapture {
             ])
         }
 
-        // Add full-screen "Desktop" as fallback — findWindowAtPoint iterates
-        // front-to-back, so app windows match first. Desktop is the catch-all
-        // when cursor isn't over any window (auto-selects entire screen).
         bounds.append([
             "x": Int(screenRect.origin.x),
             "y": Int(screenRect.origin.y),

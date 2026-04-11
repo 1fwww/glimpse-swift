@@ -148,7 +148,10 @@ window.electronAPI = {
 
   // ── Events ──
   onScreenCaptured: (cb) => listen('screen-captured', (data) => {
-    cb(data.dataUrl, data.windowBounds, data.displayInfo, data.offset)
+    // imageURL is a file:// URL to a JPEG in /tmp — pass as dataUrl for the frontend
+    // Cache-bust with timestamp so the browser doesn't serve a stale cached image
+    var imageUrl = (data.imageURL || data.dataUrl) + '?t=' + Date.now()
+    cb(imageUrl, data.windowBounds, data.displayInfo, data.offset)
     // Auto-trigger hover detection at cursor position so the window under
     // the cursor is highlighted immediately (like Feishu/CleanShot)
     if (data.cursorX !== undefined) {

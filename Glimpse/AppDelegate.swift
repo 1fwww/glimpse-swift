@@ -444,7 +444,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func emitCaptureToOverlay(_ result: ScreenCapture.CaptureResult) {
         overlayIPC.emit("screen-captured", data: [
-            "dataUrl": result.dataUrl,
+            "imageURL": result.imageURL,
             "windowBounds": result.windowBounds,
             "displayInfo": result.displayInfo,
             "offset": result.offset,
@@ -836,7 +836,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let distURL = findDistURL() {
             let indexURL = distURL.appendingPathComponent("index.html")
-            webView.loadFileURL(indexURL, allowingReadAccessTo: distURL)
+            // Allow read access to root so WebView can load file:// URLs for screenshots in /tmp
+            webView.loadFileURL(indexURL, allowingReadAccessTo: URL(fileURLWithPath: "/"))
         } else {
             NSLog("[App] ERROR: dist/index.html not found!")
         }

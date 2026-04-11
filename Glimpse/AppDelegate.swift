@@ -94,10 +94,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
         isOnboarding = !hasCompletedWelcome
         if isOnboarding {
+            // Show dock icon during onboarding so the welcome window is discoverable
+            NSApp.setActivationPolicy(.regular)
             showWelcome()
             // Prewarm chat silently so it's ready the moment onboarding completes
             prewarmChat()
         } else {
+            // After onboarding: tray-only, no dock icon
+            NSApp.setActivationPolicy(.accessory)
             prewarmChat()
         }
         prewarmOverlay()
@@ -147,6 +151,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
         isOnboarding = false
         hideWelcome()
+        // Switch to tray-only mode — remove dock icon
+        NSApp.setActivationPolicy(.accessory)
         // Chat was prewarmed at launch — it's ready, just don't auto-show it.
         // User will trigger it via shortcut or tray.
         NSLog("[App] Welcome completed — onboarding done")

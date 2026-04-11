@@ -259,7 +259,17 @@ React's hover detection only fires on `mousemove`. To auto-highlight the window 
 #### Native Selection Overlay (NativeSelectionOverlay.swift)
 **Why**: WebView selection had ~3-5ms WebKit IPC lag per mousemove + rAF throttle adding up to 16ms. Native selection eliminates both.
 
-**Architecture**: Native overlay handles selection phase only (mouseDown → drag → mouseUp). On mouseUp, dismiss native overlay → capture screen → show WebView overlay with pre-applied selection via `apply-selection` event. WebView handles post-selection (annotations, toolbar, chat).
+**Architecture**: Native overlay handles selection phase only (mouseDown → drag → mouseUp). On mouseUp, capture screen below native overlay → emit data to hidden WebView → React renders + signals `overlayRendered` → CATransaction atomic swap (show WebView + dismiss native in same run loop). WebView handles post-selection (annotations, toolbar, chat).
+
+**Native→WebView handoff (hard-won)**:
+The handoff from native selection to WebView overlay required multiple iterations to eliminate flash:
+1. **Fixed delay (150ms)**: Emit to hidden WebView → wait 150ms → swap. Flash on fast screenshots when React hadn't finished rendering.
+2. **Show WebView behind native**: Tried `orderFrontRegardless` at lower window level. `makeKeyAndOrderFront` + `NSApp.activate` in `showOverlay()` disrupted the native overlay, causing WORSE flash.
+3. **`overlayRendered` callback** (final solution): React signals Swift after render + image decode (`setTimeout(50ms)` + `Image.onload`). Swift does CATransaction swap. Zero flash, faster than 150ms fixed delay (~107ms total). 500ms safety timeout as fallback.
+
+**Key decision**: Emit to HIDDEN WebView, not visible. JS executes on ordered-out WKWebViews. The backing store updates even when hidden (unlike GPU compositing which is deferred). CATransaction groups `orderFront` + `orderOut` in the same display frame.
+
+**Failed approach**: Showing WebView at a lower level "behind" native overlay for pre-painting. Any call to `showAndFocus()`/`NSApp.activate()` disrupts the native overlay's visual state, and setting the window level AFTER `makeKeyAndOrderFront` means there's at least one frame at the wrong level.
 
 **Key gotchas**:
 - Must use `NSPanel` subclass (not NSWindow) — NSWindow can't become key in `.accessory` activation policy
@@ -268,6 +278,7 @@ React's hover detection only fires on `mousemove`. To auto-highlight the window 
 - Crosshair cursor: use `resetCursorRects` + `cursorUpdate` + `NSCursor.crosshair.set()` in mouseMoved (all three needed for consistency)
 - Desktop entry in window bounds must be excluded from hover detection but used as click fallback for full-screen selection
 - 5px drag threshold distinguishes click (snap) from drag (free-form)
+- `draw()` must check `currentRect.width > 2` (not `hasDraggedPastThreshold`) for cutout — `hasDraggedPastThreshold` is reset on mouseUp, clearing the selection cutout for one frame
 
 #### Screenshot Performance
 **JPEG + file URL** instead of PNG + base64:

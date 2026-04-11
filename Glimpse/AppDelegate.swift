@@ -18,6 +18,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var pendingSelection: [String: Any]?
     var frozenScreenWindow: NSWindow?
     var nativeSelectionOverlay: NativeSelectionOverlay?
+    var lastSpaceChangeTime: Date = .distantPast
+    var screenshotDeferPending = false
+    private let spaceChangeSettleTime: TimeInterval = 0.3
 
     // Welcome / onboarding
     var welcomePanel: GlimpsePanel?
@@ -95,6 +98,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleToggleSettings), name: .toggleSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseSettings), name: .closeSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
+
+        // Track Space changes so screenshot shortcut can wait for transitions to settle
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(handleSpaceChange),
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: nil
+        )
 
         // First-launch: show welcome flow; else prewarm chat immediately
         let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
@@ -254,6 +263,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func handleCloseSettings() {
         hideSettings()
+    }
+
+    @objc func handleSpaceChange() {
+        lastSpaceChangeTime = Date()
+        NSLog("[App] Space changed at \(lastSpaceChangeTime)")
     }
 
     @objc func handleProvidersChanged() {
@@ -528,6 +542,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if isOnboarding {
             welcomeIPC.emit("shortcut-tried", data: "screenshot")
             if welcomePanel?.isVisible != true { showWelcome() }
+            return
+        }
+
+        // If a Space transition happened recently, defer screenshot until
+        // window positions have fully settled. Only one deferred retry at a time.
+        let timeSinceSpaceChange = Date().timeIntervalSince(lastSpaceChangeTime)
+        if timeSinceSpaceChange < spaceChangeSettleTime {
+            if !screenshotDeferPending {
+                screenshotDeferPending = true
+                let remaining = spaceChangeSettleTime - timeSinceSpaceChange
+                NSLog("[App] Space changed \(Int(timeSinceSpaceChange * 1000))ms ago — deferring by \(Int(remaining * 1000))ms")
+                DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
+                    self?.screenshotDeferPending = false
+                    self?.handleScreenshotShortcut()
+                }
+            }
             return
         }
 

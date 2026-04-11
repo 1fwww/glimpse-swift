@@ -519,7 +519,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Hide chat BEFORE frozen screen so it doesn't appear in the framebuffer capture.
+        // Hide chat before capture so it doesn't appear in the screenshot.
         let chatWasVisible = chatPanel?.isVisible == true
         if chatWasVisible {
             chatPanel?.orderOut(nil)
@@ -527,9 +527,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // ── INSTANT FROZEN SCREEN ──
-        // Show a native NSWindow with the display framebuffer immediately (~5ms).
-        // Everything else happens behind this frozen image.
-        showFrozenScreen()
+        // Skip frozen screen when transitioning from chat — CGDisplayCreateImage reads
+        // the raw framebuffer which may still show the chat (compositor lag).
+        // The frozen screen is most useful when no Glimpse window is visible.
+        if !chatWasVisible {
+            showFrozenScreen()
+        }
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 

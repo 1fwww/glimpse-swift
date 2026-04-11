@@ -21,14 +21,24 @@ class ShortcutManager {
     private var dragStartOrigin: NSPoint = .zero
     weak var dragWindow: NSWindow?
 
+    private var retryTimer: Timer?
+
     func start() {
         ShortcutManager.shared = self
-        // Don't create event tap here — wait for accessibility permission.
-        // Call installEventTap() after accessibility is granted.
+        // Try installing immediately if accessibility is already granted.
         if AXIsProcessTrusted() {
             installEventTap()
         } else {
-            NSLog("[Shortcut] Accessibility not granted yet — event tap deferred")
+            NSLog("[Shortcut] Accessibility not granted yet — event tap deferred, polling every 2s")
+            // Poll for accessibility permission every 2 seconds until granted.
+            // applicationDidBecomeActive doesn't fire reliably for .accessory apps.
+            retryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+                if AXIsProcessTrusted() {
+                    self?.installEventTap()
+                    timer.invalidate()
+                    self?.retryTimer = nil
+                }
+            }
         }
     }
 

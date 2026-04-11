@@ -59,22 +59,28 @@ cd ../glimpse-tauri && npm run build && rm -rf ../glimpse-swift/dist && cp -r di
 
 ## Architecture
 
-### File Structure (2,119 lines Swift + 133 lines JS)
+### File Structure
 ```
 Glimpse/
-├── main.swift              # NSApplication run loop
-├── AppDelegate.swift       # Lifecycle, shortcuts, window management, overlay (633 lines)
-├── GlimpsePanel.swift      # NSPanel subclass — canBecomeKey, showAndFocus/showOnFullscreen (48 lines)
-├── GlimpseWebView.swift    # WKWebView subclass — acceptsFirstMouse for click-through (41 lines)
-├── IPCBridge.swift         # WKScriptMessageHandler — all JS↔Swift IPC (374 lines)
-├── ScreenCapture.swift     # CGWindowListCreateImage + window bounds (136 lines)
-├── AIService.swift         # URLSession calls to Claude/GPT/Gemini (295 lines)
-├── ShortcutManager.swift   # CGEventTap — shortcuts + window drag (146 lines)
-├── SpaceDetector.swift     # CGSSpaceGetType private API — fullscreen detection (26 lines)
-├── SettingsStore.swift     # API keys + preferences persistence (193 lines)
-├── ThreadStore.swift       # Thread JSON persistence, 5 max, auto-prune (86 lines)
-├── TextGrabber.swift       # Cmd+C simulation — DISABLED, needs fix (135 lines)
-└── swift-shim.js           # Drop-in replacement for tauri-shim.js (133 lines)
+├── main.swift                  # NSApplication run loop
+├── AppDelegate.swift           # Lifecycle, shortcuts, window management, overlay
+├── GlimpsePanel.swift          # NSPanel subclass — canBecomeKey, showAndFocus/showOnFullscreen
+├── GlimpseWebView.swift        # WKWebView subclass — acceptsFirstMouse for click-through
+├── NativeSelectionOverlay.swift # Native screenshot selection — Core Graphics, zero WebKit
+├── IPCBridge.swift             # WKScriptMessageHandler — all JS↔Swift IPC
+├── ScreenCapture.swift         # CGWindowListCreateImage + JPEG to /tmp + window bounds
+├── AIService.swift             # URLSession calls to Claude/GPT/Gemini
+├── ShortcutManager.swift       # CGEventTap — shortcuts + window drag
+├── SpaceDetector.swift         # CGSSpaceGetType private API — fullscreen detection
+├── SettingsStore.swift         # API keys + preferences + embedded keys for invite
+├── ThreadStore.swift           # Thread JSON persistence, 5 max, auto-prune
+├── TrayManager.swift           # NSStatusItem — tray icon + dynamic menu
+├── ToastManager.swift          # Native toast notifications (Outfit font, cyan border)
+├── TextGrabber.swift           # CGEvent Cmd+C simulation (~10ms)
+├── EmbeddedKeys.swift          # API keys baked in by build.sh (empty in git)
+└── swift-shim.js               # Drop-in replacement for tauri-shim.js
+fonts/
+└── Outfit-Variable.ttf         # Bundled font for native rendering (converted from woff2)
 ```
 
 ### IPC Pattern
@@ -178,8 +184,7 @@ Use `DispatchQueue.main.async` for all WebKit interactions. `Task { @MainActor i
 - Chat resize on AI reply (grows upward, animated)
 
 ### Not Working
-- **Text quoting** (Cmd+C simulation) — disabled. Root cause: `Task {}` from `@MainActor` blocks main thread; `DispatchQueue.global` works but ~400ms delay before chat appears causes key repeat race conditions. Fix: use `CGEvent`-based keystroke injection (10ms vs osascript 200ms).
-- **Invite code via `open`** — env vars not passed. Works when binary launched directly.
+- **Invite code via `open`** — env vars not passed. Works when binary launched directly, or use embedded keys via `build.sh`.
 
 ## Phase 2 Status (Screenshot Flow — Complete)
 
@@ -222,10 +227,9 @@ JSON numbers from JS arrive as `NSNumber` — cast via `(value as? NSNumber).map
 #### NSSavePanel + Overlay Workflow
 Save dialog can't appear above screenSaver-level overlay. Must: lower overlay to `.normal` → run NSSavePanel → restore overlay level → `makeKey()` to refocus.
 
-#### Overlay Must Be Recreated Each Session
-**Problem**: Reusing the overlay WebView across screenshot sessions causes accumulated dark masks and stale screenshots. `emit("reset-overlay")` can't reliably clear React state because `evaluateJavaScript` is async — the overlay becomes visible with stale state before the reset JS executes.
-
-**Fix**: Always destroy + recreate the overlay panel (`prewarmOverlay()`) for every screenshot. Fresh WebView = guaranteed clean state. The WebView load (~200ms) runs in parallel with the capture, so total latency is similar.
+#### Overlay WebView Reuse (Phase 3 update)
+**Previous**: Always destroy + recreate overlay WebView per screenshot (stale React state).
+**Current**: Reuse WebView on non-fullscreen Spaces. `resetState()` in React now clears `screenImage` to null. Key ordering: call `resetState()` BEFORE `setScreenImage(newUrl)` — otherwise reset wipes the new image. Fullscreen still requires recreate (Space association).
 
 #### CGEventTap: `.defaultTap` vs `.listenOnly`
 **Problem**: `.listenOnly` can't consume events — shortcuts pass through to focused apps, causing system beep and Terminal intercepting Cmd+Shift+Z as "Redo".
@@ -238,28 +242,85 @@ Save dialog can't appear above screenSaver-level overlay. Must: lower overlay to
 #### Auto-Highlight on Screenshot Trigger
 React's hover detection only fires on `mousemove`. To auto-highlight the window under the cursor when the overlay first appears: include cursor position (CSS coords) in `screen-captured` event data, then dispatch a synthetic `mousemove` from swift-shim.js 50ms after data loads.
 
-## Phase 3: Polish & Parity
+## Phase 3 Status (Polish & Parity — Complete)
 
-- Tray icon (NSStatusItem + dynamic menu)
-- Welcome/onboarding flow
-- Settings window
-- Toast notifications
-- Text quoting fix (CGEvent keystroke injection)
-- Remaining IPC stubs (selectFolder, copyImage, saveImage, etc.)
+### Working
+- Tray icon (NSStatusItem + dynamic menu with thread list)
+- Welcome/onboarding flow (first-launch detection, permission grants, shortcut practice)
+- Settings window (smart positioning, overlay-level aware)
+- Toast notifications (native NSPanel, Outfit font, matches Tauri design)
+- Text quoting (CGEvent Cmd+C simulation ~10ms)
+- Native screenshot selection (CAShapeLayer-level smoothness)
+- Invite code with embedded API keys (baked in by build.sh, never in git)
+- Production build script (universal arm64+x86_64, DMG, code signing)
+
+### Hard-Won Lessons (Phase 3)
+
+#### Native Selection Overlay (NativeSelectionOverlay.swift)
+**Why**: WebView selection had ~3-5ms WebKit IPC lag per mousemove + rAF throttle adding up to 16ms. Native selection eliminates both.
+
+**Architecture**: Native overlay handles selection phase only (mouseDown → drag → mouseUp). On mouseUp, dismiss native overlay → capture screen → show WebView overlay with pre-applied selection via `apply-selection` event. WebView handles post-selection (annotations, toolbar, chat).
+
+**Key gotchas**:
+- Must use `NSPanel` subclass (not NSWindow) — NSWindow can't become key in `.accessory` activation policy
+- Window background must be near-transparent `NSColor(white: 0, alpha: 0.001)`, not `.clear` — fully transparent windows pass clicks through to windows behind
+- `acceptsFirstMouse(for:) → true` required for immediate click reception
+- Crosshair cursor: use `resetCursorRects` + `cursorUpdate` + `NSCursor.crosshair.set()` in mouseMoved (all three needed for consistency)
+- Desktop entry in window bounds must be excluded from hover detection but used as click fallback for full-screen selection
+- 5px drag threshold distinguishes click (snap) from drag (free-form)
+
+#### Screenshot Performance
+**JPEG + file URL** instead of PNG + base64:
+- JPEG 85% quality: 10-20x faster encoding than PNG
+- Write to `/tmp/glimpse-capture.jpg`, pass `file://` URL to WebView
+- WKWebView needs `allowingReadAccessTo: URL(fileURLWithPath: "/")` for temp file access
+- Cache-bust with `?t=Date.now()` query param in swift-shim.js
+
+**Frozen screen** (for non-native-selection fallback on fullscreen):
+- `CGDisplayCreateImage` reads framebuffer in ~5ms (vs CGWindowListCreateImage ~20ms)
+- Shows NSWindow with NSImageView instantly, real work happens behind it
+- Must hide chat BEFORE capturing frozen screen (compositor lag)
+- Dismiss with 50ms delay to let React render before removing frozen screen
+
+#### CGEventTap on Fresh Install
+- Don't create event tap at startup — defer until accessibility is granted
+- Poll every 2s with Timer until `AXIsProcessTrusted()` returns true
+- `applicationDidBecomeActive` doesn't fire reliably for `.accessory` apps
+- Also retry in `handleWelcomeDone()` and `check_permissions` IPC
+- Hidden menu items (Cmd+Shift+X/Z) as fallback when tap unavailable
+
+#### Activation Policy (Dock Icon)
+- During onboarding: `.regular` (dock icon visible, discoverable)
+- After welcome done: `.accessory` (tray-only, no dock icon)
+- Welcome window: `.normal` level (not `.floating`) so system permission dialogs appear above it
+- Welcome window: `isMovableByWindowBackground = true` for drag without CGEventTap
+
+#### Embedded API Keys
+- `EmbeddedKeys.swift` checked into git with empty strings
+- `build.sh` overwrites with real keys from env vars before compiling
+- Restored to empty after build — keys never linger in source
+- `SettingsStore` reads embedded keys first, falls back to env vars (dev mode)
+
+#### Frontend Source Location
+- React source lives in `../glimpse-tauri/src/`, NOT `glimpse-swift/src/`
+- `npm run build` runs from `glimpse-tauri/` directory
+- Must `rm -rf dist` before `cp -r` (stale hashed files persist otherwise)
+- Copy edited files to `glimpse-swift/src/` for reference only
+
+#### React State Ordering
+- `resetState()` includes `setScreenImage(null)` — must be called BEFORE `setScreenImage(newUrl)` in event handlers, not after. Wrong order: set image → reset → image cleared → invisible overlay.
 
 ## macOS API Quick Reference
 
 | API | Use | Gotcha |
 |---|---|---|
-| `NSPanel(canBecomeKey: true)` | Chat window | Must init via `initWithContentRect:` — `object_setClass` doesn't work |
-| `CGEvent.tapCreate(.cghidEventTap, .listenOnly)` | Shortcuts, drag, ESC | Filter `.keyboardEventAutorepeat`; callback on main run loop |
+| `NSPanel(canBecomeKey: true)` | Chat/overlay windows | Can become key in `.accessory` policy (NSWindow can't) |
+| `CGEvent.tapCreate(.defaultTap)` | Shortcuts, drag, ESC | Defer creation until accessibility granted; filter key repeats |
+| `CGDisplayCreateImage` | Instant frozen screen | ~5ms framebuffer read; shows stale compositor state |
+| `CGWindowListCreateImage` | Real screen capture | ~20ms; run on background thread; JPEG encode to /tmp |
 | `CGSSpaceGetType` | Fullscreen detection | Private API, type 4 = fullscreen |
-| `NSApp.setActivationPolicy(.accessory)` | Fullscreen windows | Causes Space switch on restore — use `restoreActivationPolicyIfNeeded()` |
-| `orderFrontRegardless() + makeKey()` | Show on fullscreen | Call `NSApp.activate` **after** (safe once window is on Space) |
-| `CanJoinAllSpaces → FullScreenAuxiliary` | Single-desktop lock | 200ms delay between set calls |
-| `evaluateJavaScript` | Swift→JS events | Must be on main thread via `DispatchQueue.main.async` |
-| `WKScriptMessageHandler` | JS→Swift IPC | Callback IDs for async returns |
-| `CGWindowListCreateImage` | Screen capture | Run on background thread; capture BEFORE showing overlay |
-| `NSWindow.alphaValue` | Seamless transitions | Show at alpha=0, render content, then reveal — atomic swap |
-| `NSSavePanel` | File save dialog | Lower overlay level first, restore after, `makeKey()` to refocus |
-| `acceptsFirstMouse(for:)` | Click-through | Override on WKWebView subclass for fullscreen click responsiveness |
+| `NSApp.setActivationPolicy` | Dock icon control | `.regular` = dock icon, `.accessory` = tray only |
+| `CTFontManagerRegisterFontsForURL` | Bundle custom fonts | Register at launch; use `.process` scope |
+| `evaluateJavaScript` | Swift→JS events | Async; delay frozen screen dismissal 50ms for React render |
+| `NSWindow.backgroundColor(.001 alpha)` | Transparent but clickable | Fully `.clear` passes clicks through to windows behind |
+| `acceptsFirstMouse(for:)` | Click-through | Override on NSView for immediate click reception |

@@ -368,9 +368,15 @@ export default function App() {
   }
 
   const handleMouseMove = (e) => {
-    // rAF throttle — max one update per frame
-    if (rafRef.current) return
-    rafRef.current = requestAnimationFrame(() => { rafRef.current = null })
+    // During active drag operations (resize, move, new selection), process every
+    // mousemove immediately — direct DOM updates are cheap and skipping events
+    // causes visible lag (rectangle trails cursor). Browser batches to vsync anyway.
+    const isDragging = isResizingSelection || isMovingSelection || (isSelecting && startPos)
+    if (!isDragging) {
+      // rAF throttle for non-drag operations (hover detection, cursor updates)
+      if (rafRef.current) return
+      rafRef.current = requestAnimationFrame(() => { rafRef.current = null })
+    }
 
     // Resizing existing selection
     if (isResizingSelection && moveStart.current) {

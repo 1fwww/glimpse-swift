@@ -138,6 +138,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             panel.showAndFocus()
         }
+        updateVisibleWindowFlag()
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
 
         // After 200ms, lock to current Space (stop following across desktops)
@@ -151,6 +152,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func hideChat() {
         chatPanel?.orderOut(nil)
         isPinned = false  // Reset pin state so next session starts in sync with frontend
+        updateVisibleWindowFlag()
         restoreActivationPolicyIfNeeded()
         NSLog("[App] Chat hidden")
     }
@@ -203,17 +205,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isFullscreen = SpaceDetector.isFullscreenSpace()
         if isFullscreen {
             panel.showOnFullscreen()
+            // Activate so mouse events reach WebView immediately (same fix as chat)
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKey()
+            if let cv = panel.contentView { panel.makeFirstResponder(cv) }
         } else {
             panel.showAndFocus()
         }
+        updateVisibleWindowFlag()
         NSLog("[App] Overlay shown (fullscreen=\(isFullscreen))")
     }
 
     func hideOverlay() {
-        overlayPanel?.orderOut(nil)
+        // Reset BEFORE orderOut — JS won't execute on hidden WebViews
         overlayIPC.emit("reset-overlay")
+        overlayPanel?.orderOut(nil)
+        updateVisibleWindowFlag()
         restoreActivationPolicyIfNeeded()
         NSLog("[App] Overlay hidden")
+    }
+
+    /// Update ShortcutManager's flag so ESC is consumed only when we have visible windows.
+    private func updateVisibleWindowFlag() {
+        shortcutManager.hasVisibleWindow =
+            (chatPanel?.isVisible == true) || (overlayPanel?.isVisible == true)
     }
 
     /// Restore Regular activation policy after showing windows on fullscreen Spaces.
@@ -231,17 +246,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "dataUrl": result.dataUrl,
             "windowBounds": result.windowBounds,
             "displayInfo": result.displayInfo,
-            "offset": result.offset
+            "offset": result.offset,
+            "cursorX": result.cursorX,
+            "cursorY": result.cursorY
         ])
-        NSLog("[App] Emitted screen-captured to overlay")
+        NSLog("[App] Emitted screen-captured to overlay (cursor: \(result.cursorX),\(result.cursorY))")
     }
 
     // MARK: - Shortcut Handlers
 
     func handleChatShortcut() {
-        // If overlay visible, close it and switch to chat
+        // If overlay visible, dismiss it and switch to chat.
+        // Reset BEFORE orderOut so JS executes while WebView is still visible.
         if let panel = overlayPanel, panel.isVisible {
-            hideOverlay()
+            overlayIPC.emit("reset-overlay")
+            panel.orderOut(nil)
+            updateVisibleWindowFlag()
             showChat()
             return
         }
@@ -261,25 +281,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Hide chat if visible
-        if let panel = chatPanel, panel.isVisible {
-            hideChat()
+        // Hide chat before capture so it doesn't appear in the screenshot.
+        // Just orderOut — don't call hideChat() which does NSApp.hide (causes flash).
+        let chatWasVisible = chatPanel?.isVisible == true
+        if chatWasVisible {
+            chatPanel?.orderOut(nil)
+            isPinned = false
         }
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
-        // Fullscreen: destroy and recreate overlay for Space association
+        // Always destroy and recreate overlay for guaranteed clean state.
+        // Reusing the WebView causes stale React state (accumulated dark masks,
+        // old screenshots) because emit("reset-overlay") is async and can't
+        // reliably clear state before the window becomes visible.
+        overlayPanel?.orderOut(nil)
+        overlayPanel = nil
+        overlayWebView = nil
+        overlayReady = false
         if isFullscreen {
-            NSLog("[App] Fullscreen detected — recreating overlay")
-            overlayPanel?.orderOut(nil)
-            overlayPanel = nil
-            overlayWebView = nil
-            overlayReady = false
             NSApp.setActivationPolicy(.accessory)
-            prewarmOverlay()
         }
+        prewarmOverlay()
 
-        // Capture screen on background thread (before showing overlay)
+        // Capture in parallel with WebView loading.
+        // If chat was visible, wait 200ms for compositor to remove it.
+        let compositorDelay = chatWasVisible ? 0.2 : 0.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + compositorDelay) { [weak self] in
+            self?.performCapture()
+        }
+    }
+
+    private func performCapture() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let result = ScreenCapture.capture() else {
                 NSLog("[App] Capture FAILED")
@@ -289,11 +322,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.showOverlay()
-
                 if self.overlayReady {
+                    // WebView already loaded — show overlay and emit data
+                    if self.overlayPanel?.isVisible != true {
+                        self.showOverlay()
+                    }
                     self.emitCaptureToOverlay(result)
                 } else {
+                    // WebView still loading — store for handleOverlayReady
                     self.pendingCaptureResult = result
                 }
             }
@@ -447,6 +483,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Overlay ready")
         if let result = pendingCaptureResult {
             pendingCaptureResult = nil
+            // Show overlay now that WebView is loaded, then emit data
+            showOverlay()
             emitCaptureToOverlay(result)
         }
     }
@@ -457,7 +495,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func handleRestoreOverlay() {
-        overlayPanel?.level = .init(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+        overlayPanel?.level = Self.screensaverLevel
         NSLog("[App] Overlay restored")
     }
 
@@ -616,6 +654,9 @@ extension AppDelegate: WKNavigationDelegate {
                 NSLog("[App] Overlay ready (didFinish + 100ms)")
                 if let result = self.pendingCaptureResult {
                     self.pendingCaptureResult = nil
+                    if self.overlayPanel?.isVisible != true {
+                        self.showOverlay()
+                    }
                     self.emitCaptureToOverlay(result)
                 }
             }

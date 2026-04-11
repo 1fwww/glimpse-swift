@@ -169,14 +169,17 @@ Use `DispatchQueue.main.async` for all WebKit interactions. `Task { @MainActor i
 
 ### Working
 - Cmd+Shift+Z captures screen → overlay with selection/annotation tools
+- Auto-highlight window under cursor on trigger (synthetic mousemove via swift-shim.js)
+- Window snap on hover, Desktop fallback when cursor not over any window
 - Draw selection → chat panel appears → AI responds about screenshot
 - Copy selection to clipboard (PNG + TIFF for compatibility)
 - Save selection to file (NSSavePanel, overlay lowered during dialog)
-- ESC closes overlay (priority over chat)
+- ESC closes overlay (priority over chat, consumed to prevent beep)
 - Cmd+Shift+X during overlay → switch to chat, and vice versa
 - Pin flow: overlay chat → standalone chat panel (seamless alpha-swap transition)
-- Fullscreen Space support (destroy+recreate for both overlay and pinned chat)
+- Fullscreen Space support (destroy+recreate for overlay and pinned chat)
 - Window level: unpinned chat at `.normal` (other windows can cover it), pinned at `.floating`
+- Shortcuts consumed via `.defaultTap` — no beep, works in Terminal
 
 ### Hard-Won Lessons (Phase 2)
 
@@ -202,6 +205,22 @@ JSON numbers from JS arrive as `NSNumber` — cast via `(value as? NSNumber).map
 
 #### NSSavePanel + Overlay Workflow
 Save dialog can't appear above screenSaver-level overlay. Must: lower overlay to `.normal` → run NSSavePanel → restore overlay level → `makeKey()` to refocus.
+
+#### Overlay Must Be Recreated Each Session
+**Problem**: Reusing the overlay WebView across screenshot sessions causes accumulated dark masks and stale screenshots. `emit("reset-overlay")` can't reliably clear React state because `evaluateJavaScript` is async — the overlay becomes visible with stale state before the reset JS executes.
+
+**Fix**: Always destroy + recreate the overlay panel (`prewarmOverlay()`) for every screenshot. Fresh WebView = guaranteed clean state. The WebView load (~200ms) runs in parallel with the capture, so total latency is similar.
+
+#### CGEventTap: `.defaultTap` vs `.listenOnly`
+**Problem**: `.listenOnly` can't consume events — shortcuts pass through to focused apps, causing system beep and Terminal intercepting Cmd+Shift+Z as "Redo".
+
+**Fix**: Use `.defaultTap` and return `nil` for our shortcuts (Cmd+Shift+X, Cmd+Shift+Z, ESC when windows visible). This consumes the event before any app sees it. Requires Accessibility permission (same as `.listenOnly` at HID level).
+
+#### Window Bounds: Filter System UI
+`CGWindowListCopyWindowInfo` returns system windows that cover the entire screen (Dock, Notification Center, Window Server, Control Center). These must be filtered out, otherwise hover detection "selects" the entire screen. Add a Desktop fallback entry at the end of the bounds array for full-screen selection when cursor is over empty desktop.
+
+#### Auto-Highlight on Screenshot Trigger
+React's hover detection only fires on `mousemove`. To auto-highlight the window under the cursor when the overlay first appears: include cursor position (CSS coords) in `screen-captured` event data, then dispatch a synthetic `mousemove` from swift-shim.js 50ms after data loads.
 
 ## Phase 3: Polish & Parity
 

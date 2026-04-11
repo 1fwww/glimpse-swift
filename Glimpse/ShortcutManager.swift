@@ -10,6 +10,8 @@ class ShortcutManager {
     var onChatShortcut: (() -> Void)?
     var onScreenshotShortcut: (() -> Void)?
     var onEscape: (() -> Void)?
+    /// Set to true when Glimpse has visible windows — ESC will be consumed to prevent beep
+    var hasVisibleWindow = false
 
     private var eventTap: CFMachPort?
 
@@ -30,7 +32,7 @@ class ShortcutManager {
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
-            options: .listenOnly,
+            options: .defaultTap,  // active tap: can consume events to prevent beep + app interference
             eventsOfInterest: mask,
             callback: eventTapCallback,
             userInfo: nil
@@ -58,23 +60,6 @@ class ShortcutManager {
         dragWindow = window
         dragStartMouse = NSEvent.mouseLocation
         dragStartOrigin = window.frame.origin
-    }
-
-    fileprivate func handleKey(_ keyCode: Int64, flags: CGEventFlags) {
-        let hasCmd = flags.contains(.maskCommand)
-        let hasShift = flags.contains(.maskShift)
-
-        if hasCmd && hasShift {
-            if keyCode == kVK_ANSI_X {
-                NSLog("[Shortcut] Cmd+Shift+X")
-                onChatShortcut?()
-            } else if keyCode == kVK_ANSI_Z {
-                NSLog("[Shortcut] Cmd+Shift+Z")
-                onScreenshotShortcut?()
-            }
-        } else if keyCode == kVK_Escape {
-            onEscape?()
-        }
     }
 
     fileprivate func handleMouseDragged(location: CGPoint) {
@@ -123,8 +108,31 @@ private func eventTapCallback(
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags
-        DispatchQueue.main.async {
-            ShortcutManager.shared?.handleKey(keyCode, flags: flags)
+        let hasCmd = flags.contains(.maskCommand)
+        let hasShift = flags.contains(.maskShift)
+
+        // Our global shortcuts — consume the event (return nil) so the focused app
+        // doesn't receive it. Prevents: system alert beep, Terminal consuming
+        // Cmd+Shift+Z as "Redo", etc.
+        if hasCmd && hasShift {
+            if keyCode == Int64(kVK_ANSI_X) {
+                NSLog("[Shortcut] Cmd+Shift+X")
+                DispatchQueue.main.async { ShortcutManager.shared?.onChatShortcut?() }
+                return nil  // consume — don't pass to focused app
+            } else if keyCode == Int64(kVK_ANSI_Z) {
+                NSLog("[Shortcut] Cmd+Shift+Z")
+                DispatchQueue.main.async { ShortcutManager.shared?.onScreenshotShortcut?() }
+                return nil  // consume
+            }
+        }
+
+        // ESC — consume only when Glimpse has visible windows (prevents beep)
+        if keyCode == Int64(kVK_Escape) {
+            let shouldConsume = ShortcutManager.shared?.hasVisibleWindow == true
+            DispatchQueue.main.async { ShortcutManager.shared?.onEscape?() }
+            if shouldConsume {
+                return nil  // consume — prevent beep in overlay/chat
+            }
         }
 
     case .leftMouseDragged:

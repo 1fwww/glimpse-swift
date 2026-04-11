@@ -119,7 +119,19 @@ window.electronAPI = {
   restoreOverlay: () => invoke('restore_overlay'),
 
   // ── Events ──
-  onScreenCaptured: (cb) => listen('screen-captured', (data) => cb(data.dataUrl, data.windowBounds, data.displayInfo, data.offset)),
+  onScreenCaptured: (cb) => listen('screen-captured', (data) => {
+    cb(data.dataUrl, data.windowBounds, data.displayInfo, data.offset)
+    // Auto-trigger hover detection at cursor position so the window under
+    // the cursor is highlighted immediately (like Feishu/CleanShot)
+    if (data.cursorX !== undefined) {
+      setTimeout(() => {
+        var el = document.elementFromPoint(data.cursorX, data.cursorY) || document.documentElement
+        el.dispatchEvent(new MouseEvent('mousemove', {
+          clientX: data.cursorX, clientY: data.cursorY, bubbles: true
+        }))
+      }, 50)
+    }
+  }),
   onNewCapture: (cb) => listen('new-capture', (data) => cb(data.dataUrl, data.displayInfo)),
   onPinState: (cb) => listen('pin-state', cb),
   onLoadThreadData: (cb) => listen('load-thread-data', cb),

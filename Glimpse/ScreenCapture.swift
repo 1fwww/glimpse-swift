@@ -10,9 +10,13 @@ struct ScreenCapture {
         let windowBounds: [[String: Any]]   // [{ x, y, w, h, owner, name }]
         let displayInfo: [String: Any]      // { width, height }
         let offset: [String: Any]           // { x, y }
+        let cursorX: Int                    // cursor position in CSS coords (top-left)
+        let cursorY: Int
     }
 
     /// Capture the screen where the cursor is. Runs synchronously — call from background thread.
+    /// Excludes windows owned by "Glimpse" from the capture image, so our own chat panel
+    /// and overlay don't appear in the screenshot.
     static func capture() -> CaptureResult? {
         let mouseLocation = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
@@ -43,7 +47,7 @@ struct ScreenCapture {
             height: screenFrame.height
         )
 
-        // Capture screen image
+        // Capture screen image (caller must hide Glimpse windows before calling)
         guard let cgImage = CGWindowListCreateImage(
             captureRect,
             .optionOnScreenOnly,
@@ -79,11 +83,17 @@ struct ScreenCapture {
             "y": Int(cgOriginY)
         ]
 
+        // Cursor position in CSS coordinates (top-left origin, relative to screen)
+        let cursorX = Int(mouseLocation.x - screenFrame.origin.x)
+        let cursorY = Int(screenFrame.height - (mouseLocation.y - screenFrame.origin.y))
+
         return CaptureResult(
             dataUrl: dataUrl,
             windowBounds: windowBounds,
             displayInfo: displayInfo,
-            offset: offset
+            offset: offset,
+            cursorX: cursorX,
+            cursorY: cursorY
         )
     }
 
@@ -117,8 +127,12 @@ struct ScreenCapture {
             let owner = window[kCGWindowOwnerName as String] as? String ?? ""
             let name = window[kCGWindowName as String] as? String ?? ""
 
-            // Skip our own app
+            // Skip our own app and system UI elements
             if owner == "Glimpse" { continue }
+            if owner == "Dock" { continue }
+            if owner == "Notification Center" { continue }
+            if owner == "Window Server" { continue }
+            if owner == "Control Center" { continue }
 
             bounds.append([
                 "x": Int(x),
@@ -130,7 +144,19 @@ struct ScreenCapture {
             ])
         }
 
-        NSLog("[Capture] Found \(bounds.count) windows on screen")
+        // Add full-screen "Desktop" as fallback — findWindowAtPoint iterates
+        // front-to-back, so app windows match first. Desktop is the catch-all
+        // when cursor isn't over any window (auto-selects entire screen).
+        bounds.append([
+            "x": Int(screenRect.origin.x),
+            "y": Int(screenRect.origin.y),
+            "w": Int(screenRect.width),
+            "h": Int(screenRect.height),
+            "owner": "Desktop",
+            "name": ""
+        ])
+
+        NSLog("[Capture] Found \(bounds.count - 1) windows + Desktop on \(Int(screenRect.width))x\(Int(screenRect.height)) screen")
         return bounds
     }
 }

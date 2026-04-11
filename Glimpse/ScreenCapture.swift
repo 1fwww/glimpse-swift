@@ -19,9 +19,8 @@ struct ScreenCapture {
         .appendingPathComponent("glimpse-capture.jpg")
 
     /// Capture the screen where the cursor is. Runs synchronously — call from background thread.
-    /// Excludes windows owned by "Glimpse" from the capture image, so our own chat panel
-    /// and overlay don't appear in the screenshot.
-    static func capture() -> CaptureResult? {
+    /// If `belowWindowID` is provided, captures only windows below that window (excludes it).
+    static func capture(belowWindowID: CGWindowID = kCGNullWindowID) -> CaptureResult? {
         let mouseLocation = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
             ?? NSScreen.main ?? NSScreen.screens.first
@@ -48,12 +47,14 @@ struct ScreenCapture {
             height: screenFrame.height
         )
 
-        // Capture screen image
+        // Capture screen image (optionally below a specific window to exclude it)
         let startTime = CFAbsoluteTimeGetCurrent()
+        let listOption: CGWindowListOption = belowWindowID != kCGNullWindowID
+            ? .optionOnScreenBelowWindow : .optionOnScreenOnly
         guard let cgImage = CGWindowListCreateImage(
             captureRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
+            listOption,
+            belowWindowID,
             [.bestResolution]
         ) else {
             NSLog("[Capture] CGWindowListCreateImage failed")

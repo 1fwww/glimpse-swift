@@ -120,9 +120,9 @@ export default function ChatPanel({
   const pendingImageRef = useRef(null)
   const pendingSnippetRef = useRef(null)
 
-  // Update textContext when initialContext arrives via IPC
+  // Update textContext when initialContext arrives via IPC (including clear)
   useEffect(() => {
-    if (initialContext?.text) setTextContext(initialContext.text)
+    setTextContext(initialContext?.text || '')
   }, [initialContext?.seq])
 
   const [isLoading, setIsLoading] = useState(false)

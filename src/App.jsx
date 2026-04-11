@@ -78,7 +78,7 @@ export default function App() {
       setIsExiting(false)
     }
 
-    const removeScreenCaptured = window.electronAPI.onScreenCaptured((dataUrl, bounds, dispInfo, offset) => {
+    const removeScreenCaptured = window.electronAPI.onScreenCaptured((dataUrl, bounds, dispInfo, offset, preSelection) => {
       resetState()  // Clear all state first (including screenImage)
       setScreenImage(dataUrl)  // Then set new image (AFTER reset, so it's not cleared)
       screenImageRef.current = dataUrl
@@ -91,6 +91,14 @@ export default function App() {
         x: win.x - off.x,
         y: win.y - off.y,
       })))
+      // Apply pre-computed selection from native overlay (if present)
+      if (preSelection && preSelection.w > 10 && preSelection.h > 10) {
+        setSelection(preSelection)
+        setIsSelecting(false)
+        setChatVisible(true)
+        setChatMinimized(tm.isNewThread)
+        setTimeout(() => cropSelection(preSelection, dataUrl), 50)
+      }
       window.focus()
       tm.refreshWithHeuristic()
     })

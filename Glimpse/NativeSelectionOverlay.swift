@@ -24,7 +24,7 @@ class NativeSelectionOverlay: NSView {
 
     // MARK: - Window
 
-    private var overlayWindow: NSWindow?
+    var overlayWindow: NSWindow?
     private var screenFrame: NSRect = .zero
 
     // MARK: - Callbacks

@@ -151,10 +151,10 @@ window.electronAPI = {
     // imageURL is a file:// URL to a JPEG in /tmp — pass as dataUrl for the frontend
     // Cache-bust with timestamp so the browser doesn't serve a stale cached image
     var imageUrl = (data.imageURL || data.dataUrl) + '?t=' + Date.now()
-    cb(imageUrl, data.windowBounds, data.displayInfo, data.offset)
+    cb(imageUrl, data.windowBounds, data.displayInfo, data.offset, data.selection || null)
     // Auto-trigger hover detection at cursor position so the window under
-    // the cursor is highlighted immediately (like Feishu/CleanShot)
-    if (data.cursorX !== undefined) {
+    // the cursor is highlighted immediately (only when no pre-applied selection)
+    if (!data.selection && data.cursorX !== undefined) {
       setTimeout(() => {
         var el = document.elementFromPoint(data.cursorX, data.cursorY) || document.documentElement
         el.dispatchEvent(new MouseEvent('mousemove', {

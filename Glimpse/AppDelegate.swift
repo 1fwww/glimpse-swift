@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var ipcBridge = IPCBridge()
     var chatReady = false
     var isPinned = false
+    var pendingTextContext: String?
 
     // Overlay (screenshot)
     var overlayPanel: GlimpsePanel?
@@ -343,6 +344,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updateVisibleWindowFlag()
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
 
+        // Emit pending text context after chat is visible
+        if let text = pendingTextContext {
+            pendingTextContext = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.ipcBridge.emit("text-context", data: text)
+            }
+        }
+
         // After 200ms, lock to current Space (stop following across desktops)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak panel] in
             guard let panel, panel.isVisible else { return }
@@ -481,8 +490,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         if let panel = chatPanel, panel.isVisible {
-            hideChat()
-            return
+            // If chat is on a different screen, move it here instead of hiding
+            let cursorScreen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+            let chatScreen = panel.screen
+            if cursorScreen != chatScreen {
+                hideChat()
+                // Fall through to show chat on current screen
+            } else {
+                hideChat()
+                return
+            }
         }
 
         // Open chat — grab selected text first if Accessibility is granted.
@@ -493,16 +510,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let text = self?.textGrabber.grabSelectedTextSync()
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
+                    // Store text for emission after chat is shown (handles fullscreen recreate)
+                    self.pendingTextContext = (text?.isEmpty == false) ? text : nil
                     self.showChat()
-                    if let text, !text.isEmpty {
-                        // Short delay: chat WebView must be visible before receiving event
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            self.ipcBridge.emit("text-context", data: text)
-                        }
-                    }
                 }
             }
         } else {
+            self.pendingTextContext = nil
             showChat()
         }
     }
@@ -578,42 +592,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleNativeSelectionComplete(_ selectionRect: CGRect, windowBounds: [[String: Any]]) {
-        // Dismiss native overlay first so it doesn't appear in the screenshot
-        nativeSelectionOverlay?.dismiss()
-        nativeSelectionOverlay = nil
-        updateVisibleWindowFlag()
+        // Keep native overlay visible during capture — capture BELOW it so it doesn't
+        // appear in the screenshot. This eliminates the flash during handoff.
+        let nativeWindowID = CGWindowID(nativeSelectionOverlay?.overlayWindow?.windowNumber ?? 0)
 
-        // Wait one frame for compositor to remove the native overlay window
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // Capture below the native overlay (excludes it from the screenshot)
+            guard let result = ScreenCapture.capture(belowWindowID: nativeWindowID) else {
+                NSLog("[App] Capture FAILED after native selection")
+                return
+            }
+            NSLog("[App] Capture OK after native selection: \(result.windowBounds.count) windows")
 
-            // Capture on background thread
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let result = ScreenCapture.capture() else {
-                    NSLog("[App] Capture FAILED after native selection")
-                    return
-                }
-                NSLog("[App] Capture OK after native selection: \(result.windowBounds.count) windows")
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
 
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
+                let selectionData: [String: Any] = [
+                    "x": Int(selectionRect.origin.x),
+                    "y": Int(selectionRect.origin.y),
+                    "w": Int(selectionRect.width),
+                    "h": Int(selectionRect.height)
+                ]
 
-                    let selectionData: [String: Any] = [
-                        "x": Int(selectionRect.origin.x),
-                        "y": Int(selectionRect.origin.y),
-                        "w": Int(selectionRect.width),
-                        "h": Int(selectionRect.height)
-                    ]
-
-                    if self.overlayReady {
+                if self.overlayReady {
+                    // Emit data to HIDDEN WebView — JS executes on ordered-out windows.
+                    // React renders the image + selection while the native overlay stays visible.
+                    self.overlayIPC.emit("screen-captured", data: [
+                        "imageURL": result.imageURL,
+                        "windowBounds": result.windowBounds,
+                        "displayInfo": result.displayInfo,
+                        "offset": result.offset,
+                        "cursorX": result.cursorX,
+                        "cursorY": result.cursorY,
+                        "selection": selectionData
+                    ])
+                    // Wait for React to render, then atomic swap:
+                    // show WebView overlay + dismiss native overlay in same frame
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                        guard let self else { return }
+                        CATransaction.begin()
+                        CATransaction.setDisableActions(true)
                         self.showOverlay()
-                        self.emitCaptureToOverlay(result)
-                        // Apply pre-computed selection so React skips selection phase
-                        self.overlayIPC.emit("apply-selection", data: selectionData)
-                    } else {
-                        self.pendingCaptureResult = result
-                        self.pendingSelection = selectionData
+                        self.nativeSelectionOverlay?.dismiss()
+                        self.nativeSelectionOverlay = nil
+                        CATransaction.commit()
+                        self.updateVisibleWindowFlag()
                     }
+                } else {
+                    self.pendingCaptureResult = result
+                    self.pendingSelection = selectionData
                 }
             }
         }
@@ -876,13 +903,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             pendingCaptureResult = nil
             showOverlay()
             emitCaptureToOverlay(result)
-            // Apply pre-computed selection if native selection was used
             if let sel = pendingSelection {
                 pendingSelection = nil
                 overlayIPC.emit("apply-selection", data: sel)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 self?.dismissFrozenScreen()
+                // Dismiss native selection overlay if it was kept visible during capture
+                self?.nativeSelectionOverlay?.dismiss()
+                self?.nativeSelectionOverlay = nil
+                self?.updateVisibleWindowFlag()
             }
         }
     }

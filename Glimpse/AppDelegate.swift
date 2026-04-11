@@ -114,7 +114,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screen = NSScreen.main ?? NSScreen.screens.first!
         let sf = screen.frame
         panel.setFrameOrigin(NSPoint(x: sf.midX - 220, y: sf.midY - 290))
-        panel.level = .floating
+        // Use .normal so system permission dialogs appear above the welcome window
+        panel.level = .normal
+        // Allow dragging by any part of the window (works without CGEventTap/accessibility)
+        panel.isMovableByWindowBackground = true
 
         self.welcomePanel = panel
         self.welcomeWebView = webView

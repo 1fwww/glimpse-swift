@@ -102,6 +102,10 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
         case "request_accessibility_permission":
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             let trusted = await MainActor.run { AXIsProcessTrustedWithOptions(options) }
+            // If just granted, install the event tap now
+            if trusted {
+                await MainActor.run { ShortcutManager.shared?.installEventTap() }
+            }
             return ["granted": trusted]
 
         case "select_folder":
@@ -308,6 +312,8 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
         case "check_permissions":
             let screen = CGPreflightScreenCaptureAccess()
             let accessibility = AXIsProcessTrusted()
+            // Install event tap if accessibility was granted externally (user toggled in System Settings)
+            if accessibility { ShortcutManager.shared?.installEventTap() }
             return ["screen": screen, "accessibility": accessibility]
 
         // ── Utilities ──

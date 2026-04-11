@@ -23,6 +23,19 @@ class ShortcutManager {
 
     func start() {
         ShortcutManager.shared = self
+        // Don't create event tap here — wait for accessibility permission.
+        // Call installEventTap() after accessibility is granted.
+        if AXIsProcessTrusted() {
+            installEventTap()
+        } else {
+            NSLog("[Shortcut] Accessibility not granted yet — event tap deferred")
+        }
+    }
+
+    /// Create the CGEventTap. Safe to call multiple times — only installs once.
+    /// Call after accessibility permission is granted.
+    func installEventTap() {
+        guard eventTap == nil else { return }  // already installed
 
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
@@ -32,7 +45,7 @@ class ShortcutManager {
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
-            options: .defaultTap,  // active tap: can consume events to prevent beep + app interference
+            options: .defaultTap,
             eventsOfInterest: mask,
             callback: eventTapCallback,
             userInfo: nil

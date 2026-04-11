@@ -1,38 +1,80 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Grabs selected text from any app using CGEvent Cmd+C simulation + clipboard sentinel.
-/// CGEvent approach: ~10ms keystroke vs osascript ~200ms. Safe on background threads.
+/// Grabs selected text from any app via Accessibility API (preferred) or
+/// CGEvent Cmd+C simulation (fallback).
+///
+/// Strategy: AX API first (instant, no beep, no clipboard side effects).
+/// Falls back to Cmd+C only when AX can't reach the app (e.g., Chrome fullscreen).
+///
+/// AXResult distinguishes three outcomes:
+/// - `.success(text)`: AX reached the focused element and read selectedText
+/// - `.noSelection`: AX reached the element but it has no selectedText attribute
+///   (user hasn't selected anything) — do NOT fall back to Cmd+C (would beep)
+/// - `.appFailed`: AX couldn't get the focused element at all (app-level failure,
+///   e.g., Chrome returns -25212) — fall back to Cmd+C
+///
 /// Requires Accessibility permission.
 class TextGrabber {
 
-    /// Grab selected text synchronously. Call from DispatchQueue.global(), NOT main thread.
-    func grabSelectedTextSync() -> String? {
-        guard AXIsProcessTrusted() else {
-            NSLog("[TextGrab] No Accessibility permission")
-            return nil
+    enum AXResult {
+        case success(String)
+        case noSelection
+        case appFailed
+    }
+
+    // MARK: - Public API
+
+    /// Try AX API on main thread (instant). If AX fails at app level,
+    /// caller should fall back to grabViaCmdC() on a background thread.
+    func grabViaAccessibility() -> AXResult {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
+            NSLog("[TextGrab] No frontmost app")
+            return .appFailed
+        }
+        NSLog("[TextGrab] frontmost = \(frontApp.localizedName ?? "?") (pid \(frontApp.processIdentifier))")
+
+        let appRef = AXUIElementCreateApplication(frontApp.processIdentifier)
+
+        var focusedElement: AnyObject?
+        let focusResult = AXUIElementCopyAttributeValue(
+            appRef, kAXFocusedUIElementAttribute as CFString, &focusedElement)
+        guard focusResult == .success, let element = focusedElement else {
+            NSLog("[TextGrab] focusedElement failed (\(focusResult.rawValue))")
+            return .appFailed
         }
 
-        let pasteboard = NSPasteboard.general
+        var selectedText: AnyObject?
+        let textResult = AXUIElementCopyAttributeValue(
+            element as! AXUIElement, kAXSelectedTextAttribute as CFString, &selectedText)
+        guard textResult == .success, let text = selectedText as? String else {
+            NSLog("[TextGrab] selectedText failed (\(textResult.rawValue))")
+            return .noSelection
+        }
 
-        // Save original string content (text quoting only cares about strings)
+        return .success(text)
+    }
+
+    /// Cmd+C simulation fallback. Must be called from a background thread
+    /// (uses Thread.sleep + DispatchQueue.main.sync). May beep if nothing selected.
+    func grabViaCmdC() -> String? {
+        let pasteboard = NSPasteboard.general
         let originalString = pasteboard.string(forType: .string)
         let originalChangeCount = pasteboard.changeCount
 
-        // Write sentinel so we can detect clipboard change
+        // Write sentinel to detect clipboard change
         let sentinel = "__glimpse_\(ProcessInfo.processInfo.systemUptime)"
         DispatchQueue.main.sync {
             pasteboard.clearContents()
             pasteboard.setString(sentinel, forType: .string)
         }
 
-        // Simulate Cmd+C via CGEvent — targets the currently focused app (~10ms)
         simulateCmdC()
 
         // Poll for clipboard change (max ~200ms)
         var grabbed: String?
         for _ in 0..<8 {
-            Thread.sleep(forTimeInterval: 0.025)  // 25ms × 8 = 200ms max
+            Thread.sleep(forTimeInterval: 0.025)
             if pasteboard.changeCount != originalChangeCount {
                 let current = pasteboard.string(forType: .string)
                 if let current, current != sentinel {
@@ -51,14 +93,15 @@ class TextGrabber {
         }
 
         if let text = grabbed {
-            NSLog("[TextGrab] Grabbed \(text.count) chars")
+            NSLog("[TextGrab] Cmd+C grabbed \(text.count) chars")
         } else {
-            NSLog("[TextGrab] Nothing selected")
+            NSLog("[TextGrab] Cmd+C: nothing selected")
         }
         return grabbed
     }
 
-    /// Simulate Cmd+C via CGEvent at HID level — no osascript, no subprocess (~10ms).
+    // MARK: - Private
+
     private func simulateCmdC() {
         let src = CGEventSource(stateID: .combinedSessionState)
         let keyDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_C), keyDown: true)

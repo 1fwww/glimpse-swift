@@ -293,6 +293,29 @@ The handoff from native selection to WebView overlay required multiple iteration
 - Must hide chat BEFORE capturing frozen screen (compositor lag)
 - Dismiss with 50ms delay to let React render before removing frozen screen
 
+#### Text Quoting (TextGrabber.swift)
+**Two-tier approach**: AX API first (instant, no beep), Cmd+C fallback (may beep).
+
+**AXResult enum** distinguishes three outcomes:
+- `.success(text)`: AX read selectedText — use it, no Cmd+C needed
+- `.noSelection`: AX reached the focused element but `kAXSelectedTextAttribute` failed — nothing selected, do NOT fall back to Cmd+C (would beep)
+- `.appFailed`: AX couldn't get the focused element at all (e.g., Chrome returns -25212 on fullscreen) — fall back to Cmd+C
+
+**Key decision**: The distinction between `.noSelection` and `.appFailed` is based on WHERE AX fails. `kAXFocusedUIElementAttribute` failure = app-level issue (try Cmd+C). `kAXSelectedTextAttribute` failure = element-level issue (nothing selected, skip Cmd+C).
+
+**Execution order**: AX API runs on main thread BEFORE any window operations (hideChat, showChat). If AX fails and Cmd+C fallback is needed, it runs on a background thread (Thread.sleep + DispatchQueue.main.sync) BEFORE showChat — source app still has focus.
+
+**Focus restoration**: `hideChat()` calls `NSApp.hide(nil)` after `orderOut` to deactivate Glimpse. Without this, Glimpse stays frontmost after hiding chat, and the next text grab sees Glimpse (not the source app) as `frontmostApplication`.
+
+#### Shortcut UX Decisions
+**Chat shortcut (Cmd+Shift+X) is always-open, never toggle-off.** User closes chat with ESC. This avoids wasted keypresses when Space transitions cause showChat to fail — with toggle behavior, a failed show gets toggled off on the next press, requiring 3 presses total. With always-open, worst case is 2 presses (first fails, second succeeds).
+
+**Toggle check uses `isKeyWindow`**, not `isVisible`. `panel.isVisible` returns true even when the panel is on a different Space. `panel.screen` returns the same `NSScreen` for different Spaces on the same physical display. Only `isKeyWindow` reliably indicates the panel is on the current Space.
+
+**Screenshot shortcut defers during Space transitions** (300ms after `activeSpaceDidChangeNotification`). Uses single-pending flag to prevent stacked retries. Chat shortcut does NOT defer — with always-open behavior, the extra press is fast enough.
+
+**Known limitation**: Auto-selection window bounds are slightly off when screenshotting immediately after switching to a fullscreen Space. `CGWindowListCopyWindowInfo` needs time to update positions after Space transitions. Feishu has the same issue.
+
 #### CGEventTap on Fresh Install
 - Don't create event tap at startup — defer until accessibility is granted
 - Poll every 2s with Timer until `AXIsProcessTrusted()` returns true

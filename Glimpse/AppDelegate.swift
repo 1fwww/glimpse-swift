@@ -381,6 +381,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         isPinned = false  // Reset pin state so next session starts in sync with frontend
         updateVisibleWindowFlag()
         restoreActivationPolicyIfNeeded()
+        // Deactivate Glimpse so the previous app regains focus.
+        // Without this, Glimpse stays frontmost after orderOut, and the next
+        // text grab sees Glimpse (not the source app) as frontmostApplication.
+        NSApp.hide(nil)
         NSLog("[App] Chat hidden")
     }
 
@@ -487,6 +491,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Shortcut Handlers
 
     func handleChatShortcut() {
+        // No Space-change defer for chat (unlike screenshot which needs accurate
+        // window bounds). With always-open behavior, worst case is 2 presses:
+        // first hides old + show may fail, second succeeds.
+
         // During onboarding: intercept — reopen/focus welcome and emit shortcut-tried
         if isOnboarding {
             welcomeIPC.emit("shortcut-tried", data: "chat")
@@ -494,44 +502,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // If overlay visible, dismiss it and switch to chat.
-        // (text grab not attempted when switching from overlay)
-        // Reset BEFORE orderOut so JS executes while WebView is still visible.
+        // If any overlay is active (native selection or WebView), dismiss and switch to chat.
+        if nativeSelectionOverlay != nil {
+            dismissNativeSelection()
+            pendingTextContext = nil
+            showChat()
+            return
+        }
         if let panel = overlayPanel, panel.isVisible {
             overlayIPC.emit("reset-overlay")
             panel.orderOut(nil)
             updateVisibleWindowFlag()
+            pendingTextContext = nil
             showChat()
             return
         }
+        // If chat is visible and key on this Space, just focus it.
         if let panel = chatPanel, panel.isVisible {
-            // If chat is on a different screen, move it here instead of hiding
-            let cursorScreen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
-            let chatScreen = panel.screen
-            if cursorScreen != chatScreen {
-                hideChat()
-                // Fall through to show chat on current screen
-            } else {
-                hideChat()
+            if panel.isKeyWindow {
+                panel.makeKey()
+                NSApp.activate(ignoringOtherApps: true)
                 return
             }
+            // Clear stale text context BEFORE hiding — JS runs on visible WebView,
+            // so React clears the UI before orderOut. No flash on re-show.
+            ipcBridge.emit("clear-text-context")
+            hideChat()
         }
 
-        // Open chat — grab selected text first if Accessibility is granted.
-        // CGEvent Cmd+C is sent while the source app still has focus (~10ms).
-        // showChat() is called after grab completes on main thread.
+        // Grab selected text BEFORE showing chat (source app still has focus).
+        // 1. Try AX API on main thread (instant, no beep) — works for most apps.
+        // 2. If AX fails (e.g., Chrome), fall back to Cmd+C on background thread.
+        //    Only fall back when AX FAILED, not when AX succeeded with empty text.
         if AXIsProcessTrusted() {
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let text = self?.textGrabber.grabSelectedTextSync()
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    // Store text for emission after chat is shown (handles fullscreen recreate)
-                    self.pendingTextContext = (text?.isEmpty == false) ? text : nil
-                    self.showChat()
+            switch textGrabber.grabViaAccessibility() {
+            case .success(let text) where !text.isEmpty:
+                pendingTextContext = text
+                showChat()
+            case .success, .noSelection:
+                // AX reached the app, nothing selected — no Cmd+C, no beep
+                pendingTextContext = nil
+                showChat()
+            case .appFailed:
+                // AX couldn't reach app (e.g., Chrome) — Cmd+C fallback on background.
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    let text = self?.textGrabber.grabViaCmdC()
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        self.pendingTextContext = (text?.isEmpty == false) ? text : nil
+                        self.showChat()
+                    }
                 }
             }
         } else {
-            self.pendingTextContext = nil
+            pendingTextContext = nil
             showChat()
         }
     }

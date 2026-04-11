@@ -153,6 +153,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hideWelcome()
         // Switch to tray-only mode — remove dock icon
         NSApp.setActivationPolicy(.accessory)
+        // Install event tap if accessibility was granted during welcome
+        shortcutManager.installEventTap()
         // Chat was prewarmed at launch — it's ready, just don't auto-show it.
         // User will trigger it via shortcut or tray.
         NSLog("[App] Welcome completed — onboarding done")
@@ -894,6 +896,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if isOnboarding { showWelcome() } else { showChat() }
         }
         return true
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // Try installing event tap on every activation — catches the case where
+        // accessibility was granted in System Settings while app was running
+        shortcutManager.installEventTap()
     }
 }
 

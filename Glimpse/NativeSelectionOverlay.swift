@@ -20,7 +20,7 @@ class NativeSelectionOverlay: NSView {
     private var isDragging = false
     private var windowRects: [CGRect] = []         // view coordinates (flipped)
     private var windowInfos: [[String: Any]] = []  // raw data for handoff
-    private var hoveredWindowIndex: Int?
+    var hoveredWindowIndex: Int?
 
     // MARK: - Window
 
@@ -114,8 +114,17 @@ class NativeSelectionOverlay: NSView {
                 NSLog("[NativeSelection] Retried makeKey, isKey=\(window.isKeyWindow)")
             }
         }
-        NSLog("[NativeSelection] Overlay shown on \(Int(frame.width))x\(Int(frame.height)) screen, \(windowBounds.count) windows, isKey=\(window.isKeyWindow), firstResponder=\(window.firstResponder === view)")
+        // Auto-highlight window under cursor (like Feishu) — no mouse move needed
+        let cursorInView = NSPoint(
+            x: NSEvent.mouseLocation.x - frame.origin.x,
+            y: frame.height - (NSEvent.mouseLocation.y - frame.origin.y)  // flip to view coords
+        )
+        if let idx = view.findWindowAt(cursorInView) {
+            view.hoveredWindowIndex = idx
+            view.needsDisplay = true
+        }
 
+        NSLog("[NativeSelection] Overlay shown on \(Int(frame.width))x\(Int(frame.height)) screen, \(windowBounds.count) windows")
         return view
     }
 
@@ -126,8 +135,9 @@ class NativeSelectionOverlay: NSView {
         let viewRect = bounds
 
         // Determine the cutout rect (selection or hovered window)
+        // Use currentRect size (not drag flag) so selection stays visible after mouseUp
         let cutout: CGRect?
-        if hasDraggedPastThreshold && currentRect.width > 2 && currentRect.height > 2 {
+        if currentRect.width > 2 && currentRect.height > 2 {
             cutout = currentRect
         } else if !isDragging, let idx = hoveredWindowIndex, idx < windowRects.count {
             cutout = windowRects[idx]
@@ -302,7 +312,7 @@ class NativeSelectionOverlay: NSView {
 
     // MARK: - Window Hit Testing
 
-    private func findWindowAt(_ point: CGPoint) -> Int? {
+    func findWindowAt(_ point: CGPoint) -> Int? {
         for (i, rect) in windowRects.enumerated() {
             if rect.contains(point) {
                 return i

@@ -71,6 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handlePinChat(_:)), name: .pinChat, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseOverlay), name: .closeOverlay, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleOverlayReady), name: .overlayReady, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleOverlayRendered), name: .overlayRendered, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleLowerOverlay), name: .lowerOverlay, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleRestoreOverlay), name: .restoreOverlay, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleInputFocus), name: .inputFocus, object: nil)
@@ -616,7 +617,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                 if self.overlayReady {
                     // Emit data to HIDDEN WebView — JS executes on ordered-out windows.
-                    // React renders the image + selection while the native overlay stays visible.
+                    // React renders invisibly while native overlay stays visible.
+                    // React signals overlay_rendered → handleOverlayRendered does
+                    // atomic swap: show WebView + dismiss native in same run loop.
                     self.overlayIPC.emit("screen-captured", data: [
                         "imageURL": result.imageURL,
                         "windowBounds": result.windowBounds,
@@ -626,17 +629,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         "cursorY": result.cursorY,
                         "selection": selectionData
                     ])
-                    // Wait for React to render, then atomic swap:
-                    // show WebView overlay + dismiss native overlay in same frame
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                        guard let self else { return }
-                        CATransaction.begin()
-                        CATransaction.setDisableActions(true)
-                        self.showOverlay()
-                        self.nativeSelectionOverlay?.dismiss()
-                        self.nativeSelectionOverlay = nil
-                        CATransaction.commit()
-                        self.updateVisibleWindowFlag()
+                    // Do NOT show overlay here — wait for overlayRendered callback.
+                    // Safety timeout: if callback never fires, swap after 500ms anyway.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        guard let self, self.nativeSelectionOverlay != nil else { return }
+                        NSLog("[App] overlayRendered safety timeout — forcing swap")
+                        self.handleOverlayRendered()
                     }
                 } else {
                     self.pendingCaptureResult = result
@@ -901,20 +899,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Overlay ready")
         if let result = pendingCaptureResult {
             pendingCaptureResult = nil
-            showOverlay()
-            emitCaptureToOverlay(result)
+            // Emit data then show WebView BEHIND native overlay for painting.
             if let sel = pendingSelection {
                 pendingSelection = nil
-                overlayIPC.emit("apply-selection", data: sel)
+                overlayIPC.emit("screen-captured", data: [
+                    "imageURL": result.imageURL,
+                    "windowBounds": result.windowBounds,
+                    "displayInfo": result.displayInfo,
+                    "offset": result.offset,
+                    "cursorX": result.cursorX,
+                    "cursorY": result.cursorY,
+                    "selection": sel
+                ])
+            } else {
+                emitCaptureToOverlay(result)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.dismissFrozenScreen()
-                // Dismiss native selection overlay if it was kept visible during capture
-                self?.nativeSelectionOverlay?.dismiss()
-                self?.nativeSelectionOverlay = nil
-                self?.updateVisibleWindowFlag()
+            // Do NOT show overlay here — wait for overlayRendered callback.
+            // Safety timeout for fullscreen path too.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self, self.nativeSelectionOverlay != nil else { return }
+                NSLog("[App] overlayRendered safety timeout (fullscreen) — forcing swap")
+                self.handleOverlayRendered()
             }
         }
+    }
+
+    @objc func handleOverlayRendered() {
+        // Idempotent — may fire multiple times (image onload + safety timeout)
+        guard nativeSelectionOverlay != nil || frozenScreenWindow != nil else { return }
+
+        dismissFrozenScreen()
+
+        // React has rendered + image decoded. Atomic swap:
+        // show WebView overlay + dismiss native in same run loop iteration.
+        // AppKit coalesces window changes within one iteration, so WindowServer
+        // composites both (orderFront + orderOut) in the same display frame.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        showOverlay()
+        nativeSelectionOverlay?.dismiss()
+        nativeSelectionOverlay = nil
+        CATransaction.commit()
+        updateVisibleWindowFlag()
+        NSLog("[App] Overlay rendered — atomic swap complete")
     }
 
     @objc func handleLowerOverlay() {

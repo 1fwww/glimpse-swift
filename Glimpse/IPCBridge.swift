@@ -285,6 +285,10 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             NotificationCenter.default.post(name: .overlayReady, object: nil)
             return true
 
+        case "overlay_rendered":
+            NotificationCenter.default.post(name: .overlayRendered, object: nil)
+            return true
+
         case "close_overlay":
             NotificationCenter.default.post(name: .closeOverlay, object: nil)
             return true
@@ -443,6 +447,7 @@ extension Notification.Name {
     static let togglePin = Notification.Name("togglePin")
     static let closeOverlay = Notification.Name("closeOverlay")
     static let overlayReady = Notification.Name("overlayReady")
+    static let overlayRendered = Notification.Name("overlayRendered")
     static let pinChat = Notification.Name("pinChat")
     static let lowerOverlay = Notification.Name("lowerOverlay")
     static let restoreOverlay = Notification.Name("restoreOverlay")

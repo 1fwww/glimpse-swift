@@ -96,9 +96,21 @@ export default function App() {
         setSelection(preSelection)
         setIsSelecting(false)
         setChatVisible(true)
-        setChatMinimized(tm.isNewThread)
+        // Same minimize logic as mouseUp: if chat was open before → stay open.
+        // Native selection always starts fresh (no prior chat was open), so use
+        // userMinimizedRef (persisted preference) or isNewThread as fallback.
+        setChatMinimized(userMinimizedRef.current || tm.isNewThread)
         setTimeout(() => cropSelection(preSelection, dataUrl), 50)
       }
+      // Signal Swift after React renders + image decodes.
+      // setTimeout lets React process state updates first,
+      // then we preload the image to ensure it's decoded.
+      setTimeout(() => {
+        const img = new Image()
+        img.onload = () => window.electronAPI?.overlayRendered?.()
+        img.onerror = () => window.electronAPI?.overlayRendered?.()
+        img.src = dataUrl
+      }, 50)
       window.focus()
       tm.refreshWithHeuristic()
     })

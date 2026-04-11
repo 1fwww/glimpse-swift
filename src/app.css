@@ -246,10 +246,14 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   pointer-events: none;
 }
-.sel-handle.nw { top: -5px; left: -5px; }
-.sel-handle.ne { top: -5px; right: -5px; }
-.sel-handle.sw { bottom: -5px; left: -5px; }
-.sel-handle.se { bottom: -5px; right: -5px; }
+.sel-handle.sel-nw { top: -5px; left: -5px; }
+.sel-handle.sel-n  { top: -5px; left: 50%; transform: translateX(-50%); }
+.sel-handle.sel-ne { top: -5px; right: -5px; }
+.sel-handle.sel-w  { top: 50%; left: -5px; transform: translateY(-50%); }
+.sel-handle.sel-e  { top: 50%; right: -5px; transform: translateY(-50%); }
+.sel-handle.sel-sw { bottom: -5px; left: -5px; }
+.sel-handle.sel-s  { bottom: -5px; left: 50%; transform: translateX(-50%); }
+.sel-handle.sel-se { bottom: -5px; right: -5px; }
 
 /* ─── Window Hover Border ─── */
 .window-hover-border {

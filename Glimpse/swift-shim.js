@@ -120,6 +120,7 @@ window.electronAPI = {
   closeSettings: () => invoke('close_settings'),
   closeChatWindow: () => invoke('close_chat_window'),
   closeOverlay: () => invoke('close_overlay'),
+  overlayRendered: () => invoke('overlay_rendered'),
   openSettings: (panelBounds) => invoke('toggle_settings', { panelBounds: panelBounds || null }),
   openThreadInChat: (threadId) => invoke('open_thread_in_chat', { threadId }),
   welcomeDone: () => invoke('welcome_done'),

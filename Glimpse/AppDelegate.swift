@@ -519,18 +519,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // ── INSTANT FROZEN SCREEN ──
-        // Show a native NSWindow with the display framebuffer immediately (~5ms).
-        // Everything else happens behind this frozen image.
-        showFrozenScreen()
-
-        // Hide chat before capture so it doesn't appear in the screenshot.
-        // Just orderOut — don't call hideChat() which does NSApp.hide (causes flash).
+        // Hide chat BEFORE frozen screen so it doesn't appear in the framebuffer capture.
         let chatWasVisible = chatPanel?.isVisible == true
         if chatWasVisible {
             chatPanel?.orderOut(nil)
             isPinned = false
         }
+
+        // ── INSTANT FROZEN SCREEN ──
+        // Show a native NSWindow with the display framebuffer immediately (~5ms).
+        // Everything else happens behind this frozen image.
+        showFrozenScreen()
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
@@ -865,7 +864,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Edit menu (required for Cmd+C/V/X/A in WKWebView)
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
-        editMenu.addItem(NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"))
+        // Redo uses Cmd+Shift+Z in standard apps, but that's our screenshot shortcut.
+        // Remove the key equivalent to prevent conflict/beep.
+        let redoItem = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "")
+        editMenu.addItem(redoItem)
         editMenu.addItem(.separator())
         editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
         editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
@@ -875,7 +877,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
+        // Shortcut menu — hidden menu items that serve as fallback when CGEventTap
+        // isn't available (no accessibility permission). Prevents system beep.
+        let shortcutMenu = NSMenu(title: "Shortcuts")
+        let chatItem = NSMenuItem(title: "Chat", action: #selector(menuChatShortcut), keyEquivalent: "x")
+        chatItem.keyEquivalentModifierMask = [.command, .shift]
+        shortcutMenu.addItem(chatItem)
+        let screenshotItem = NSMenuItem(title: "Screenshot", action: #selector(menuScreenshotShortcut), keyEquivalent: "z")
+        screenshotItem.keyEquivalentModifierMask = [.command, .shift]
+        shortcutMenu.addItem(screenshotItem)
+        let shortcutMenuItem = NSMenuItem()
+        shortcutMenuItem.submenu = shortcutMenu
+        mainMenu.addItem(shortcutMenuItem)
+
         NSApp.mainMenu = mainMenu
+    }
+
+    @objc func menuChatShortcut() {
+        handleChatShortcut()
+    }
+
+    @objc func menuScreenshotShortcut() {
+        handleScreenshotShortcut()
     }
 
     // MARK: - Resource Loading

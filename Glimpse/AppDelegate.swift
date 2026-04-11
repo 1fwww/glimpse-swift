@@ -15,12 +15,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayReady = false
     var pendingCaptureResult: ScreenCapture.CaptureResult?
 
+    // Welcome / onboarding
+    var welcomePanel: GlimpsePanel?
+    var welcomeWebView: WKWebView?
+    var welcomeIPC = IPCBridge()
+    /// True from first launch until `welcome_done` fires. Shortcuts reopen welcome instead of chat/overlay.
+    var isOnboarding = false
+
+    // Settings window
+    var settingsPanel: GlimpsePanel?
+    var settingsWebView: WKWebView?
+    var settingsIPC = IPCBridge()
+
     static let screensaverLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
 
     let settingsStore = SettingsStore()
     lazy var threadStore = ThreadStore(appSupportDir: settingsStore.appSupportDir)
     let aiService = AIService()
     let shortcutManager = ShortcutManager()
+    let trayManager = TrayManager()
     let textGrabber = TextGrabber()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,6 +47,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         overlayIPC.settingsStore = settingsStore
         overlayIPC.threadStore = threadStore
         overlayIPC.aiService = aiService
+
+        welcomeIPC.settingsStore = settingsStore
+        welcomeIPC.threadStore = threadStore
+        welcomeIPC.aiService = aiService
+
+        settingsIPC.settingsStore = settingsStore
+        settingsIPC.threadStore = threadStore
+        settingsIPC.aiService = aiService
 
         // Notifications
         setupMainMenu()
@@ -55,8 +76,173 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shortcutManager.onEscape = { [weak self] in self?.handleEscape() }
         shortcutManager.start()
 
-        prewarmChat()
+        // Tray icon
+        trayManager.setup(threadStore: threadStore)
+        trayManager.onScreenshot = { [weak self] in self?.handleScreenshotShortcut() }
+        trayManager.onChat = { [weak self] in self?.handleChatShortcut() }
+        trayManager.onSettings = { [weak self] in self?.showSettings() }
+        trayManager.onOpenThread = { [weak self] threadId in self?.openThreadInChat(threadId) }
+
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRefreshTrayMenu), name: .refreshTrayMenu, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCloseWelcome), name: .closeWelcome, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleWelcomeDone), name: .welcomeDone, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleToggleSettings), name: .toggleSettings, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCloseSettings), name: .closeSettings, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
+
+        // First-launch: show welcome flow; else prewarm chat immediately
+        let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
+        isOnboarding = !hasCompletedWelcome
+        if isOnboarding {
+            showWelcome()
+            // Prewarm chat silently so it's ready the moment onboarding completes
+            prewarmChat()
+        } else {
+            prewarmChat()
+        }
         prewarmOverlay()
+    }
+
+    // MARK: - Welcome Window
+
+    func showWelcome() {
+        let panel = GlimpsePanel(size: NSSize(width: 440, height: 580))
+        let webView = createWebView(in: panel, bridge: welcomeIPC, route: "#welcome")
+        welcomeIPC.webView = webView
+
+        // Center on main screen
+        let screen = NSScreen.main ?? NSScreen.screens.first!
+        let sf = screen.frame
+        panel.setFrameOrigin(NSPoint(x: sf.midX - 220, y: sf.midY - 290))
+        panel.level = .floating
+
+        self.welcomePanel = panel
+        self.welcomeWebView = webView
+
+        panel.showAndFocus()
+        updateVisibleWindowFlag()
+        NSLog("[App] Welcome window shown")
+    }
+
+    func hideWelcome() {
+        if settingsPanel?.isVisible == true { hideSettings() }
+        welcomePanel?.orderOut(nil)
+        welcomePanel = nil
+        welcomeWebView = nil
+        updateVisibleWindowFlag()
+        NSLog("[App] Welcome window closed")
+    }
+
+    @objc func handleCloseWelcome() {
+        // User dismissed mid-flow — stay in onboarding mode.
+        // Next shortcut will reopen welcome at the saved step (React localStorage).
+        hideWelcome()
+        NSLog("[App] Welcome dismissed mid-flow — onboarding continues")
+    }
+
+    @objc func handleWelcomeDone() {
+        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
+        isOnboarding = false
+        hideWelcome()
+        // Chat was prewarmed at launch — it's ready, just don't auto-show it.
+        // User will trigger it via shortcut or tray.
+        NSLog("[App] Welcome completed — onboarding done")
+    }
+
+    // MARK: - Settings Window
+
+    func showSettings(panelBounds: [String: Any]? = nil) {
+        if let panel = settingsPanel, panel.isVisible {
+            panel.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let settingsSize = NSSize(width: 480, height: 540)
+        let panel = GlimpsePanel(size: settingsSize)
+        let webView = createWebView(in: panel, bridge: settingsIPC, route: "#settings")
+        settingsIPC.webView = webView
+
+        // If overlay is open, settings must float above it (screensaverLevel + 1)
+        let fromOverlay = overlayPanel?.isVisible == true
+        panel.level = fromOverlay
+            ? NSWindow.Level(rawValue: Self.screensaverLevel.rawValue + 1)
+            : .floating
+
+        panel.setFrameOrigin(settingsOrigin(size: settingsSize, panelBounds: panelBounds, fromOverlay: fromOverlay))
+
+        self.settingsPanel = panel
+        self.settingsWebView = webView
+
+        if fromOverlay {
+            // Don't activate app — avoids Space switch; settings is already above overlay
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        } else {
+            panel.showAndFocus()
+        }
+        updateVisibleWindowFlag()
+        NSLog("[App] Settings shown (fromOverlay=\(fromOverlay))")
+    }
+
+    /// Position settings window adjacent to its caller, avoiding overlap.
+    private func settingsOrigin(size: NSSize, panelBounds: [String: Any]?, fromOverlay: Bool) -> NSPoint {
+        let screen = NSScreen.main ?? NSScreen.screens.first!
+        let sf = screen.frame
+        let fallback = NSPoint(x: sf.midX - size.width / 2, y: sf.midY - size.height / 2)
+
+        // Source window frame in Cocoa coords (bottom-left origin)
+        let sourceFrame: NSRect?
+        if fromOverlay { sourceFrame = overlayPanel?.frame }
+        else            { sourceFrame = chatPanel?.frame }
+
+        guard let src = sourceFrame, let bounds = panelBounds else { return fallback }
+
+        func f(_ k: String) -> CGFloat { (bounds[k] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0 }
+        let cssX = f("x"); let cssY = f("y"); let cssW = f("w"); let cssH = f("h")
+
+        // Convert CSS viewport (top-left origin) → Cocoa screen (bottom-left origin)
+        let refLeft   = src.origin.x + cssX
+        let refRight  = src.origin.x + cssX + cssW
+        let refTop    = src.origin.y + src.height - cssY          // Cocoa y of CSS top edge
+        _ = src.origin.y + src.height - cssY - cssH   // refBottom (unused — kept for reference)
+
+        // Prefer right side; fall back to left; then center
+        var x = refRight + 8
+        if x + size.width > sf.maxX { x = refLeft - size.width - 8 }
+        if x < sf.minX              { x = sf.midX - size.width / 2 }
+
+        // Align tops, then clamp vertically
+        var y = refTop - size.height
+        y = max(sf.minY + 8, min(y, sf.maxY - size.height - 8))
+
+        return NSPoint(x: x, y: y)
+    }
+
+    func hideSettings() {
+        settingsPanel?.orderOut(nil)
+        settingsPanel = nil
+        settingsWebView = nil
+        updateVisibleWindowFlag()
+        NSLog("[App] Settings closed")
+    }
+
+    @objc func handleToggleSettings(_ notification: Notification) {
+        if let panel = settingsPanel, panel.isVisible {
+            hideSettings()
+        } else {
+            let bounds = notification.userInfo?["panelBounds"] as? [String: Any]
+            showSettings(panelBounds: bounds)
+        }
+    }
+
+    @objc func handleCloseSettings() {
+        hideSettings()
+    }
+
+    @objc func handleProvidersChanged() {
+        // Notify all open WebViews so provider dropdowns refresh
+        ipcBridge.emit("providers-changed")
+        overlayIPC.emit("providers-changed")
     }
 
     // MARK: - Chat Panel
@@ -121,11 +307,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show with CanJoinAllSpaces for initial visibility on any Space
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Reset frontend state BEFORE showing — clear stale screenshot and pin
-        // from previous overlay pin. JS runs on hidden WebView so React updates
-        // its DOM before the window becomes visible. No flash.
+        // Reset frontend state BEFORE showing — clear stale screenshot, pin, and
+        // text-context from previous session. JS runs on hidden WebView so React
+        // updates DOM before window is visible. No flash.
         ipcBridge.emit("pin-state", data: isPinned)
         ipcBridge.emit("clear-screenshot")
+        ipcBridge.emit("clear-text-context")
 
         // Floating only when pinned or on fullscreen (fullscreen needs floating to stay above)
         panel.level = (isPinned || isFullscreen) ? .floating : .normal
@@ -150,6 +337,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func hideChat() {
+        if settingsPanel?.isVisible == true { hideSettings() }
         chatPanel?.orderOut(nil)
         isPinned = false  // Reset pin state so next session starts in sync with frontend
         updateVisibleWindowFlag()
@@ -217,6 +405,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func hideOverlay() {
+        if settingsPanel?.isVisible == true { hideSettings() }
         // Reset BEFORE orderOut — JS won't execute on hidden WebViews
         overlayIPC.emit("reset-overlay")
         overlayPanel?.orderOut(nil)
@@ -228,7 +417,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Update ShortcutManager's flag so ESC is consumed only when we have visible windows.
     private func updateVisibleWindowFlag() {
         shortcutManager.hasVisibleWindow =
-            (chatPanel?.isVisible == true) || (overlayPanel?.isVisible == true)
+            (chatPanel?.isVisible == true) || (overlayPanel?.isVisible == true) ||
+            (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true)
     }
 
     /// Restore Regular activation policy after showing windows on fullscreen Spaces.
@@ -256,7 +446,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Shortcut Handlers
 
     func handleChatShortcut() {
+        // During onboarding: intercept — reopen/focus welcome and emit shortcut-tried
+        if isOnboarding {
+            welcomeIPC.emit("shortcut-tried", data: "chat")
+            if welcomePanel?.isVisible != true { showWelcome() }
+            return
+        }
+
         // If overlay visible, dismiss it and switch to chat.
+        // (text grab not attempted when switching from overlay)
         // Reset BEFORE orderOut so JS executes while WebView is still visible.
         if let panel = overlayPanel, panel.isVisible {
             overlayIPC.emit("reset-overlay")
@@ -269,11 +467,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             hideChat()
             return
         }
-        showChat()
+
+        // Open chat — grab selected text first if Accessibility is granted.
+        // CGEvent Cmd+C is sent while the source app still has focus (~10ms).
+        // showChat() is called after grab completes on main thread.
+        if AXIsProcessTrusted() {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let text = self?.textGrabber.grabSelectedTextSync()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.showChat()
+                    if let text, !text.isEmpty {
+                        // Short delay: chat WebView must be visible before receiving event
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            self.ipcBridge.emit("text-context", data: text)
+                        }
+                    }
+                }
+            }
+        } else {
+            showChat()
+        }
     }
 
     func handleScreenshotShortcut() {
         NSLog("[App] Screenshot shortcut triggered")
+        // During onboarding: intercept — reopen/focus welcome and emit shortcut-tried
+        if isOnboarding {
+            welcomeIPC.emit("shortcut-tried", data: "screenshot")
+            if welcomePanel?.isVisible != true { showWelcome() }
+            return
+        }
 
         // Toggle: if overlay visible, hide it
         if let panel = overlayPanel, panel.isVisible {
@@ -337,14 +561,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleEscape() {
-        // Overlay takes priority
-        if let panel = overlayPanel, panel.isVisible {
-            hideOverlay()
-            return
-        }
-        if let panel = chatPanel, panel.isVisible {
-            hideChat()
-        }
+        // Settings always closes first (ESC highest priority)
+        if let panel = settingsPanel, panel.isVisible { hideSettings(); return }
+        if let panel = overlayPanel,  panel.isVisible { hideOverlay();  return }
+        if let panel = chatPanel,     panel.isVisible { hideChat();     return }
+        if let panel = welcomePanel,  panel.isVisible { hideWelcome() }
     }
 
     // MARK: - Notification Handlers
@@ -361,6 +582,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hideOverlay()
     }
 
+    @objc func handleRefreshTrayMenu() {
+        trayManager.refreshMenu()
+    }
+
+    func openThreadInChat(_ threadId: String) {
+        // Load thread data from store
+        let threads = threadStore.getThreads()
+        guard let thread = threads.first(where: { $0["id"] as? String == threadId }) else {
+            NSLog("[App] Thread \(threadId) not found")
+            return
+        }
+        showChat()
+        // Emit thread data after chat is visible
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.ipcBridge.emit("load-thread-data", data: thread)
+        }
+    }
+
     @objc func handleChatReady() {
         chatReady = true
         NSLog("[App] Chat ready")
@@ -369,7 +608,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onChatReadyAction = nil
             isRecreatingForFullscreen = false
             action()
-        } else {
+        } else if !isOnboarding {
+            // Don't auto-show during onboarding — user triggers via shortcut
             showChat()
         }
     }
@@ -599,12 +839,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
            let code = try? String(contentsOf: url, encoding: .utf8) {
             return code
         }
+        #if DEBUG
         // Dev fallback: next to source file
         let devPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("swift-shim.js")
         if let code = try? String(contentsOf: devPath, encoding: .utf8) {
             NSLog("[App] Loaded shim from dev path")
             return code
         }
+        #endif
         NSLog("[App] WARNING: swift-shim.js not found!")
         return nil
     }
@@ -614,6 +856,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "dist") {
             return url.deletingLastPathComponent()
         }
+        #if DEBUG
         // SPM dev mode: relative to source file
         let sourceDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let projectRoot = sourceDir.deletingLastPathComponent()
@@ -631,13 +874,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if FileManager.default.fileExists(atPath: execDist.appendingPathComponent("index.html").path) {
             return execDist
         }
+        #endif
         return nil
     }
 
     // MARK: - App Lifecycle
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { showChat() }
+        if !flag {
+            if isOnboarding { showWelcome() } else { showChat() }
+        }
         return true
     }
 }

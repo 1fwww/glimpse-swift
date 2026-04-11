@@ -64,20 +64,18 @@ class SettingsStore {
             return "••••\(last4)"
         }
 
-        var result: [String: Any] = [
-            "hasAnyKey": false,
-            "isInvite": isInvite
-        ]
-
         let anthropic = masked(keys["ANTHROPIC_API_KEY"])
         let openai = masked(keys["OPENAI_API_KEY"])
         let gemini = masked(keys["GEMINI_API_KEY"])
 
-        if anthropic != nil { result["anthropicKey"] = anthropic! }
-        if openai != nil { result["openaiKey"] = openai! }
-        if gemini != nil { result["geminiKey"] = gemini! }
-
-        result["hasAnyKey"] = (anthropic != nil || openai != nil || gemini != nil)
+        // Key names match SettingsApp.jsx's keyField values
+        let result: [String: Any] = [
+            "hasAnyKey": (anthropic != nil || openai != nil || gemini != nil),
+            "isInvite": isInvite,
+            "ANTHROPIC_API_KEY": anthropic as Any,
+            "OPENAI_API_KEY": openai as Any,
+            "GEMINI_API_KEY": gemini as Any
+        ]
         return result
     }
 
@@ -119,15 +117,18 @@ class SettingsStore {
         return providers
     }
 
-    /// Validate invite code and populate keys from env vars
+    /// Validate invite code and populate keys.
+    /// Keys are sourced from: (1) EmbeddedKeys (baked in by build.sh), (2) env vars (dev fallback).
     func validateInviteCode(_ code: String) -> [String: Any] {
         guard code == "KPIMG" else {
             return ["valid": false, "error": "Invalid invite code"]
         }
+
+        // Prefer embedded keys (baked into binary by build.sh), fall back to env vars (dev mode)
         let env = ProcessInfo.processInfo.environment
-        let anthropic = env["GLIMPSE_ANTHROPIC_KEY"] ?? ""
-        let openai = env["GLIMPSE_OPENAI_KEY"] ?? ""
-        let gemini = env["GLIMPSE_GEMINI_KEY"] ?? ""
+        let anthropic = !EmbeddedKeys.anthropic.isEmpty ? EmbeddedKeys.anthropic : (env["GLIMPSE_ANTHROPIC_KEY"] ?? "")
+        let openai    = !EmbeddedKeys.openai.isEmpty    ? EmbeddedKeys.openai    : (env["GLIMPSE_OPENAI_KEY"] ?? "")
+        let gemini    = !EmbeddedKeys.gemini.isEmpty     ? EmbeddedKeys.gemini    : (env["GLIMPSE_GEMINI_KEY"] ?? "")
 
         guard !anthropic.isEmpty || !openai.isEmpty || !gemini.isEmpty else {
             return ["valid": false, "error": "No API keys configured for invite"]

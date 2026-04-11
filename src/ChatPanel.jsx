@@ -298,6 +298,11 @@ export default function ChatPanel({
           setIsLoading(false)
           if (!result?.success) {
             if (result?.code === 'auth_error' || result?.error?.includes('No API key')) {
+              // Re-save pending state so it retries after key setup
+              pendingQuestion.current = q
+              pendingImageRef.current = pendingImage
+              pendingSnippetRef.current = pendingSnippet
+              apiMessages.current.pop()
               if (refreshProviders) refreshProviders()
               setShowApiKeySetup(true)
             } else {
@@ -341,6 +346,10 @@ export default function ChatPanel({
           setIsLoading(false)
           const msg = typeof err === 'string' ? err : (err.message || 'Something went wrong')
           if (msg.includes('API key') || msg.includes('api key') || msg.includes('not found')) {
+            pendingQuestion.current = q
+            pendingImageRef.current = pendingImage
+            pendingSnippetRef.current = pendingSnippet
+            apiMessages.current.pop()
             if (refreshProviders) refreshProviders()
             setShowApiKeySetup(true)
           } else {
@@ -546,7 +555,9 @@ export default function ChatPanel({
           const lastUserMsg = apiMessages.current[apiMessages.current.length - 1]
           if (lastUserMsg?.role === 'user') {
             const textBlock = (lastUserMsg.content || []).find(c => c.type === 'text')
+            const imageBlock = (lastUserMsg.content || []).find(c => c.type === 'image')
             pendingQuestion.current = textBlock?.text || ''
+            if (imageBlock) pendingImageRef.current = `data:${imageBlock.source?.media_type || 'image/png'};base64,${imageBlock.source?.data}`
             apiMessages.current.pop()
           }
           if (refreshProviders) refreshProviders()
@@ -562,7 +573,9 @@ export default function ChatPanel({
         const lastUserMsg = apiMessages.current[apiMessages.current.length - 1]
         if (lastUserMsg?.role === 'user') {
           const textBlock = (lastUserMsg.content || []).find(c => c.type === 'text')
+          const imageBlock = (lastUserMsg.content || []).find(c => c.type === 'image')
           pendingQuestion.current = textBlock?.text || ''
+          if (imageBlock) pendingImageRef.current = `data:${imageBlock.source?.media_type || 'image/png'};base64,${imageBlock.source?.data}`
           apiMessages.current.pop()
         }
         if (refreshProviders) refreshProviders()
@@ -787,8 +800,11 @@ export default function ChatPanel({
             setChatFullSize(false)
             if (onMinimize) onMinimize()
           }} onDone={async () => {
-            setShowApiKeySetup(false)
+            // Await providers BEFORE changing state — otherwise React flushes
+            // an intermediate render with (showApiKeySetup=false, providers=[], showWelcome=false)
+            // which triggers the "No API keys found" useEffect and clears pendingQuestion.
             if (refreshProviders) await refreshProviders()
+            setShowApiKeySetup(false)
             setShowWelcome(true)
           }} />
         ) : showWelcome ? (

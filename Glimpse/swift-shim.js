@@ -65,6 +65,34 @@ var _dragObserver = new MutationObserver(function() {
 });
 _dragObserver.observe(document, { childList: true, subtree: true });
 
+// Settings window drag header
+var _settingsDragObserver = new MutationObserver(function() {
+  var header = document.querySelector('.settings-header');
+  if (header && !header._glimpseDragBound) {
+    header._glimpseDragBound = true;
+    header.addEventListener('mousedown', function(e) {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('[data-no-drag]')) return;
+      window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
+    }, true);
+    _settingsDragObserver.disconnect();
+  }
+});
+_settingsDragObserver.observe(document, { childList: true, subtree: true });
+
+// Welcome window drag bar
+var _welcomeDragObserver = new MutationObserver(function() {
+  var bar = document.querySelector('.welcome-drag-bar');
+  if (bar && !bar._glimpseDragBound) {
+    bar._glimpseDragBound = true;
+    bar.addEventListener('mousedown', function(e) {
+      if (e.target.closest('button') || e.target.closest('[data-no-drag]')) return;
+      window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
+    }, true);
+    _welcomeDragObserver.disconnect();
+  }
+});
+_welcomeDragObserver.observe(document, { childList: true, subtree: true });
+
 window.electronAPI = {
   // ── Thread management ──
   getThreads: () => invoke('get_threads'),

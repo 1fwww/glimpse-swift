@@ -26,8 +26,9 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             return
         }
 
-        // Async commands (AI calls, key validation)
-        let asyncCommands = ["chat_with_ai", "generate_title", "save_api_keys", "validate_invite_code", "copy_image", "save_image"]
+        // Async commands (AI calls, key validation, permission prompts, folder picker)
+        let asyncCommands = ["chat_with_ai", "generate_title", "save_api_keys", "validate_invite_code", "copy_image", "save_image",
+                             "request_screen_permission", "request_accessibility_permission", "select_folder"]
         if asyncCommands.contains(command) {
             Task {
                 let result = await self.handleAsyncCommand(command, args: args)
@@ -57,7 +58,7 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
                 return ["success": false, "error": "Missing parameters"]
             }
             guard let apiKey = settingsStore.getKeyForProvider(provider) else {
-                return ["success": false, "error": "auth_error"]
+                return ["success": false, "error": "No API key configured", "code": "auth_error"]
             }
             return await aiService.chatWithAI(messages: messages, provider: provider, modelId: modelId, apiKey: apiKey)
 
@@ -92,6 +93,32 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
                 return ["success": false, "error": "Missing dataUrl"]
             }
             return await saveImageToFile(dataUrl)
+
+        case "request_screen_permission":
+            // Triggers system permission prompt if not yet determined; returns current status
+            let granted = await MainActor.run { CGRequestScreenCaptureAccess() }
+            return ["granted": granted]
+
+        case "request_accessibility_permission":
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            let trusted = await MainActor.run { AXIsProcessTrustedWithOptions(options) }
+            return ["granted": trusted]
+
+        case "select_folder":
+            return await MainActor.run {
+                NotificationCenter.default.post(name: .lowerOverlay, object: nil)
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.allowsMultipleSelection = false
+                panel.prompt = "Select"
+                let response = panel.runModal()
+                NotificationCenter.default.post(name: .restoreOverlay, object: nil)
+                if response == .OK, let url = panel.url {
+                    return url.path as Any
+                }
+                return nil as Any?
+            }
 
         default:
             return nil
@@ -303,13 +330,56 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             return true
 
         case "show_toast":
-            return true // TODO: Phase 3
+            if let message = args["message"] as? String {
+                ToastManager.shared.show(message)
+            }
+            return true
 
         case "notify_providers_changed":
+            NotificationCenter.default.post(name: .providersChanged, object: nil)
+            return true
+
+        // ── Welcome / Settings windows ──
+        case "close_welcome":
+            NotificationCenter.default.post(name: .closeWelcome, object: nil)
+            return true
+
+        case "welcome_done":
+            NotificationCenter.default.post(name: .welcomeDone, object: nil)
+            return true
+
+        case "toggle_settings":
+            let panelBounds = args["panelBounds"] as? [String: Any]
+            NotificationCenter.default.post(name: .toggleSettings, object: nil,
+                userInfo: panelBounds.map { ["panelBounds": $0] })
+            return true
+
+        case "close_settings":
+            NotificationCenter.default.post(name: .closeSettings, object: nil)
+            return true
+
+        case "open_permission_settings":
+            let permType = args["type"] as? String ?? "screen"
+            let urlString: String
+            if permType == "accessibility" {
+                urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            } else {
+                urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+            }
+            if let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
             return true
 
         case "refresh_tray_menu":
-            return true // TODO: Phase 3
+            NotificationCenter.default.post(name: .refreshTrayMenu, object: nil)
+            return true
+
+        case "open_thread_in_chat":
+            if let threadId = args["threadId"] as? String {
+                NotificationCenter.default.post(name: .openThreadInChat, object: nil, userInfo: ["threadId": threadId])
+            }
+            return true
 
         default:
             NSLog("[IPC] unhandled command: \(command)")
@@ -371,4 +441,11 @@ extension Notification.Name {
     static let lowerOverlay = Notification.Name("lowerOverlay")
     static let restoreOverlay = Notification.Name("restoreOverlay")
     static let inputFocus = Notification.Name("inputFocus")
+    static let refreshTrayMenu = Notification.Name("refreshTrayMenu")
+    static let openThreadInChat = Notification.Name("openThreadInChat")
+    static let closeWelcome = Notification.Name("closeWelcome")
+    static let welcomeDone = Notification.Name("welcomeDone")
+    static let toggleSettings = Notification.Name("toggleSettings")
+    static let closeSettings = Notification.Name("closeSettings")
+    static let providersChanged = Notification.Name("providersChanged")
 }

@@ -11,12 +11,12 @@ Migrated from Tauri v2 (2026-04-10) because Tauri's NSWindow abstraction cannot 
 
 ## Build & Run
 
+### Development (debug, native arch only)
 ```bash
-# Build
 cd glimpse-swift
 swift build
 
-# Create .app bundle and launch (required for GUI — bare binaries don't get window server access)
+# Create .app bundle and launch
 cp .build/debug/Glimpse .build/Glimpse.app/Contents/MacOS/Glimpse
 cp Glimpse/swift-shim.js .build/Glimpse.app/Contents/Resources/Glimpse/swift-shim.js
 
@@ -29,16 +29,29 @@ open .build/Glimpse.app
 # NOTE: `open` does NOT pass env vars — invite code won't work via `open`
 ```
 
+### Production (universal binary + DMG)
+```bash
+./build.sh
+# Output: .build/Glimpse.app (universal arm64+x86_64) + .build/Glimpse-0.2.0.dmg
+
+# With code signing for distribution:
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
+
+# With notarization:
+CODESIGN_IDENTITY="..." APPLE_TEAM_ID="..." APPLE_ID="..." APPLE_PASSWORD="..." ./build.sh
+```
+
 ### Restart Protocol
 ```bash
 pkill -f "[Gg]limpse"
 ```
 
 ### Frontend Build
-The React frontend lives in `src/` and builds to `dist/`. The Swift app loads `dist/index.html`.
+The React frontend source lives in `../glimpse-tauri/src/` and builds to `dist/`. The Swift app loads `dist/index.html`.
 ```bash
 # If frontend changes needed (rare — most work is Swift-side)
-cd ../glimpse-tauri && npm run build && cp -r dist ../glimpse-swift/dist
+# IMPORTANT: edit files in glimpse-tauri/src/, NOT glimpse-swift/src/ — build runs from tauri dir
+cd ../glimpse-tauri && npm run build && rm -rf ../glimpse-swift/dist && cp -r dist ../glimpse-swift/dist
 ```
 
 ## Architecture

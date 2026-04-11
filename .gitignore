@@ -1,0 +1,12 @@
+# Build artifacts
+.build/
+Glimpse.app/
+dist/
+
+# macOS
+.DS_Store
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/

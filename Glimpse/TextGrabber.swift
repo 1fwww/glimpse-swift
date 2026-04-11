@@ -1,135 +1,71 @@
 import AppKit
+import Carbon.HIToolbox
 
-/// Grabs selected text from any app using Cmd+C simulation + clipboard sentinel.
-/// Requires Accessibility permission for keystroke simulation.
+/// Grabs selected text from any app using CGEvent Cmd+C simulation + clipboard sentinel.
+/// CGEvent approach: ~10ms keystroke vs osascript ~200ms. Safe on background threads.
+/// Requires Accessibility permission.
 class TextGrabber {
 
-    /// Synchronous version — call from DispatchQueue.global(), NOT main thread.
+    /// Grab selected text synchronously. Call from DispatchQueue.global(), NOT main thread.
     func grabSelectedTextSync() -> String? {
         guard AXIsProcessTrusted() else {
-            NSLog("[TextGrab] No Accessibility permission — skipping")
+            NSLog("[TextGrab] No Accessibility permission")
             return nil
         }
 
-        let originalClipboard = getClipboard()
-        let sentinel = "__glimpse_sentinel_\(ProcessInfo.processInfo.systemUptime)"
-        setClipboard(sentinel)
-        Thread.sleep(forTimeInterval: 0.02) // 20ms
+        let pasteboard = NSPasteboard.general
 
-        let proc = Process()
-        proc.launchPath = "/usr/bin/osascript"
-        proc.arguments = ["-e", "tell application \"System Events\" to keystroke \"c\" using command down"]
-        do { try proc.run() } catch {
-            NSLog("[TextGrab] osascript failed: \(error)")
-            restoreClipboard(originalClipboard)
-            return nil
-        }
-        // Wait max 200ms for osascript
-        let osDeadline = Date().addingTimeInterval(0.2)
-        while proc.isRunning && Date() < osDeadline {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        if proc.isRunning { proc.terminate() }
+        // Save original string content (text quoting only cares about strings)
+        let originalString = pasteboard.string(forType: .string)
+        let originalChangeCount = pasteboard.changeCount
 
-        // Poll clipboard for change
-        var selectedText: String?
+        // Write sentinel so we can detect clipboard change
+        let sentinel = "__glimpse_\(ProcessInfo.processInfo.systemUptime)"
+        DispatchQueue.main.sync {
+            pasteboard.clearContents()
+            pasteboard.setString(sentinel, forType: .string)
+        }
+
+        // Simulate Cmd+C via CGEvent — targets the currently focused app (~10ms)
+        simulateCmdC()
+
+        // Poll for clipboard change (max ~200ms)
+        var grabbed: String?
         for _ in 0..<8 {
-            Thread.sleep(forTimeInterval: 0.025)
-            if let current = getClipboard(), current != sentinel {
-                selectedText = current
-                break
-            }
-        }
-
-        restoreClipboard(originalClipboard)
-        return selectedText
-    }
-
-    /// Async version.
-    func grabSelectedText() async -> String? {
-        // Check Accessibility permission first
-        guard AXIsProcessTrusted() else {
-            NSLog("[TextGrab] No Accessibility permission — skipping")
-            return nil
-        }
-
-        // Save current clipboard
-        let originalClipboard = getClipboard()
-
-        // Write sentinel to clipboard
-        let sentinel = "__glimpse_sentinel_\(ProcessInfo.processInfo.systemUptime)"
-        setClipboard(sentinel)
-
-        // Wait for clipboard to settle
-        try? await Task.sleep(nanoseconds: 20_000_000) // 20ms
-
-        // Simulate Cmd+C via osascript (with timeout)
-        let proc = Process()
-        proc.launchPath = "/usr/bin/osascript"
-        proc.arguments = ["-e", "tell application \"System Events\" to keystroke \"c\" using command down"]
-
-        do {
-            try proc.run()
-        } catch {
-            NSLog("[TextGrab] osascript failed to launch: \(error)")
-            restoreClipboard(originalClipboard)
-            return nil
-        }
-
-        // Wait for osascript with timeout (200ms max)
-        let deadline = Date().addingTimeInterval(0.2)
-        while proc.isRunning && Date() < deadline {
-            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
-        }
-        if proc.isRunning {
-            proc.terminate()
-            NSLog("[TextGrab] osascript timed out — terminated")
-            restoreClipboard(originalClipboard)
-            return nil
-        }
-
-        // Poll clipboard for change (8 attempts × 25ms = 200ms max)
-        var selectedText: String?
-        for _ in 0..<8 {
-            try? await Task.sleep(nanoseconds: 25_000_000) // 25ms
-            let current = getClipboard()
-            if let current, current != sentinel {
-                selectedText = current
-                break
+            Thread.sleep(forTimeInterval: 0.025)  // 25ms × 8 = 200ms max
+            if pasteboard.changeCount != originalChangeCount {
+                let current = pasteboard.string(forType: .string)
+                if let current, current != sentinel {
+                    grabbed = current
+                    break
+                }
             }
         }
 
         // Restore original clipboard
-        restoreClipboard(originalClipboard)
-
-        return selectedText
-    }
-
-    private func getClipboard() -> String? {
-        let proc = Process()
-        let pipe = Pipe()
-        proc.launchPath = "/usr/bin/pbpaste"
-        proc.arguments = ["-Prefer", "txt"]
-        proc.standardOutput = pipe
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-        } catch {
-            return nil
+        DispatchQueue.main.sync {
+            pasteboard.clearContents()
+            if let original = originalString {
+                pasteboard.setString(original, forType: .string)
+            }
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)
-    }
 
-    private func setClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-    }
-
-    private func restoreClipboard(_ original: String?) {
-        if let original {
-            setClipboard(original)
+        if let text = grabbed {
+            NSLog("[TextGrab] Grabbed \(text.count) chars")
+        } else {
+            NSLog("[TextGrab] Nothing selected")
         }
+        return grabbed
+    }
+
+    /// Simulate Cmd+C via CGEvent at HID level — no osascript, no subprocess (~10ms).
+    private func simulateCmdC() {
+        let src = CGEventSource(stateID: .combinedSessionState)
+        let keyDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_C), keyDown: true)
+        let keyUp   = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_C), keyDown: false)
+        keyDown?.flags = .maskCommand
+        keyUp?.flags   = .maskCommand
+        keyDown?.post(tap: .cghidEventTap)
+        keyUp?.post(tap: .cghidEventTap)
     }
 }

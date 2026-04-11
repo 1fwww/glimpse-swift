@@ -25,7 +25,7 @@ export default function ApiKeySetup({ onDone, onSkip }) {
     if (mode === 'invite') {
       const result = await window.electronAPI?.validateInviteCode(inviteCode.trim())
       setSaving(false)
-      if (result?.success) onDone()
+      if (result?.valid) onDone()
       else setError(result?.error || 'Invalid invite code')
       return
     }

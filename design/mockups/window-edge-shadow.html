@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Glimpse — Window Edge & Shadow Study</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body {
+    margin: 0;
+    font-family: var(--font-display);
+    background: #e8e8ec;
+    min-height: 100vh;
+    padding: 32px 40px 60px;
+    transition: background 0.4s ease;
+  }
+  body.bg-dark { background: #1a1a22; }
+  body.bg-light { background: #e8e8ec; }
+  body.bg-desktop { background: #6b8fb5; } /* macOS-ish wallpaper blue */
+  body.bg-white { background: #f5f5f5; }
+
+  /* ─── Top controls ─── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+  }
+  .top-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(0,0,0,0.35);
+    transition: color 0.3s;
+  }
+  body.bg-dark .top-label { color: rgba(255,255,255,0.3); }
+
+  .btn-group {
+    display: flex;
+    gap: 2px;
+    background: rgba(0,0,0,0.06);
+    border-radius: 8px;
+    padding: 2px;
+    transition: background 0.3s;
+  }
+  body.bg-dark .btn-group { background: rgba(255,255,255,0.08); }
+
+  .btn-group button {
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(0,0,0,0.5);
+    transition: all 0.15s;
+  }
+  body.bg-dark .btn-group button { color: rgba(255,255,255,0.45); }
+  .btn-group button.active {
+    background: white;
+    color: rgba(0,0,0,0.8);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  body.bg-dark .btn-group button.active {
+    background: rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.9);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  .toggle-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(0,0,0,0.45);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.3s;
+  }
+  body.bg-dark .toggle-label { color: rgba(255,255,255,0.4); }
+  .toggle-label input { accent-color: #6C63FF; }
+
+  /* ─── Layout ─── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 48px 40px;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(0,0,0,0.55);
+    transition: color 0.3s;
+  }
+  body.bg-dark .card-label { color: rgba(255,255,255,0.45); }
+  .card-sublabel {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(0,0,0,0.3);
+    margin-top: -8px;
+    font-family: var(--font-mono);
+    max-width: 380px;
+    text-align: center;
+    line-height: 1.55;
+    transition: color 0.3s;
+  }
+  body.bg-dark .card-sublabel { color: rgba(255,255,255,0.22); }
+
+  /* ═══ THE WINDOW ═══ */
+  .window {
+    width: 380px;
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                background 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ── Shadow variants ── */
+  .window.shadow-current {
+    background: #F6F6F9;
+    border: 1px solid rgba(0, 0, 0, 0.065);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  }
+
+  .window.shadow-proposed {
+    background: #F6F6F9;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  .window.shadow-proposed-highlight {
+    background: #F6F6F9;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 16px rgba(0, 0, 0, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  /* ── FIX A: Brighter surface (#FCFCFE ≈ near-white warm) ── */
+  .window.shadow-fix-a {
+    background: #FCFCFE;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 16px rgba(0, 0, 0, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  }
+  .window.shadow-fix-a .w-header { background: #FCFCFE; }
+
+  /* ── FIX B: Stronger ring + shadow (keep warm gray surface) ── */
+  .window.shadow-fix-b {
+    background: #F6F6F9;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 4px 16px rgba(0, 0, 0, 0.08),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  /* ── FIX C: Brighter surface + original subtle shadow (best of both?) ── */
+  .window.shadow-fix-c {
+    background: #FAFAFC;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.05),
+      0 4px 16px rgba(0, 0, 0, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  }
+  .window.shadow-fix-c .w-header { background: #FAFAFC; }
+
+  /* ── FIX D: Pure white + Glimpse-tuned shadow (Apple approach with Glimpse character) ── */
+  .window.shadow-fix-d {
+    background: #FFFFFF;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 6px 20px rgba(0, 0, 0, 0.07),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.8);
+  }
+  .window.shadow-fix-d .w-header { background: #FFFFFF; }
+  .window.shadow-fix-d .w-bubble.w-asst { background: #F4F4F7; }
+
+  .window.shadow-pinned {
+    background: rgba(248, 247, 252, 0.96);
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(108, 99, 255, 0.12),
+      0 2px 4px rgba(0, 0, 0, 0.04),
+      0 8px 28px rgba(0, 0, 0, 0.08),
+      0 0 0 1px rgba(108, 99, 255, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .window.shadow-apple {
+    background: #FFFFFF;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.12),
+      0 1px 1px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .window.shadow-raycast {
+    background: #FAFAFA;
+    border: none;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      0 8px 30px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+
+  /* ── Header ── */
+  .w-header {
+    padding: 12px 14px 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  .w-logo {
+    width: 22px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+  .w-logo path {
+    fill: none;
+    stroke: #6C63FF;
+    stroke-linecap: round;
+  }
+  .w-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: rgba(18, 18, 30, 0.88);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .w-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(95, 95, 118, 0.45);
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .w-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: rgba(55, 55, 75, 0.65);
+  }
+
+  /* ── Model bar ── */
+  .w-model {
+    padding: 4px 14px 5px;
+    display: flex;
+    justify-content: flex-end;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(95, 95, 118, 0.4);
+  }
+
+  /* ── Messages ── */
+  .w-messages {
+    padding: 8px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+  .w-bubble {
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 88%;
+  }
+  .w-user {
+    align-self: flex-end;
+    background: rgba(108, 99, 255, 0.09);
+    color: rgba(18, 18, 30, 0.85);
+    border-radius: 14px 14px 4px 14px;
+  }
+  .w-asst {
+    align-self: flex-start;
+    background: rgba(244, 244, 249, 0.95);
+    color: rgba(18, 18, 30, 0.85);
+    border-radius: 14px 14px 14px 4px;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+  }
+  .w-asst code {
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .w-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(95, 95, 118, 0.35);
+    margin-top: 1px;
+    padding-left: 2px;
+  }
+
+  /* ── Input ── */
+  .w-input-area {
+    padding: 10px 14px 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  }
+  .w-input-box {
+    width: 100%;
+    background: rgba(246, 246, 250, 0.98);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    transition: border-color 0.15s;
+  }
+  .w-input-box:focus-within {
+    border-color: rgba(108, 99, 255, 0.3);
+  }
+  .w-input-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: rgba(18, 18, 30, 0.85);
+    padding: 10px 40px 10px 14px;
+    font-size: 13px;
+    font-family: var(--font-display);
+    outline: none;
+  }
+  .w-input-box input::placeholder {
+    color: rgba(95, 95, 118, 0.35);
+  }
+  .w-send {
+    position: absolute;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #6C63FF;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Thread actions ── */
+  .w-actions {
+    padding: 6px 14px 8px;
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+  .w-action-btn {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(95, 95, 118, 0.4);
+    padding: 3px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .w-action-btn:hover {
+    background: rgba(0,0,0,0.03);
+    color: rgba(55, 55, 75, 0.6);
+  }
+
+  /* ═══ Pinned inner padding ═══ */
+  .window.shadow-pinned .w-header {
+    border-bottom-color: rgba(108, 99, 255, 0.06);
+  }
+  .window.shadow-pinned .w-input-area {
+    border-top-color: rgba(108, 99, 255, 0.06);
+  }
+
+  /* ═══ Comparison section ═══ */
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(0,0,0,0.3);
+    margin-top: 52px;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    transition: color 0.3s, border-color 0.3s;
+  }
+  body.bg-dark .section-title {
+    color: rgba(255,255,255,0.25);
+    border-bottom-color: rgba(255,255,255,0.06);
+  }
+
+  /* ─── Zoomed edge detail ─── */
+  .edge-zoom {
+    display: flex;
+    gap: 32px;
+    margin-top: 40px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .edge-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .edge-strip {
+    width: 200px;
+    height: 80px;
+    border-radius: 16px 16px 4px 4px;
+    position: relative;
+    overflow: visible;
+  }
+  .edge-strip.strip-current {
+    background: #F6F6F9;
+    border: 1px solid rgba(0, 0, 0, 0.065);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  }
+  .edge-strip.strip-proposed {
+    background: #F6F6F9;
+    box-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 16px rgba(0, 0, 0, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  }
+  .edge-strip.strip-pinned {
+    background: rgba(248, 247, 252, 0.96);
+    box-shadow:
+      0 0 0 0.5px rgba(108, 99, 255, 0.12),
+      0 2px 4px rgba(0, 0, 0, 0.04),
+      0 8px 28px rgba(0, 0, 0, 0.08),
+      0 0 0 1px rgba(108, 99, 255, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+  }
+  .edge-inner {
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .edge-line {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.04);
+  }
+  .edge-line.short { width: 50%; }
+  .edge-line.med { width: 75%; }
+
+  /* ── Annotation ── */
+  .anno {
+    position: absolute;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: rgba(108, 99, 255, 0.6);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  /* ═══ Reduced motion ═══ */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body class="theme-light bg-light">
+
+<!-- ─── Controls ─── -->
+<div class="top-bar">
+  <span class="top-label">Background</span>
+  <div class="btn-group" id="bgGroup">
+    <button class="active" onclick="setBg('light')">Light</button>
+    <button onclick="setBg('white')">White</button>
+    <button onclick="setBg('desktop')">macOS Blue</button>
+    <button onclick="setBg('dark')">Dark</button>
+  </div>
+
+  <span class="top-label" style="margin-left: 12px">Zoom</span>
+  <div class="btn-group" id="zoomGroup">
+    <button class="active" onclick="setZoom(1)">1x</button>
+    <button onclick="setZoom(1.5)">1.5x</button>
+    <button onclick="setZoom(2)">2x</button>
+  </div>
+</div>
+
+<!-- ═══ SECTION: The Problem ═══ -->
+<div class="section-title">The Problem — Surface too close to background</div>
+
+<div class="grid">
+
+  <!-- Previous proposed (the problem) -->
+  <div class="card">
+    <div class="card-label">Previous Proposed — #F6F6F9 surface</div>
+    <div class="window shadow-proposed-highlight">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the table uses <code>account_id</code>.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="w-actions">
+        <button class="w-action-btn">New chat</button>
+        <button class="w-action-btn">Threads</button>
+        <button class="w-action-btn">Reset</button>
+      </div>
+    </div>
+    <div class="card-sublabel">
+      Surface #F6F6F9 ≈ background #E8E8EC — only ~4% apart. Melts.
+    </div>
+  </div>
+
+  <!-- Current for reference -->
+  <div class="card">
+    <div class="card-label">Current Baseline</div>
+    <div class="window shadow-current">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the table uses <code>account_id</code>.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="w-actions">
+        <button class="w-action-btn">New chat</button>
+        <button class="w-action-btn">Threads</button>
+        <button class="w-action-btn">Reset</button>
+      </div>
+    </div>
+    <div class="card-sublabel">
+      1px border + heavier shadow compensates for warm gray surface
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ SECTION: Four Fixes ═══ -->
+<div class="section-title">Four Fixes — Pick the one that feels right</div>
+
+<div class="grid">
+
+  <!-- Fix A: Brighter surface -->
+  <div class="card">
+    <div class="card-label">A — Brighter surface #FCFCFE</div>
+    <div class="window shadow-fix-a">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the table uses <code>account_id</code>.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="w-actions">
+        <button class="w-action-btn">New chat</button>
+        <button class="w-action-btn">Threads</button>
+        <button class="w-action-btn">Reset</button>
+      </div>
+    </div>
+    <div class="card-sublabel">Near-white surface, same subtle shadow. Separation from brightness.</div>
+  </div>
+
+  <!-- Fix B: Stronger shadow -->
+  <div class="card">
+    <div class="card-label">B — Stronger ring + shadow, keep warm gray</div>
+    <div class="window shadow-fix-b">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the table uses <code>account_id</code>.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="w-actions">
+        <button class="w-action-btn">New chat</button>
+        <button class="w-action-btn">Threads</button>
+        <button class="w-action-btn">Reset</button>
+      </div>
+    </div>
+    <div class="card-sublabel">Ring 12%, shadow 8%. Keeps warm gray, more presence.</div>
+  </div>
+
+  <!-- Fix C: Middle ground -->
+  <div class="card">
+    <div class="card-label">C — #FAFAFC surface + slightly stronger ring</div>
+    <div class="window shadow-fix-c">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the table uses <code>account_id</code>.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="w-actions">
+        <button class="w-action-btn">New chat</button>
+        <button class="w-action-btn">Threads</button>
+        <button class="w-action-btn">Reset</button>
+      </div>
+    </div>
+    <div class="card-sublabel">Split the difference — slightly brighter + slightly stronger edge.</div>
+  </div>
+
+  <!-- Fix D: Pure white, Apple approach -->
+  <div class="card">
+    <div class="card-label">D — Pure white #FFF, Apple approach</div>
+    <div class="window shadow-fix-d">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition. Your <code>ON</code> clause references <code>user_id</code> but the table uses <code>account_id</code>.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="w-actions">
+        <button class="w-action-btn">New chat</button>
+        <button class="w-action-btn">Threads</button>
+        <button class="w-action-btn">Reset</button>
+      </div>
+    </div>
+    <div class="card-sublabel">Maximum contrast. Clean. Warmth comes from content, not surface.</div>
+  </div>
+
+</div>
+
+<!-- ═══ SECTION: Pinned state ═══ -->
+<div class="section-title">Unpinned → Pinned — Shadow Depth Change</div>
+
+<div class="grid">
+
+  <!-- Unpinned -->
+  <div class="card">
+    <div class="card-label">Unpinned (normal)</div>
+    <div class="window shadow-proposed-highlight">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Pin">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-sublabel">contact + ambient — resting on surface</div>
+  </div>
+
+  <!-- Pinned -->
+  <div class="card">
+    <div class="card-label">Pinned (elevated)</div>
+    <div class="window shadow-pinned">
+      <div class="w-header" style="border-bottom-color: rgba(108, 99, 255, 0.06);">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Unpin" style="color: #6C63FF; background: rgba(108,99,255,0.08);">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z"/></svg>
+        </button>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-model">claude-sonnet-4-5</div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition.</div>
+        <span class="w-tag">claude-sonnet-4-5</span>
+      </div>
+      <div class="w-input-area" style="border-top-color: rgba(108, 99, 255, 0.06);">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask about your screenshot..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-sublabel">deeper ambient + brand-tinted ring — floating above surface</div>
+  </div>
+
+</div>
+
+<!-- ═══ SECTION: Benchmarks ═══ -->
+<div class="section-title">Benchmark Comparison — Apple vs Raycast</div>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="card-label">Apple Native Style</div>
+    <div class="window shadow-apple">
+      <div class="w-header" style="background: #fff;">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst" style="background:#f0f0f3; border-color: rgba(0,0,0,0.06);">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition.</div>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask anything..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-sublabel">
+      0.5px ring 12% + tight contact + medium ambient. Pure white bg.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Raycast Style</div>
+    <div class="window shadow-raycast">
+      <div class="w-header">
+        <svg class="w-logo" viewBox="60 140 420 280">
+          <path d="M98 212C152 174 365 158 420 248" stroke-width="20"/>
+          <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" stroke-width="22"/>
+        </svg>
+        <span class="w-title">Debug query results</span>
+        <button class="w-btn" title="Close">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="w-messages">
+        <div class="w-bubble w-user">Why is this query returning null?</div>
+        <div class="w-bubble w-asst">The issue is a <strong>LEFT JOIN</strong> with a mismatched condition.</div>
+      </div>
+      <div class="w-input-area">
+        <div class="w-input-box">
+          <input type="text" placeholder="Ask anything..." readonly>
+          <button class="w-send">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-sublabel">
+      0.5px ring 6% + large diffused ambient. Near-white bg.
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ SECTION: Edge close-up ═══ -->
+<div class="section-title">Edge Close-up (zoom with buttons above)</div>
+
+<div class="edge-zoom">
+  <div class="edge-card">
+    <div class="card-label">Current — 1px border</div>
+    <div class="edge-strip strip-current">
+      <div class="edge-inner">
+        <div class="edge-line med"></div>
+        <div class="edge-line short"></div>
+        <div class="edge-line med"></div>
+      </div>
+    </div>
+    <div class="card-sublabel" style="font-size:10px;">border feels "drawn on"</div>
+  </div>
+
+  <div class="edge-card">
+    <div class="card-label">Proposed — 0.5px ring</div>
+    <div class="edge-strip strip-proposed">
+      <div class="edge-inner">
+        <div class="edge-line med"></div>
+        <div class="edge-line short"></div>
+        <div class="edge-line med"></div>
+      </div>
+    </div>
+    <div class="card-sublabel" style="font-size:10px;">edge defined by shadow, not stroke</div>
+  </div>
+
+  <div class="edge-card">
+    <div class="card-label">Pinned — brand ring</div>
+    <div class="edge-strip strip-pinned">
+      <div class="edge-inner">
+        <div class="edge-line med"></div>
+        <div class="edge-line short"></div>
+        <div class="edge-line med"></div>
+      </div>
+    </div>
+    <div class="card-sublabel" style="font-size:10px;">brand-tinted ring signals elevated state</div>
+  </div>
+</div>
+
+<script>
+  function setBg(type) {
+    document.body.className = 'theme-light bg-' + type;
+    document.querySelectorAll('#bgGroup button').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+
+  function setZoom(level) {
+    document.querySelectorAll('.grid, .edge-zoom').forEach(el => {
+      el.style.transform = `scale(${level})`;
+      el.style.transformOrigin = 'top center';
+    });
+    document.querySelectorAll('#zoomGroup button').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+</script>
+
+</body>
+</html>

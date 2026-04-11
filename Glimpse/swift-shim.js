@@ -130,7 +130,23 @@ window.electronAPI = {
   showToast: (message) => invoke('show_toast', { message }),
   notifyProvidersChanged: () => invoke('notify_providers_changed'),
   refreshTrayMenu: () => invoke('refresh_tray_menu'),
-  resizeChatWindow: (size) => invoke('resize_chat_window', { size }),
+  resizeChatWindow: (size) => {
+    invoke('resize_chat_window', { size });
+    // Return a promise that resolves when the native resize animation completes
+    return new Promise((resolve) => {
+      window._onResizeComplete = () => {
+        window._onResizeComplete = null;
+        resolve();
+      };
+      // Safety timeout — resolve even if callback never fires
+      setTimeout(() => {
+        if (window._onResizeComplete) {
+          window._onResizeComplete = null;
+          resolve();
+        }
+      }, 500);
+    });
+  },
   selectFolder: () => invoke('select_folder'),
   copyImage: (dataUrl) => invoke('copy_image', { dataUrl }),
   saveImage: (dataUrl) => invoke('save_image', { dataUrl }),

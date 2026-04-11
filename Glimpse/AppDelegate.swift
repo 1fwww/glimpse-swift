@@ -296,6 +296,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var isRecreatingForFullscreen = false
     private var onChatReadyAction: (() -> Void)? = nil  // custom action when chat WebView loads (for pin swap)
+    private var chatFadeTimer: Timer?
 
     func showChat() {
         let isFullscreen = SpaceDetector.isFullscreenSpace()
@@ -324,15 +325,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let panel = chatPanel else { return }
         isRecreatingForFullscreen = false
 
-        // Center on cursor's screen
+        // Position centered on cursor, clamped to screen bounds
         let mouseLocation = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
             ?? NSScreen.main ?? NSScreen.screens.first
         if let screen = screen {
-            let frame = screen.visibleFrame
+            let visible = screen.visibleFrame
             let panelSize = panel.frame.size
-            let x = frame.midX - panelSize.width / 2
-            let y = frame.midY - panelSize.height / 2
+            let margin: CGFloat = 12
+
+            // Center on cursor
+            var x = mouseLocation.x - panelSize.width / 2
+            var y = mouseLocation.y - panelSize.height / 2
+
+            // Clamp to screen bounds with margin
+            x = max(visible.minX + margin, min(x, visible.maxX - panelSize.width - margin))
+            y = max(visible.minY + margin, min(y, visible.maxY - panelSize.height - margin))
+
             panel.setFrameOrigin(NSPoint(x: x, y: y))
         }
 
@@ -348,6 +357,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Floating only when pinned or on fullscreen (fullscreen needs floating to stay above)
         panel.level = (isPinned || isFullscreen) ? .floating : .normal
 
+        // Start invisible for fade-in
+        panel.alphaValue = 0
+
         if isFullscreen {
             panel.showOnFullscreen()
             NSApp.activate(ignoringOtherApps: true)
@@ -357,6 +369,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.showAndFocus()
         }
         updateVisibleWindowFlag()
+
+        // Fade in (200ms, ease-out)
+        chatFadeTimer?.invalidate()
+        let startTime = CACurrentMediaTime()
+        let duration = 0.2
+        chatFadeTimer = Timer(timeInterval: 1.0/120, repeats: true) { [weak self] timer in
+            let elapsed = CACurrentMediaTime() - startTime
+            let t = min(elapsed / duration, 1.0)
+            // ease-out curve: 1 - (1-t)^2
+            let eased = 1.0 - (1.0 - t) * (1.0 - t)
+            panel.alphaValue = CGFloat(eased)
+            if t >= 1.0 {
+                timer.invalidate()
+                self?.chatFadeTimer = nil
+            }
+        }
+        RunLoop.main.add(chatFadeTimer!, forMode: .common)
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
 
         // Emit pending text context after chat is visible
@@ -377,15 +406,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func hideChat() {
         if settingsPanel?.isVisible == true { hideSettings() }
-        chatPanel?.orderOut(nil)
-        isPinned = false  // Reset pin state so next session starts in sync with frontend
-        updateVisibleWindowFlag()
-        restoreActivationPolicyIfNeeded()
-        // Deactivate Glimpse so the previous app regains focus.
-        // Without this, Glimpse stays frontmost after orderOut, and the next
-        // text grab sees Glimpse (not the source app) as frontmostApplication.
-        NSApp.hide(nil)
-        NSLog("[App] Chat hidden")
+        guard let panel = chatPanel else { return }
+
+        // Fade out (120ms, ease-in) then clean up
+        chatFadeTimer?.invalidate()
+        let startTime = CACurrentMediaTime()
+        let duration = 0.12
+        chatFadeTimer = Timer(timeInterval: 1.0/120, repeats: true) { [weak self] timer in
+            let elapsed = CACurrentMediaTime() - startTime
+            let t = min(elapsed / duration, 1.0)
+            // ease-in curve: t^2
+            let eased = t * t
+            panel.alphaValue = CGFloat(1.0 - eased)
+            if t >= 1.0 {
+                timer.invalidate()
+                self?.chatFadeTimer = nil
+                panel.orderOut(nil)
+                panel.alphaValue = 1  // reset for next show
+                self?.isPinned = false
+                self?.updateVisibleWindowFlag()
+                self?.restoreActivationPolicyIfNeeded()
+                NSApp.hide(nil)
+                NSLog("[App] Chat hidden")
+            }
+        }
+        RunLoop.main.add(chatFadeTimer!, forMode: .common)
     }
 
     func togglePin() {
@@ -1012,6 +1057,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         overlayPanel?.makeKey()
     }
 
+    private var resizeTimer: Timer?
+
     @objc func handleResizeChatWindow(_ notification: Notification) {
         guard let panel = chatPanel,
               let size = notification.userInfo,
@@ -1020,16 +1067,97 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         else { return }
 
         let currentFrame = panel.frame
-        // Grow upward (keep bottom-left corner, adjust origin.y)
-        let dy = height - currentFrame.height
-        let newFrame = NSRect(
+
+        // Clamp to screen
+        var clampedHeight = height
+        var clampedWidth = width
+        if let screen = panel.screen {
+            let visible = screen.visibleFrame
+            clampedHeight = min(height, visible.height * 0.75)
+            clampedWidth = min(width, visible.width)
+        }
+
+        // Smart anchor: choose bottom-anchor (grow up) or top-anchor (grow down)
+        // based on available space. Whichever direction has more room wins.
+        let dy = clampedHeight - currentFrame.height
+        var targetY = currentFrame.origin.y
+        if let screen = panel.screen {
+            let visible = screen.visibleFrame
+            let roomAbove = visible.maxY - currentFrame.maxY
+            let roomBelow = currentFrame.origin.y - visible.minY
+
+            if roomAbove >= dy {
+                // Enough space above — bottom-anchor (grow upward, input stays)
+                targetY = currentFrame.origin.y
+                clampedHeight = min(clampedHeight, currentFrame.origin.y + clampedHeight <= visible.maxY
+                    ? clampedHeight : visible.maxY - currentFrame.origin.y)
+            } else if roomBelow >= dy {
+                // Not enough above but enough below — top-anchor (grow downward)
+                targetY = currentFrame.origin.y - dy
+                targetY = max(targetY, visible.minY)
+                clampedHeight = min(clampedHeight, currentFrame.maxY - visible.minY)
+            } else {
+                // Limited space both ways — grow toward whichever has more room
+                if roomAbove >= roomBelow {
+                    // Bottom-anchor, clamp to screen top
+                    targetY = currentFrame.origin.y
+                    clampedHeight = min(clampedHeight, visible.maxY - currentFrame.origin.y)
+                } else {
+                    // Top-anchor, clamp to screen bottom
+                    targetY = max(currentFrame.origin.y - dy, visible.minY)
+                    clampedHeight = min(clampedHeight, currentFrame.maxY - visible.minY)
+                }
+            }
+        }
+
+        let targetFrame = NSRect(
             x: currentFrame.origin.x,
-            y: currentFrame.origin.y - dy,
-            width: width,
-            height: height
+            y: targetY,
+            width: clampedWidth,
+            height: clampedHeight
         )
-        panel.setFrame(newFrame, display: true, animate: true)
-        NSLog("[App] Chat resized to \(Int(width))×\(Int(height))")
+
+        // Check for instant (non-animated) resize — used when restoring existing chat
+        let animate = size["animate"] as? Bool ?? true
+        if !animate {
+            panel.setFrame(targetFrame, display: true)
+            NSLog("[App] Chat resized instantly to \(Int(clampedWidth))×\(Int(clampedHeight))")
+            return
+        }
+
+        // Smooth resize animation (400ms, ease-out)
+        // Slower = smaller per-frame displacement = WebKit's 1-3 frame lag less visible
+        resizeTimer?.invalidate()
+        let startFrame = currentFrame
+        let startTime = CACurrentMediaTime()
+        let duration = 0.4
+
+        resizeTimer = Timer(timeInterval: 1.0/120, repeats: true) { [weak self] timer in
+            let elapsed = CACurrentMediaTime() - startTime
+            let t = min(elapsed / duration, 1.0)
+
+            // ease-out quintic: 1 - (1-t)^5
+            // Aggressive deceleration — last 50% of time covers only ~3% of distance.
+            // WebKit content lag becomes invisible at the tail where movement is minimal.
+            let ease = 1.0 - t
+            let progress = 1.0 - ease * ease * ease * ease * ease
+
+            let x = startFrame.origin.x + (targetFrame.origin.x - startFrame.origin.x) * progress
+            let y = startFrame.origin.y + (targetFrame.origin.y - startFrame.origin.y) * progress
+            let w = startFrame.width + (targetFrame.width - startFrame.width) * progress
+            let h = startFrame.height + (targetFrame.height - startFrame.height) * progress
+            panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
+
+            if t >= 1.0 {
+                timer.invalidate()
+                self?.resizeTimer = nil
+                panel.setFrame(targetFrame, display: true)
+                // Notify JS that resize completed
+                self?.chatWebView?.evaluateJavaScript("window._onResizeComplete && window._onResizeComplete()")
+            }
+        }
+        RunLoop.main.add(resizeTimer!, forMode: .common)
+        NSLog("[App] Chat resizing to \(Int(clampedWidth))×\(Int(clampedHeight))")
     }
 
     // MARK: - Menu

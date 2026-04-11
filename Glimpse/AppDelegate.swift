@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayIPC = IPCBridge()
     var overlayReady = false
     var pendingCaptureResult: ScreenCapture.CaptureResult?
+    var frozenScreenWindow: NSWindow?
 
     // Welcome / onboarding
     var welcomePanel: GlimpsePanel?
@@ -417,6 +418,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func hideOverlay() {
         if settingsPanel?.isVisible == true { hideSettings() }
+        dismissFrozenScreen()
         // Reset BEFORE orderOut — JS won't execute on hidden WebViews
         overlayIPC.emit("reset-overlay")
         overlayPanel?.orderOut(nil)
@@ -429,7 +431,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateVisibleWindowFlag() {
         shortcutManager.hasVisibleWindow =
             (chatPanel?.isVisible == true) || (overlayPanel?.isVisible == true) ||
-            (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true)
+            (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true) ||
+            (frozenScreenWindow?.isVisible == true)
     }
 
     /// Restore Regular activation policy after showing windows on fullscreen Spaces.
@@ -516,6 +519,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // ── INSTANT FROZEN SCREEN ──
+        // Show a native NSWindow with the display framebuffer immediately (~5ms).
+        // Everything else happens behind this frozen image.
+        showFrozenScreen()
+
         // Hide chat before capture so it doesn't appear in the screenshot.
         // Just orderOut — don't call hideChat() which does NSApp.hide (causes flash).
         let chatWasVisible = chatPanel?.isVisible == true
@@ -526,10 +534,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
-        // Always destroy and recreate overlay for guaranteed clean state.
-        // Reusing the WebView causes stale React state (accumulated dark masks,
-        // old screenshots) because emit("reset-overlay") is async and can't
-        // reliably clear state before the window becomes visible.
+        // Destroy and recreate overlay for guaranteed clean React state.
+        // The frozen screen covers the transition so the user never sees stale state.
         overlayPanel?.orderOut(nil)
         overlayPanel = nil
         overlayWebView = nil
@@ -540,11 +546,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         prewarmOverlay()
 
         // Capture in parallel with WebView loading.
-        // If chat was visible, wait 200ms for compositor to remove it.
+        // If chat was visible, wait 200ms for compositor to remove it from the framebuffer.
         let compositorDelay = chatWasVisible ? 0.2 : 0.0
         DispatchQueue.main.asyncAfter(deadline: .now() + compositorDelay) { [weak self] in
             self?.performCapture()
         }
+    }
+
+    /// Show a native frozen-screen window instantly using CGDisplayCreateImage.
+    /// This reads the display framebuffer directly (~1-5ms) and shows an NSWindow
+    /// with the snapshot, giving the user immediate visual feedback while the real
+    /// capture + WebView loading happens behind it.
+    private func showFrozenScreen() {
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main ?? NSScreen.screens.first!
+
+        // Get display ID for CGDisplayCreateImage
+        guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+              let cgImage = CGDisplayCreateImage(screenNumber) else {
+            NSLog("[App] Frozen screen: CGDisplayCreateImage failed")
+            return
+        }
+
+        let image = NSImage(cgImage: cgImage, size: screen.frame.size)
+        let imageView = NSImageView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        imageView.image = image
+        imageView.imageScaling = .scaleAxesIndependently
+
+        let window = NSWindow(
+            contentRect: screen.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isOpaque = true
+        window.backgroundColor = .black
+        window.level = Self.screensaverLevel
+        window.hasShadow = false
+        window.hidesOnDeactivate = false
+        window.ignoresMouseEvents = true
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.contentView = imageView
+        window.orderFrontRegardless()
+
+        frozenScreenWindow = window
+        NSLog("[App] Frozen screen shown")
+    }
+
+    /// Dismiss the frozen screen window (called when overlay WebView is ready).
+    private func dismissFrozenScreen() {
+        guard frozenScreenWindow != nil else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        frozenScreenWindow?.orderOut(nil)
+        frozenScreenWindow = nil
+        CATransaction.commit()
+        NSLog("[App] Frozen screen dismissed")
     }
 
     private func performCapture() {
@@ -563,6 +621,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         self.showOverlay()
                     }
                     self.emitCaptureToOverlay(result)
+                    self.dismissFrozenScreen()
                 } else {
                     // WebView still loading — store for handleOverlayReady
                     self.pendingCaptureResult = result
@@ -574,6 +633,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func handleEscape() {
         // Settings always closes first (ESC highest priority)
         if let panel = settingsPanel, panel.isVisible { hideSettings(); return }
+        // Frozen screen = screenshot in progress, ESC cancels it
+        if frozenScreenWindow != nil { dismissFrozenScreen(); return }
         if let panel = overlayPanel,  panel.isVisible { hideOverlay();  return }
         if let panel = chatPanel,     panel.isVisible { hideChat();     return }
         if let panel = welcomePanel,  panel.isVisible { hideWelcome() }
@@ -737,6 +798,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Show overlay now that WebView is loaded, then emit data
             showOverlay()
             emitCaptureToOverlay(result)
+            // Dismiss frozen screen now that real overlay is visible with data
+            dismissFrozenScreen()
         }
     }
 

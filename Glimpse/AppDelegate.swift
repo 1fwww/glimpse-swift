@@ -188,6 +188,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let settingsSize = NSSize(width: 480, height: 540)
         let panel = GlimpsePanel(size: settingsSize)
+        panel.hasShadow = true
         let webView = createWebView(in: panel, bridge: settingsIPC, route: "#settings")
         settingsIPC.webView = webView
 

@@ -158,8 +158,8 @@ class NativeSelectionOverlay: NSView {
         }
 
         // "Screenshot Mode" label — top center, 50px from top (matches CSS .screenshot-mode-toast)
-        // Only shown before selection starts (no active selection or hovered window)
-        if currentRect.width <= 2 && hoveredWindowIndex == nil {
+        // Shown until user clicks (snap) or drags (free-form) to confirm selection
+        if currentRect.width <= 2 && !isDragging {
             let toastText = "Screenshot Mode"
             let toastFont = NSFont(name: "Outfit", size: 18) ?? NSFont.systemFont(ofSize: 18)
             let toastAttrs: [NSAttributedString.Key: Any] = [

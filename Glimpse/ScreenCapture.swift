@@ -16,7 +16,7 @@ struct ScreenCapture {
 
     /// Temp file path for screenshot — reused each capture to avoid accumulating files.
     private static let tempURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("glimpse-capture.jpg")
+        .appendingPathComponent("glimpse-capture.png")
 
     /// Capture the screen where the cursor is. Runs synchronously — call from background thread.
     /// If `belowWindowID` is provided, captures only windows below that window (excludes it).
@@ -62,19 +62,19 @@ struct ScreenCapture {
         }
         let captureMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
 
-        // Encode as JPEG and write to temp file (much faster than PNG + base64)
+        // Encode as PNG and write to temp file (lossless — testing color fidelity)
         let encodeStart = CFAbsoluteTimeGetCurrent()
         let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
-        guard let jpegData = bitmapRep.representation(
-            using: .jpeg,
-            properties: [.compressionFactor: 0.85]
+        guard let pngData = bitmapRep.representation(
+            using: .png,
+            properties: [:]
         ) else {
-            NSLog("[Capture] JPEG conversion failed")
+            NSLog("[Capture] PNG conversion failed")
             return nil
         }
 
         do {
-            try jpegData.write(to: tempURL)
+            try pngData.write(to: tempURL)
         } catch {
             NSLog("[Capture] Failed to write temp file: \(error)")
             return nil
@@ -82,7 +82,7 @@ struct ScreenCapture {
         let encodeMs = (CFAbsoluteTimeGetCurrent() - encodeStart) * 1000
 
         let imageURL = tempURL.absoluteString
-        NSLog("[Capture] \(cgImage.width)x\(cgImage.height), \(jpegData.count / 1024)KB JPEG, capture: \(Int(captureMs))ms, encode+write: \(Int(encodeMs))ms")
+        NSLog("[Capture] \(cgImage.width)x\(cgImage.height), \(pngData.count / 1024)KB PNG, capture: \(Int(captureMs))ms, encode+write: \(Int(encodeMs))ms")
 
         // Get window bounds
         let windowBounds = getWindowBounds(on: captureRect)

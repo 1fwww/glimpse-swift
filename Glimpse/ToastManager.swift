@@ -17,7 +17,6 @@ class ToastManager {
             let screen = NSScreen.main ?? NSScreen.screens.first!
             let sf = screen.frame
 
-            // Fixed size: 220×44 (matches Tauri toast)
             let w: CGFloat = 220
             let h: CGFloat = 44
 
@@ -35,7 +34,7 @@ class ToastManager {
             p.isOpaque = false
             p.backgroundColor = .clear
             p.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)) + 2)
-            p.hasShadow = false
+            p.hasShadow = true
             p.hidesOnDeactivate = false
             p.ignoresMouseEvents = true
             p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -49,60 +48,18 @@ class ToastManager {
             blur.layer?.cornerRadius = 10
             blur.layer?.masksToBounds = true
 
-            // Container view: rgba(20,24,36,0.92) + cyan border
-            let container = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
-            container.wantsLayer = true
-            container.layer?.backgroundColor = NSColor(
-                calibratedRed: 20/255, green: 24/255, blue: 36/255, alpha: 0.92
-            ).cgColor
-            container.layer?.cornerRadius = 10
-            // 1px rgba(0,229,255,0.2) border — cyan, matches Tauri
-            container.layer?.borderColor = NSColor(
-                calibratedRed: 0, green: 229/255, blue: 1.0, alpha: 0.2
-            ).cgColor
-            container.layer?.borderWidth = 1
-
-            // Layout: [8px gap] [checkmark 16×16] [8px gap] [text] — centered vertically
-            let hPad: CGFloat = 20
-            let iconSize: CGFloat = 16
-            let gap: CGFloat = 8
-
-            // Green checkmark icon — draw as NSImage
-            let checkmark = self?.drawCheckmark(size: iconSize)
-            let iconView = NSImageView(frame: NSRect(
-                x: hPad,
-                y: (h - iconSize) / 2,
-                width: iconSize,
-                height: iconSize
-            ))
-            iconView.image = checkmark
-            iconView.imageScaling = .scaleProportionallyUpOrDown
-
-            // Label — rgba(230,240,255,0.9), 13px Outfit font
-            let font = NSFont(name: "Outfit", size: 13) ?? NSFont.systemFont(ofSize: 13)
-            let label = NSTextField(labelWithString: message)
-            label.font = font
-            label.textColor = NSColor(
-                calibratedRed: 230/255, green: 240/255, blue: 1.0, alpha: 0.9
+            // Custom drawn container — pixel-perfect centering via Core Graphics
+            let toastView = ToastContentView(
+                frame: NSRect(x: 0, y: 0, width: w, height: h),
+                message: message
             )
-            label.maximumNumberOfLines = 1
-            label.lineBreakMode = .byTruncatingTail
-            let labelX = hPad + iconSize + gap
-            let labelWidth = w - labelX - hPad
-            let labelHeight = font.ascender - font.descender
-            label.frame = NSRect(
-                x: labelX,
-                y: (h - labelHeight) / 2,
-                width: labelWidth,
-                height: labelHeight
-            )
-
-            container.addSubview(iconView)
-            container.addSubview(label)
+            toastView.wantsLayer = true
+            toastView.layer?.cornerRadius = 10
+            toastView.layer?.masksToBounds = true
 
             let contentView = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
             contentView.addSubview(blur)
-            contentView.addSubview(container)
+            contentView.addSubview(toastView)
             p.contentView = contentView
 
             p.orderFrontRegardless()
@@ -141,5 +98,67 @@ class ToastManager {
 
         img.unlockFocus()
         return img
+    }
+}
+
+/// Custom-drawn toast content — background, checkmark, and text via Core Graphics.
+/// No NSTextField = no internal padding issues = pixel-perfect centering.
+private class ToastContentView: NSView {
+    let message: String
+
+    init(frame: NSRect, message: String) {
+        self.message = message
+        super.init(frame: frame)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        let b = bounds
+
+        // Background: dark with warm green tint — success feel, visible on any background
+        ctx.setFillColor(red: 20/255, green: 30/255, blue: 24/255, alpha: 0.88)
+        ctx.fill(b)
+
+        // Border: green accent
+        ctx.setStrokeColor(red: 52/255, green: 199/255, blue: 89/255, alpha: 0.25)
+        ctx.setLineWidth(1)
+        ctx.stroke(b.insetBy(dx: 0.5, dy: 0.5))
+
+        let iconSize: CGFloat = 16
+        let gap: CGFloat = 8
+
+        // Measure total content width, then center horizontally
+        let font = NSFont(name: "Outfit", size: 13) ?? NSFont.systemFont(ofSize: 13)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor(calibratedRed: 240/255, green: 245/255, blue: 240/255, alpha: 0.92)
+        ]
+        let textSize = (message as NSString).size(withAttributes: attrs)
+        let totalWidth = iconSize + gap + textSize.width
+        let startX = (b.width - totalWidth) / 2
+
+        // Draw green checkmark — centered vertically
+        let iconY = (b.height - iconSize) / 2
+        ctx.saveGState()
+        ctx.translateBy(x: startX, y: iconY)
+        let s = iconSize / 24.0
+        let checkPath = CGMutablePath()
+        checkPath.move(to: CGPoint(x: 20 * s, y: iconSize - 6 * s))
+        checkPath.addLine(to: CGPoint(x: 9 * s, y: iconSize - 17 * s))
+        checkPath.addLine(to: CGPoint(x: 4 * s, y: iconSize - 12 * s))
+        ctx.setStrokeColor(red: 52/255, green: 199/255, blue: 89/255, alpha: 1.0)
+        ctx.setLineWidth(2.5 * s)
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
+        ctx.addPath(checkPath)
+        ctx.strokePath()
+        ctx.restoreGState()
+
+        // Draw text — centered both horizontally and vertically
+        let textX = startX + iconSize + gap
+        let textY = (b.height - textSize.height) / 2
+        (message as NSString).draw(at: NSPoint(x: textX, y: textY), withAttributes: attrs)
     }
 }

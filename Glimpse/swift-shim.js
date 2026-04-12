@@ -187,6 +187,7 @@ window.electronAPI = {
   onSetCroppedImage: (cb) => listen('set-cropped-image', cb),
   onClearScreenshot: (cb) => listen('clear-screenshot', cb),
   onClearTextContext: (cb) => listen('clear-text-context', cb),
+  onCheckSize: (cb) => listen('check-size', cb),
   onTextContext: (cb) => listen('text-context', cb),
   onShortcutTried: (cb) => listen('shortcut-tried', cb),
   onResetOverlay: (cb) => listen('reset-overlay', cb),

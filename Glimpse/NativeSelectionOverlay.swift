@@ -146,7 +146,7 @@ class NativeSelectionOverlay: NSView {
         }
 
         // Draw dark mask with even-odd cutout
-        ctx.setFillColor(red: 4/255, green: 8/255, blue: 16/255, alpha: 0.55)
+        ctx.setFillColor(red: 4/255, green: 8/255, blue: 16/255, alpha: 0.20)
         if let cutout {
             // Even-odd: fill outer rect, subtract inner rect
             ctx.beginPath()

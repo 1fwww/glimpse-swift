@@ -353,6 +353,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ipcBridge.emit("pin-state", data: isPinned)
         ipcBridge.emit("clear-screenshot")
         ipcBridge.emit("clear-text-context")
+        // Let frontend decide size based on whether it has messages
+        ipcBridge.emit("check-size")
 
         // Floating only when pinned or on fullscreen (fullscreen needs floating to stay above)
         panel.level = (isPinned || isFullscreen) ? .floating : .normal
@@ -947,23 +949,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             panel.makeKey()
 
-            // 3. After React renders (~150ms), reveal chat + hide overlay
+            // 3. After React renders (~150ms), reveal chat + fade overlay
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
                 guard let self, let panel = self.chatPanel else { return }
 
-                // Atomic visual swap: chat becomes visible, overlay hides
+                // Show chat
                 panel.alphaValue = 1
-                self.overlayPanel?.orderOut(nil)
-                self.overlayIPC.emit("reset-overlay")
-
-                // Restore to floating level
                 panel.level = .floating
                 if !isFullscreen {
                     NSApp.activate(ignoringOtherApps: true)
                 }
 
-                // Lock to current Space after swap
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak panel] in
+                // Fade overlay out (250ms) while CSS transitions run
+                let overlayPanel = self.overlayPanel
+                let fadeStart = CACurrentMediaTime()
+                let fadeDuration = 0.25
+                Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { [weak self] timer in
+                    let t = min((CACurrentMediaTime() - fadeStart) / fadeDuration, 1.0)
+                    overlayPanel?.alphaValue = CGFloat(1.0 - t)
+                    if t >= 1.0 {
+                        timer.invalidate()
+                        overlayPanel?.orderOut(nil)
+                        overlayPanel?.alphaValue = 1  // reset for next use
+                        self?.overlayIPC.emit("reset-overlay")
+                    }
+                }
+
+                // 6pt lift animation (300ms ease-out quintic)
+                let liftStart = CACurrentMediaTime()
+                let liftDuration = 0.3
+                let startY = panel.frame.origin.y
+                Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { timer in
+                    let t = min((CACurrentMediaTime() - liftStart) / liftDuration, 1.0)
+                    let ease = 1.0 - pow(1.0 - t, 5)
+                    panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + 6.0 * ease))
+                    if t >= 1.0 { timer.invalidate() }
+                }
+
+                // Lock to current Space after transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak panel] in
                     guard let panel, panel.isVisible else { return }
                     panel.collectionBehavior = [.fullScreenAuxiliary]
                 }
@@ -1029,18 +1053,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         dismissFrozenScreen()
 
-        // React has rendered + image decoded. Atomic swap:
-        // show WebView overlay + dismiss native in same run loop iteration.
-        // AppKit coalesces window changes within one iteration, so WindowServer
-        // composites both (orderFront + orderOut) in the same display frame.
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
+        // Crossfade: show WebView overlay at alpha=0, fade in over 80ms,
+        // then dismiss native. Masks the inherent color difference between
+        // WKWebView's screenshot rendering and the real screen.
+        guard let overlay = overlayPanel else { return }
+        overlay.alphaValue = 0
         showOverlay()
-        nativeSelectionOverlay?.dismiss()
-        nativeSelectionOverlay = nil
-        CATransaction.commit()
+
+        let startTime = CACurrentMediaTime()
+        let duration = 0.08
+        Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { [weak self] timer in
+            let t = min((CACurrentMediaTime() - startTime) / duration, 1.0)
+            overlay.alphaValue = CGFloat(t)
+            if t >= 1.0 {
+                timer.invalidate()
+                overlay.alphaValue = 1
+                self?.nativeSelectionOverlay?.dismiss()
+                self?.nativeSelectionOverlay = nil
+                NSLog("[App] Overlay rendered — crossfade complete")
+            }
+        }
         updateVisibleWindowFlag()
-        NSLog("[App] Overlay rendered — atomic swap complete")
     }
 
     @objc func handleLowerOverlay() {
@@ -1118,7 +1151,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         // Check for instant (non-animated) resize — used when restoring existing chat
-        let animate = size["animate"] as? Bool ?? true
+        // JS booleans arrive as NSNumber via WebKit IPC
+        let animate: Bool = {
+            if let b = size["animate"] as? Bool { return b }
+            if let n = size["animate"] as? NSNumber { return n.boolValue }
+            return true
+        }()
         if !animate {
             panel.setFrame(targetFrame, display: true)
             NSLog("[App] Chat resized instantly to \(Int(clampedWidth))×\(Int(clampedHeight))")
@@ -1262,6 +1300,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         webView.navigationDelegate = self
 
         panel.contentView = webView
+
+        // Round the contentView layer so system shadow follows the corner radius
+        webView.wantsLayer = true
+        webView.layer?.cornerRadius = 22  // 16px CSS radius + 6px .chat-only-app padding
+        webView.layer?.masksToBounds = true
 
         if let distURL = findDistURL() {
             let indexURL = distURL.appendingPathComponent("index.html")

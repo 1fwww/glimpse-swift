@@ -374,6 +374,62 @@ These properties are intended for the chat panel only. Apply them in `prewarmCha
 #### React State Ordering
 - `resetState()` includes `setScreenImage(null)` — must be called BEFORE `setScreenImage(newUrl)` in event handlers, not after. Wrong order: set image → reset → image cleared → invisible overlay.
 
+## Chat Window Behavior (Hard-Won, 2026-04-12)
+
+### Architecture: Two Independent Chat Instances
+- **Standalone** (`ChatOnlyApp.jsx` + Swift NSPanel): window size controlled by Swift (`lastChatSize`, `resizeChatWindow`)
+- **Screenshot overlay** (`App.jsx`): chat size controlled by React (`chatFullSize`, `chatMinimized`)
+- Same `ChatPanel` component shared, but two different sizing mechanisms
+- Each has own IPC bridge (`bridgeId="main"` vs `"overlay"`), stale timer, and new-thread flag
+
+### State Flags (Swift side)
+| Flag | Standalone | Overlay | Set by |
+|---|---|---|---|
+| `lastChatDismissTime` | When chat hidden | — | `hideChat()` |
+| `lastOverlayDismissTime` | — | When overlay hidden | `hideOverlay()` |
+| `lastChatWasNewThread` | true=compact on reopen | — | `newThreadCreated` (source=main), `chatConversationStarted` (source=main) |
+| `overlayWasNewThread` | — | true=compact on reopen | `newThreadCreated` (source=overlay), `chatConversationStarted` (source=overlay) |
+| `overlayKeepThread` | — | !stale, passed to React | `handleScreenshotShortcut()` |
+
+### Critical Rules
+1. **IPC notifications MUST carry `source` bridgeId.** `chatConversationStarted` and `newThreadCreated` fire for both bridges. Without source, overlay AI replies corrupt standalone's `lastChatWasNewThread` flag → standalone opens expanded when it should be compact.
+
+2. **Don't rely on React's `tm.isNewThread` in `onScreenCaptured`.** `refreshWithHeuristic` is async — by the time `onScreenCaptured` handler reads `tm.isNewThread`, the value is stale. Use Swift's `wasNewThread` flag passed in the event data instead.
+
+3. **`cropSelection` must receive `displayInfo`/`windowOffset` as direct params.** Closure capture gets stale values (React hasn't re-rendered yet when `setTimeout(cropSelection, 50)` fires). First screenshot gets black image otherwise.
+
+4. **Re-quote `initialContext.seq` must use `Date.now()`.** Incremental counter (0→1→clear→0→text→1) cycles back to same value — `useEffect` dependency doesn't change, text doesn't update.
+
+5. **Don't `NSApp.hide` in re-quote path.** `NSApp.hide` deactivates the app, racing with the subsequent `NSApp.activate` in `showAndFocus`. Result: chat window stays behind source app.
+
+6. **`scrollToRevealLoading` must fire in compact mode too.** Removing `if (chatFullSize)` guard — compact chat also needs "Glimpsing..." visible.
+
+7. **Overlay `onThreadChange` needs wrapper.** `handleThreadChange` only calls `resizeChatWindow` (standalone-only). Overlay must also set `chatFullSize`/`chatMinimized` based on thread message count.
+
+### Compact vs Expanded Decision Flow
+```
+Standalone open:
+  isStale (>5min) OR lastChatWasNewThread → compact (380×412) + start-new-thread
+  else → restore lastChatSize
+
+Screenshot open:
+  keepThread && !wasNewThread → preserve chatFullSize/chatMinimized (continuing conversation)
+  else → chatMinimized=true, chatFullSize=false (compact new chat)
+
+"+" clicked:
+  notifyNewThread(source) → sets wasNewThread=true for that source
+  Next open → compact
+
+AI replies:
+  chatConversationStarted(source) → sets wasNewThread=false for that source
+  Next open within 5min → restores expanded size
+```
+
+### Known Fragile Patterns (Future Consolidation)
+- **Dual stale check**: Swift (`chatStaleThreshold`) and React (`STALE_THRESHOLD` in `refreshWithHeuristic`) independently check 5 minutes — can disagree
+- **`handleResizeChatWindow` cross-fire**: Both bridges post `.resizeChatWindow` notification — overlay's ChatPanel resize attempts to resize standalone NSPanel
+- **Thread data not shared**: Overlay and standalone have separate in-memory threads; only pin transition transfers data
+
 ## macOS API Quick Reference
 
 | API | Use | Gotcha |

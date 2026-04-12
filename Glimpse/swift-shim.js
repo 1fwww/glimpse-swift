@@ -129,6 +129,7 @@ window.electronAPI = {
   togglePin: () => invoke('toggle_pin'),
   showToast: (message) => invoke('show_toast', { message }),
   notifyProvidersChanged: () => invoke('notify_providers_changed'),
+  notifyNewThread: () => invoke('notify_new_thread'),
   refreshTrayMenu: () => invoke('refresh_tray_menu'),
   resizeChatWindow: (size) => {
     invoke('resize_chat_window', { size });

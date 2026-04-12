@@ -349,6 +349,10 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             NotificationCenter.default.post(name: .providersChanged, object: nil)
             return true
 
+        case "notify_new_thread":
+            NotificationCenter.default.post(name: .newThreadCreated, object: nil)
+            return true
+
         // ── Welcome / Settings windows ──
         case "close_welcome":
             NotificationCenter.default.post(name: .closeWelcome, object: nil)
@@ -459,4 +463,5 @@ extension Notification.Name {
     static let toggleSettings = Notification.Name("toggleSettings")
     static let closeSettings = Notification.Name("closeSettings")
     static let providersChanged = Notification.Name("providersChanged")
+    static let newThreadCreated = Notification.Name("newThreadCreated")
 }

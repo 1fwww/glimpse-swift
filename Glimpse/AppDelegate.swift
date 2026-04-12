@@ -2,6 +2,27 @@ import AppKit
 import WebKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+
+    // MARK: - Timing Constants (hard-won values — see CLAUDE.md before changing)
+    /// After Space switch, window positions need time to settle before capture
+    private static let spaceSettleDelay: TimeInterval = 0.3
+    /// Chat idle longer than this triggers a fresh thread on next open
+    private static let chatStaleThreshold: TimeInterval = 5 * 60
+    /// Delay before locking chat to current Space (canJoinAllSpaces → fullScreenAuxiliary)
+    private static let spaceLockDelay: TimeInterval = 0.2
+    /// Delay to restore activation policy after hiding (avoids Space switch)
+    private static let activationPolicyRestoreDelay: TimeInterval = 0.1
+    /// Safety timeout for overlayRendered callback from React
+    private static let overlayRenderedTimeout: TimeInterval = 0.5
+    /// Delay for React to render before dismissing frozen screen
+    private static let frozenScreenDismissDelay: TimeInterval = 0.05
+    /// Delay for thread data emit before pin swap
+    private static let pinThreadEmitDelay: TimeInterval = 0.15
+    /// Pin animation total duration
+    private static let pinAnimationDuration: TimeInterval = 0.4
+    /// Frame rate for custom Timer-based animations
+    private static let animationFrameInterval: TimeInterval = 1.0 / 120
+
     var chatPanel: GlimpsePanel?
     var chatWebView: WKWebView?
     var ipcBridge = IPCBridge()
@@ -11,6 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var pendingTextContext: String?
     var lastChatDismissTime: Date = .distantPast
     var lastChatSize: NSSize?
+    var lastChatWasNewThread = true
 
     // Overlay (screenshot)
     var overlayPanel: GlimpsePanel?
@@ -23,7 +45,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var nativeSelectionOverlay: NativeSelectionOverlay?
     var lastSpaceChangeTime: Date = .distantPast
     var screenshotDeferPending = false
-    private let spaceChangeSettleTime: TimeInterval = 0.3
+    private var spaceChangeSettleTime: TimeInterval { Self.spaceSettleDelay }
 
     // Welcome / onboarding
     var welcomePanel: GlimpsePanel?
@@ -101,6 +123,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleToggleSettings), name: .toggleSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseSettings), name: .closeSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleNewThreadCreated), name: .newThreadCreated, object: nil)
 
         // Track Space changes so screenshot shortcut can wait for transitions to settle
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -228,13 +251,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let src = sourceFrame, let bounds = panelBounds else { return fallback }
 
         func f(_ k: String) -> CGFloat { (bounds[k] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0 }
-        let cssX = f("x"); let cssY = f("y"); let cssW = f("w"); let cssH = f("h")
+        let cssX = f("x"); let cssY = f("y"); let cssW = f("w")
 
         // Convert CSS viewport (top-left origin) → Cocoa screen (bottom-left origin)
         let refLeft   = src.origin.x + cssX
         let refRight  = src.origin.x + cssX + cssW
         let refTop    = src.origin.y + src.height - cssY          // Cocoa y of CSS top edge
-        _ = src.origin.y + src.height - cssY - cssH   // refBottom (unused — kept for reference)
 
         // Prefer right side; fall back to left; then center
         var x = refRight + 8
@@ -272,6 +294,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func handleSpaceChange() {
         lastSpaceChangeTime = Date()
         NSLog("[App] Space changed at \(lastSpaceChangeTime)")
+    }
+
+    @objc func handleNewThreadCreated() {
+        lastChatWasNewThread = true
     }
 
     @objc func handleProvidersChanged() {
@@ -366,15 +392,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // WebView still has previous React state (messages, thread), so within
         // 5 minutes we just restore the saved size. Beyond 5 min, reset to compact
         // and tell JS to start a new thread (lightweight, no message re-render).
-        let staleThreshold: TimeInterval = 5 * 60
-        let isStale = Date().timeIntervalSince(lastChatDismissTime) >= staleThreshold
+        let isStale = Date().timeIntervalSince(lastChatDismissTime) >= Self.chatStaleThreshold
+        let compactSize = NSSize(width: 380, height: 412)
         if isStale {
             // Stale — compact size, new thread
-            let compactSize = NSSize(width: 380, height: 412)
+            panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
+            ipcBridge.emit("start-new-thread")
+            lastChatWasNewThread = true
+        } else if lastChatWasNewThread {
+            // Recent but was a new/empty thread — compact, fresh start
             panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
             ipcBridge.emit("start-new-thread")
         } else if let savedSize = lastChatSize {
-            // Recent — restore saved size, WebView already has the conversation
+            // Recent with conversation — restore saved size
             panel.setFrame(NSRect(origin: panel.frame.origin, size: savedSize), display: false)
         }
 
@@ -412,7 +442,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
 
         // After 200ms, lock to current Space (stop following across desktops)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self, weak panel] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.spaceLockDelay) { [weak self, weak panel] in
             guard let self, let panel, self.isChatShowing else { return }
             panel.collectionBehavior = [.fullScreenAuxiliary]
             NSLog("[App] Chat locked to current Space")
@@ -463,7 +493,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let startY = panel.frame.origin.y
         let startTime = CACurrentMediaTime()
         let duration = 0.35
-        Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { timer in
+        Timer.scheduledTimer(withTimeInterval: Self.animationFrameInterval, repeats: true) { timer in
             let t = min((CACurrentMediaTime() - startTime) / duration, 1.0)
             let ease = 1.0 - pow(1.0 - t, 5)
             panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
@@ -544,7 +574,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func restoreActivationPolicyIfNeeded() {
         guard NSApp.activationPolicy() == .accessory else { return }
         NSApp.hide(nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.activationPolicyRestoreDelay) {
             NSApp.setActivationPolicy(.regular)
         }
     }
@@ -767,7 +797,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     ])
                     // Do NOT show overlay here — wait for overlayRendered callback.
                     // Safety timeout: if callback never fires, swap after 500ms anyway.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.overlayRenderedTimeout) { [weak self] in
                         guard let self, self.nativeSelectionOverlay != nil else { return }
                         NSLog("[App] overlayRendered safety timeout — forcing swap")
                         self.handleOverlayRendered()
@@ -857,7 +887,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.emitCaptureToOverlay(result)
                     // Delay frozen screen dismissal to let React render the new image.
                     // evaluateJavaScript is async — React needs ~1-2 frames to process.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.frozenScreenDismissDelay) { [weak self] in
                         self?.dismissFrozenScreen()
                     }
                 } else {
@@ -907,7 +937,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         showChat()
         // Emit thread data after chat is visible
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pinThreadEmitDelay) { [weak self] in
             self?.ipcBridge.emit("load-thread-data", data: thread)
         }
     }
@@ -985,7 +1015,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.makeKey()
 
             // 3. After React renders (~150ms), reveal chat + fade overlay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.pinThreadEmitDelay) { [weak self] in
                 guard let self, let panel = self.chatPanel else { return }
 
                 // Show chat
@@ -1001,7 +1031,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let overlayPanel = self.overlayPanel
                 let fadeStart = CACurrentMediaTime()
                 let fadeDuration = 0.25
-                Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { [weak self] timer in
+                Timer.scheduledTimer(withTimeInterval: Self.animationFrameInterval, repeats: true) { [weak self] timer in
                     let t = min((CACurrentMediaTime() - fadeStart) / fadeDuration, 1.0)
                     overlayPanel?.alphaValue = CGFloat(1.0 - t)
                     if t >= 1.0 {
@@ -1017,7 +1047,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let liftDuration = 0.3
                 let liftAmount: CGFloat = 12
                 let startY = panel.frame.origin.y
-                Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { timer in
+                Timer.scheduledTimer(withTimeInterval: Self.animationFrameInterval, repeats: true) { timer in
                     let t = min((CACurrentMediaTime() - liftStart) / liftDuration, 1.0)
                     let ease = 1.0 - pow(1.0 - t, 5)
                     panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
@@ -1025,7 +1055,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
 
                 // Lock to current Space after transition
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak panel] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.pinAnimationDuration) { [weak panel] in
                     guard let panel, panel.isVisible else { return }
                     panel.collectionBehavior = [.fullScreenAuxiliary]
                 }
@@ -1077,7 +1107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             // Do NOT show overlay here — wait for overlayRendered callback.
             // Safety timeout for fullscreen path too.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.overlayRenderedTimeout) { [weak self] in
                 guard let self, self.nativeSelectionOverlay != nil else { return }
                 NSLog("[App] overlayRendered safety timeout (fullscreen) — forcing swap")
                 self.handleOverlayRendered()
@@ -1122,6 +1152,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               let width = size["width"] as? CGFloat ?? (size["width"] as? Int).map({ CGFloat($0) }),
               let height = size["height"] as? CGFloat ?? (size["height"] as? Int).map({ CGFloat($0) })
         else { return }
+
+        // Resize means AI replied — no longer a fresh/new thread
+        lastChatWasNewThread = false
 
         let currentFrame = panel.frame
 
@@ -1200,7 +1233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let startTime = CACurrentMediaTime()
         let duration = 0.4
 
-        resizeTimer = Timer(timeInterval: 1.0/120, repeats: true) { [weak self] timer in
+        resizeTimer = Timer(timeInterval: Self.animationFrameInterval, repeats: true) { [weak self] timer in
             let elapsed = CACurrentMediaTime() - startTime
             let t = min(elapsed / duration, 1.0)
 

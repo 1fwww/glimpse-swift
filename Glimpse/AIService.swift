@@ -156,7 +156,9 @@ class AIService {
         url.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: url)
-        let httpResp = response as! HTTPURLResponse
+        guard let httpResp = response as? HTTPURLResponse else {
+            throw APIError.httpError(0, "Invalid response")
+        }
 
         if httpResp.statusCode == 401 {
             throw APIError.unauthorized
@@ -207,7 +209,9 @@ class AIService {
         url.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: url)
-        let httpResp = response as! HTTPURLResponse
+        guard let httpResp = response as? HTTPURLResponse else {
+            throw APIError.httpError(0, "Invalid response")
+        }
 
         if httpResp.statusCode == 401 {
             throw APIError.unauthorized
@@ -257,7 +261,9 @@ class AIService {
         url.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: url)
-        let httpResp = response as! HTTPURLResponse
+        guard let httpResp = response as? HTTPURLResponse else {
+            throw APIError.httpError(0, "Invalid response")
+        }
 
         if httpResp.statusCode == 400 || httpResp.statusCode == 403 {
             throw APIError.unauthorized

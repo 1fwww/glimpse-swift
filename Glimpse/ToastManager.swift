@@ -78,27 +78,6 @@ class ToastManager {
         }
     }
 
-    /// Draw green checkmark matching Tauri's SVG: stroke rgb(52,199,89), strokeWidth 2.5
-    private func drawCheckmark(size: CGFloat) -> NSImage {
-        let img = NSImage(size: NSSize(width: size, height: size))
-        img.lockFocus()
-
-        let path = NSBezierPath()
-        // SVG viewBox 0 0 24 24, path: M20 6L9 17l-5-5 — scale to `size`
-        let s = size / 24.0
-        path.move(to: NSPoint(x: 20 * s, y: size - 6 * s))    // M20,6 → flipped y
-        path.line(to: NSPoint(x: 9 * s, y: size - 17 * s))     // L9,17
-        path.line(to: NSPoint(x: 4 * s, y: size - 12 * s))     // l-5,-5 → L4,12
-
-        NSColor(calibratedRed: 52/255, green: 199/255, blue: 89/255, alpha: 1.0).setStroke()
-        path.lineWidth = 2.5 * s
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        path.stroke()
-
-        img.unlockFocus()
-        return img
-    }
 }
 
 /// Custom-drawn toast content — background, checkmark, and text via Core Graphics.

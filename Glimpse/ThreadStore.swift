@@ -65,21 +65,15 @@ class ThreadStore {
     private func pruneOldThreads() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: threadsDir, includingPropertiesForKeys: nil) else { return }
+        let jsonFiles = files.filter { $0.pathExtension == "json" }
+        guard jsonFiles.count > maxThreads else { return }
 
-        var threadFiles: [(url: URL, updatedAt: String)] = []
-        for file in files where file.pathExtension == "json" {
-            if let data = try? Data(contentsOf: file),
-               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let updatedAt = dict["updatedAt"] as? String {
-                threadFiles.append((file, updatedAt))
-            }
-        }
-
-        threadFiles.sort { $0.updatedAt > $1.updatedAt }
-
-        if threadFiles.count > maxThreads {
-            for file in threadFiles[maxThreads...] {
-                try? fm.removeItem(at: file.url)
+        // Reuse getThreads() for sort order, then delete anything not in the kept set
+        let keptIDs = Set(getThreads().compactMap { $0["id"] as? String })
+        for file in jsonFiles {
+            let id = file.deletingPathExtension().lastPathComponent
+            if !keptIDs.contains(id) {
+                try? fm.removeItem(at: file)
             }
         }
     }

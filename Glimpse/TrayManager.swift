@@ -41,7 +41,7 @@ class TrayManager {
         // Recent threads
         if let threads = threadStore?.getThreads(), !threads.isEmpty {
             menu.addItem(.separator())
-            for thread in threads.prefix(5) {
+            for thread in threads {
                 let title = thread["title"] as? String ?? "Untitled"
                 let id = thread["id"] as? String ?? ""
                 let item = NSMenuItem(title: title, action: #selector(threadAction(_:)), keyEquivalent: "")

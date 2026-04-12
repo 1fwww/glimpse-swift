@@ -20,7 +20,9 @@ struct SpaceDetector {
         let cid = CGSMainConnectionID()
         let activeSpace = CGSGetActiveSpace(cid)
         let spaceType = CGSSpaceGetType(cid, activeSpace)
+        #if DEBUG
         NSLog("[Space] activeSpace=\(activeSpace), type=\(spaceType)")
+        #endif
         return spaceType == 4
     }
 }

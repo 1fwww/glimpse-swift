@@ -289,6 +289,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ipcBridge.webView = webView
         panel.orderOut(nil)
 
+        // Chat-specific styling: shadow + rounded corners (not for overlay)
+        panel.hasShadow = true
+        webView.layer?.cornerRadius = 16  // matches CSS --radius-lg
+        webView.layer?.masksToBounds = true
+
         self.chatPanel = panel
         self.chatWebView = webView
         NSLog("[App] Chat panel pre-warmed (hidden)")
@@ -296,7 +301,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var isRecreatingForFullscreen = false
     private var onChatReadyAction: (() -> Void)? = nil  // custom action when chat WebView loads (for pin swap)
-    private var chatFadeTimer: Timer?
 
     func showChat() {
         let isFullscreen = SpaceDetector.isFullscreenSpace()
@@ -347,12 +351,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show with CanJoinAllSpaces for initial visibility on any Space
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Reset frontend state BEFORE showing — clear stale screenshot, pin, and
-        // text-context from previous session. JS runs on hidden WebView so React
+        // Reset frontend state BEFORE showing — JS runs on hidden WebView so React
         // updates DOM before window is visible. No flash.
         ipcBridge.emit("pin-state", data: isPinned)
         ipcBridge.emit("clear-screenshot")
+        // Emit text context NOW (before show) so it renders with the window.
+        // clear-text-context first to reset, then set new context if pending.
         ipcBridge.emit("clear-text-context")
+        if let text = pendingTextContext {
+            pendingTextContext = nil
+            ipcBridge.emit("text-context", data: text)
+        }
         // Let frontend decide size based on whether it has messages
         ipcBridge.emit("check-size")
 
@@ -372,31 +381,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         updateVisibleWindowFlag()
 
-        // Fade in (200ms, ease-out)
-        chatFadeTimer?.invalidate()
-        let startTime = CACurrentMediaTime()
-        let duration = 0.2
-        chatFadeTimer = Timer(timeInterval: 1.0/120, repeats: true) { [weak self] timer in
-            let elapsed = CACurrentMediaTime() - startTime
-            let t = min(elapsed / duration, 1.0)
-            // ease-out curve: 1 - (1-t)^2
-            let eased = 1.0 - (1.0 - t) * (1.0 - t)
-            panel.alphaValue = CGFloat(eased)
-            if t >= 1.0 {
-                timer.invalidate()
-                self?.chatFadeTimer = nil
-            }
-        }
-        RunLoop.main.add(chatFadeTimer!, forMode: .common)
+        // Fade in (100ms, ease-out) — NSAnimationContext for smooth GPU-backed animation
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.1
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1.0
+        })
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
-
-        // Emit pending text context after chat is visible
-        if let text = pendingTextContext {
-            pendingTextContext = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.ipcBridge.emit("text-context", data: text)
-            }
-        }
 
         // After 200ms, lock to current Space (stop following across desktops)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak panel] in
@@ -410,29 +401,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsPanel?.isVisible == true { hideSettings() }
         guard let panel = chatPanel else { return }
 
-        // Fade out (120ms, ease-in) then clean up
-        chatFadeTimer?.invalidate()
-        let startTime = CACurrentMediaTime()
-        let duration = 0.12
-        chatFadeTimer = Timer(timeInterval: 1.0/120, repeats: true) { [weak self] timer in
-            let elapsed = CACurrentMediaTime() - startTime
-            let t = min(elapsed / duration, 1.0)
-            // ease-in curve: t^2
-            let eased = t * t
-            panel.alphaValue = CGFloat(1.0 - eased)
-            if t >= 1.0 {
-                timer.invalidate()
-                self?.chatFadeTimer = nil
-                panel.orderOut(nil)
-                panel.alphaValue = 1  // reset for next show
-                self?.isPinned = false
-                self?.updateVisibleWindowFlag()
-                self?.restoreActivationPolicyIfNeeded()
-                NSApp.hide(nil)
-                NSLog("[App] Chat hidden")
-            }
-        }
-        RunLoop.main.add(chatFadeTimer!, forMode: .common)
+        // Clear transient state while WebView is still visible — by the next
+        // showChat(), React will have already processed these, no stale flash.
+        ipcBridge.emit("clear-text-context")
+        ipcBridge.emit("clear-screenshot")
+
+        // Fade out (80ms, ease-in) then clean up — GPU-backed
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.08
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            panel.orderOut(nil)
+            panel.alphaValue = 1  // reset for next show
+            self?.isPinned = false
+            self?.updateVisibleWindowFlag()
+            self?.restoreActivationPolicyIfNeeded()
+            NSApp.hide(nil)
+            NSLog("[App] Chat hidden")
+        })
     }
 
     func togglePin() {
@@ -1063,33 +1050,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         dismissFrozenScreen()
 
-        // Crossfade: show WebView overlay at alpha=0, fade in over 80ms,
-        // then dismiss native. Masks the inherent color difference between
-        // WKWebView's screenshot rendering and the real screen.
-        guard let overlay = overlayPanel else { return }
-
-        // Set alpha=0 BEFORE showing, in a CATransaction to prevent any flash
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        overlay.alphaValue = 0
+        // React has rendered + image decoded. Atomic swap:
+        // show WebView overlay + dismiss native in one run loop iteration.
         showOverlay()
-        CATransaction.commit()
-
-        // Fade in over 80ms
-        let startTime = CACurrentMediaTime()
-        let duration = 0.08
-        Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { [weak self] timer in
-            let t = min((CACurrentMediaTime() - startTime) / duration, 1.0)
-            overlay.alphaValue = CGFloat(t)
-            if t >= 1.0 {
-                timer.invalidate()
-                overlay.alphaValue = 1
-                self?.nativeSelectionOverlay?.dismiss()
-                self?.nativeSelectionOverlay = nil
-                NSLog("[App] Overlay rendered — crossfade complete")
-            }
-        }
+        nativeSelectionOverlay?.dismiss()
+        nativeSelectionOverlay = nil
         updateVisibleWindowFlag()
+        NSLog("[App] Overlay rendered — atomic swap complete")
     }
 
     @objc func handleLowerOverlay() {
@@ -1316,11 +1283,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         webView.navigationDelegate = self
 
         panel.contentView = webView
-
-        // Round the contentView layer so system shadow follows the corner radius
         webView.wantsLayer = true
-        webView.layer?.cornerRadius = 16  // matches CSS --radius-lg
-        webView.layer?.masksToBounds = true
 
         if let distURL = findDistURL() {
             let indexURL = distURL.appendingPathComponent("index.html")

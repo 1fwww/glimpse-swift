@@ -289,11 +289,17 @@ React's hover detection only fires on `mousemove`. To auto-highlight the window 
 The handoff from native selection to WebView overlay required multiple iterations to eliminate flash:
 1. **Fixed delay (150ms)**: Emit to hidden WebView → wait 150ms → swap. Flash on fast screenshots when React hadn't finished rendering.
 2. **Show WebView behind native**: Tried `orderFrontRegardless` at lower window level. `makeKeyAndOrderFront` + `NSApp.activate` in `showOverlay()` disrupted the native overlay, causing WORSE flash.
-3. **`overlayRendered` callback** (final solution): React signals Swift after render + image decode (`setTimeout(50ms)` + `Image.onload`). Swift does CATransaction swap. Zero flash, faster than 150ms fixed delay (~107ms total). 500ms safety timeout as fallback.
+3. **`overlayRendered` callback** (final solution): React signals Swift after render + image decode (`setTimeout(50ms)` + `Image.onload`). Swift calls `showOverlay()` + `nativeSelectionOverlay.dismiss()`. 500ms safety timeout as fallback.
 
-**Key decision**: Emit to HIDDEN WebView, not visible. JS executes on ordered-out WKWebViews. The backing store updates even when hidden (unlike GPU compositing which is deferred). CATransaction groups `orderFront` + `orderOut` in the same display frame.
+**Key decision**: Emit to HIDDEN WebView, not visible. JS executes on ordered-out WKWebViews. The backing store updates even when hidden (unlike GPU compositing which is deferred).
 
 **Failed approach**: Showing WebView at a lower level "behind" native overlay for pre-painting. Any call to `showAndFocus()`/`NSApp.activate()` disrupts the native overlay's visual state, and setting the window level AFTER `makeKeyAndOrderFront` means there's at least one frame at the wrong level.
+
+**CRITICAL — hasShadow/cornerRadius cause flash on overlay (hard-won)**:
+`GlimpsePanel.hasShadow = true` and `WKWebView.layer.cornerRadius + masksToBounds` MUST NOT be applied to the overlay panel. When applied to a full-screen overlay:
+- `hasShadow = true` forces the window server to compute shadow compositing on first show, adding an extra compositor frame that produces a visible flash.
+- `cornerRadius + masksToBounds` clips the full-screen WebView at the corners and changes the compositor's code path, compounding the flash.
+These properties are intended for the chat panel only. Apply them in `prewarmChat()` after creating the panel, NOT in `createWebView()` or `GlimpsePanel.init`. If you add any visual styling to GlimpsePanel or createWebView, verify it doesn't affect the overlay — the overlay MUST be a plain borderless panel with `hasShadow = false` and no layer masking.
 
 **Key gotchas**:
 - Must use `NSPanel` subclass (not NSWindow) — NSWindow can't become key in `.accessory` activation policy
@@ -302,7 +308,7 @@ The handoff from native selection to WebView overlay required multiple iteration
 - Crosshair cursor: use `resetCursorRects` + `cursorUpdate` + `NSCursor.crosshair.set()` in mouseMoved (all three needed for consistency)
 - Desktop entry in window bounds must be excluded from hover detection but used as click fallback for full-screen selection
 - 5px drag threshold distinguishes click (snap) from drag (free-form)
-- `draw()` must check `currentRect.width > 2` (not `hasDraggedPastThreshold`) for cutout — `hasDraggedPastThreshold` is reset on mouseUp, clearing the selection cutout for one frame
+- `draw()` must check `currentRect.width > 2` (not `hasDraggedPastThreshold`) for BOTH cutout AND toast visibility — `hasDraggedPastThreshold` is reset on mouseUp, so any condition using it will flicker on redraw after selection completes
 
 #### Screenshot Performance
 **JPEG + file URL** instead of PNG + base64:
@@ -382,3 +388,6 @@ The handoff from native selection to WebView overlay required multiple iteration
 | `evaluateJavaScript` | Swift→JS events | Async; delay frozen screen dismissal 50ms for React render |
 | `NSWindow.backgroundColor(.001 alpha)` | Transparent but clickable | Fully `.clear` passes clicks through to windows behind |
 | `acceptsFirstMouse(for:)` | Click-through | Override on NSView for immediate click reception |
+| `NSAnimationContext` | Window fade in/out | GPU-backed; use instead of manual Timer for smooth animation |
+| `NSWindow.hasShadow` | Window shadow | Adds compositor overhead; do NOT enable on full-screen overlays |
+| `CALayer.cornerRadius` | Rounded corners | With `masksToBounds`, changes compositor path; chat-only, not overlay |

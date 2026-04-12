@@ -1135,6 +1135,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             height: clampedHeight
         )
 
+        // No-op if already at target size — resolve immediately
+        if abs(currentFrame.width - clampedWidth) < 1 && abs(currentFrame.height - clampedHeight) < 1 {
+            chatWebView?.evaluateJavaScript("window._onResizeComplete && window._onResizeComplete()")
+            return
+        }
+
         // Check for instant (non-animated) resize — used when restoring existing chat
         // JS booleans arrive as NSNumber via WebKit IPC
         let animate: Bool = {

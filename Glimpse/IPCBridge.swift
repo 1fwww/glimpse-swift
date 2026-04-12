@@ -4,6 +4,7 @@ import WebKit
 /// JS sends: window.webkit.messageHandlers.glimpse.postMessage({command, args, callbackId})
 /// Swift responds: webView.evaluateJavaScript("window._glimpseResolve(callbackId, result)")
 class IPCBridge: NSObject, WKScriptMessageHandler {
+    var bridgeId: String = "main"  // "main" for standalone chat, "overlay" for screenshot overlay
     weak var webView: WKWebView?
     var settingsStore: SettingsStore!
     var threadStore: ThreadStore!
@@ -60,7 +61,14 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             guard let apiKey = settingsStore.getKeyForProvider(provider) else {
                 return ["success": false, "error": "No API key configured", "code": "auth_error"]
             }
-            return await aiService.chatWithAI(messages: messages, provider: provider, modelId: modelId, apiKey: apiKey)
+            let result = await aiService.chatWithAI(messages: messages, provider: provider, modelId: modelId, apiKey: apiKey)
+            if let success = result["success"] as? Bool, success {
+                let source = self.bridgeId
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .chatConversationStarted, object: nil, userInfo: ["source": source])
+                }
+            }
+            return result
 
         case "generate_title":
             guard let messages = args["messages"] as? [[String: Any]],
@@ -350,7 +358,7 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             return true
 
         case "notify_new_thread":
-            NotificationCenter.default.post(name: .newThreadCreated, object: nil)
+            NotificationCenter.default.post(name: .newThreadCreated, object: nil, userInfo: ["source": bridgeId])
             return true
 
         // ── Welcome / Settings windows ──
@@ -464,4 +472,5 @@ extension Notification.Name {
     static let closeSettings = Notification.Name("closeSettings")
     static let providersChanged = Notification.Name("providersChanged")
     static let newThreadCreated = Notification.Name("newThreadCreated")
+    static let chatConversationStarted = Notification.Name("chatConversationStarted")
 }

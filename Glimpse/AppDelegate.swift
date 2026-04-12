@@ -37,7 +37,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Overlay (screenshot)
     var overlayPanel: GlimpsePanel?
     var overlayWebView: WKWebView?
-    var overlayIPC = IPCBridge()
+    var overlayIPC: IPCBridge = { let b = IPCBridge(); b.bridgeId = "overlay"; return b }()
     var overlayReady = false
     var pendingCaptureResult: ScreenCapture.CaptureResult?
     var pendingSelection: [String: Any]?
@@ -45,6 +45,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var nativeSelectionOverlay: NativeSelectionOverlay?
     var lastSpaceChangeTime: Date = .distantPast
     var screenshotDeferPending = false
+    var lastOverlayDismissTime: Date = .distantPast
+    var overlayKeepThread = false
+    var overlayWasNewThread = true
     private var spaceChangeSettleTime: TimeInterval { Self.spaceSettleDelay }
 
     // Welcome / onboarding
@@ -124,6 +127,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseSettings), name: .closeSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleNewThreadCreated), name: .newThreadCreated, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleConversationStarted), name: .chatConversationStarted, object: nil)
 
         // Track Space changes so screenshot shortcut can wait for transitions to settle
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -296,8 +300,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Space changed at \(lastSpaceChangeTime)")
     }
 
-    @objc func handleNewThreadCreated() {
-        lastChatWasNewThread = true
+    @objc func handleNewThreadCreated(_ notification: Notification) {
+        let source = notification.userInfo?["source"] as? String ?? "main"
+        if source == "overlay" {
+            overlayWasNewThread = true
+        } else {
+            lastChatWasNewThread = true
+        }
+    }
+
+    @objc func handleConversationStarted(_ notification: Notification) {
+        let source = notification.userInfo?["source"] as? String ?? "main"
+        if source == "overlay" {
+            overlayWasNewThread = false
+        } else {
+            lastChatWasNewThread = false
+        }
     }
 
     @objc func handleProvidersChanged() {
@@ -553,8 +571,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func hideOverlay() {
         if settingsPanel?.isVisible == true { hideSettings() }
         dismissFrozenScreen()
-        // Reset BEFORE orderOut — JS won't execute on hidden WebViews
-        overlayIPC.emit("reset-overlay")
+        lastOverlayDismissTime = Date()
         overlayPanel?.orderOut(nil)
         updateVisibleWindowFlag()
         restoreActivationPolicyIfNeeded()
@@ -639,7 +656,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             isChatShowing = false
             isPinned = false
             updateVisibleWindowFlag()
-            NSApp.hide(nil)
         }
 
         // Grab selected text BEFORE showing chat (source app still has focus).
@@ -718,8 +734,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
         // Prewarm WebView overlay in parallel (for post-selection annotations/chat)
+        let overlayStale = Date().timeIntervalSince(lastOverlayDismissTime) >= Self.chatStaleThreshold
+        overlayKeepThread = !overlayStale
         if overlayReady && !isFullscreen {
-            overlayIPC.emit("reset-overlay")
+            overlayIPC.emit(overlayStale ? "reset-overlay" : "reset-overlay-keep-thread")
             overlayPanel?.orderOut(nil)
         } else {
             overlayPanel?.orderOut(nil)
@@ -793,7 +811,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         "offset": result.offset,
                         "cursorX": result.cursorX,
                         "cursorY": result.cursorY,
-                        "selection": selectionData
+                        "selection": selectionData,
+                        "keepThread": self.overlayKeepThread,
+                        "wasNewThread": self.overlayWasNewThread
                     ])
                     // Do NOT show overlay here — wait for overlayRendered callback.
                     // Safety timeout: if callback never fires, swap after 500ms anyway.
@@ -1152,9 +1172,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               let width = size["width"] as? CGFloat ?? (size["width"] as? Int).map({ CGFloat($0) }),
               let height = size["height"] as? CGFloat ?? (size["height"] as? Int).map({ CGFloat($0) })
         else { return }
-
-        // Resize means AI replied — no longer a fresh/new thread
-        lastChatWasNewThread = false
 
         let currentFrame = panel.frame
 

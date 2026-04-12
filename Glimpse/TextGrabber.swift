@@ -54,6 +54,7 @@ class TextGrabber {
             return .noSelection
         }
 
+        NSLog("[TextGrab] AX success, text length=\(text.count)")
         return .success(text)
     }
 

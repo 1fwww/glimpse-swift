@@ -7,7 +7,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var ipcBridge = IPCBridge()
     var chatReady = false
     var isPinned = false
+    var isChatShowing = false
     var pendingTextContext: String?
+    var lastChatDismissTime: Date = .distantPast
+    var lastChatSize: NSSize?
 
     // Overlay (screenshot)
     var overlayPanel: GlimpsePanel?
@@ -310,7 +313,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Must destroy and recreate to associate with current fullscreen Space.
         // Also need Accessory policy so macOS doesn't switch Spaces when we show.
         if isFullscreen && !isRecreatingForFullscreen {
-            if let panel = chatPanel, !panel.isVisible {
+            if let panel = chatPanel, !isChatShowing {
                 NSLog("[App] Fullscreen detected — recreating chat panel")
                 panel.orderOut(nil)
                 chatPanel = nil
@@ -352,24 +355,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show with CanJoinAllSpaces for initial visibility on any Space
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Reset frontend state BEFORE showing — JS runs on hidden WebView so React
-        // updates DOM before window is visible. No flash.
+
+        // Lightweight state resets (no React re-render)
         ipcBridge.emit("pin-state", data: isPinned)
         ipcBridge.emit("clear-screenshot")
-        // Emit text context NOW (before show) so it renders with the window.
-        // clear-text-context first to reset, then set new context if pending.
         ipcBridge.emit("clear-text-context")
-        if let text = pendingTextContext {
-            pendingTextContext = nil
-            ipcBridge.emit("text-context", data: text)
+
+        // Decide chat size from Swift — avoids heavy JS check-size round-trip.
+        // WebView still has previous React state (messages, thread), so within
+        // 5 minutes we just restore the saved size. Beyond 5 min, reset to compact
+        // and tell JS to start a new thread (lightweight, no message re-render).
+        let staleThreshold: TimeInterval = 5 * 60
+        let isStale = Date().timeIntervalSince(lastChatDismissTime) >= staleThreshold
+        if isStale {
+            // Stale — compact size, new thread
+            let compactSize = NSSize(width: 380, height: 412)
+            panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
+            ipcBridge.emit("start-new-thread")
+        } else if let savedSize = lastChatSize {
+            // Recent — restore saved size, WebView already has the conversation
+            panel.setFrame(NSRect(origin: panel.frame.origin, size: savedSize), display: false)
         }
-        // Let frontend decide size based on whether it has messages
-        ipcBridge.emit("check-size")
 
         // Floating only when pinned or on fullscreen (fullscreen needs floating to stay above)
         panel.level = (isPinned || isFullscreen) ? .floating : .normal
 
-        // Start invisible for fade-in
+        // Emit text-context — queued via main.async like the other emits
+        if let text = pendingTextContext {
+            pendingTextContext = nil
+            ipcBridge.emit("text-context", data: text)
+        }
+
+        // Show at alpha=0 — invisible but in compositor, WebKit paints.
         panel.alphaValue = 0
 
         if isFullscreen {
@@ -380,19 +397,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             panel.showAndFocus()
         }
+        isChatShowing = true
         updateVisibleWindowFlag()
 
-        // Fade in (100ms, ease-out) — NSAnimationContext for smooth GPU-backed animation
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.1
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1.0
-        })
+        // Reveal after emits have been dispatched. All emits use
+        // DispatchQueue.main.async, so they run BEFORE this block (FIFO).
+        // By the time alpha=1, evaluateJavaScript for text-context has been
+        // called — React setState is synchronous within that JS execution,
+        // so the DOM update completes before the next paint.
+        DispatchQueue.main.async {
+            panel.alphaValue = 1
+        }
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
 
         // After 200ms, lock to current Space (stop following across desktops)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak panel] in
-            guard let panel, panel.isVisible else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self, weak panel] in
+            guard let self, let panel, self.isChatShowing else { return }
             panel.collectionBehavior = [.fullScreenAuxiliary]
             NSLog("[App] Chat locked to current Space")
         }
@@ -402,19 +422,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsPanel?.isVisible == true { hideSettings() }
         guard let panel = chatPanel else { return }
 
+        // Remember state for next showChat — avoids heavy JS work on re-show
+        lastChatDismissTime = Date()
+        lastChatSize = panel.frame.size
+
         // Clear transient state while WebView is still visible — by the next
         // showChat(), React will have already processed these, no stale flash.
         ipcBridge.emit("clear-text-context")
         ipcBridge.emit("clear-screenshot")
 
-        // Fade out (80ms, ease-in) then clean up — GPU-backed
+        // Fade out (80ms, ease-in) — keep window in compositor tree at alpha=0
+        // instead of orderOut, so the backing store (IOSurface) stays in GPU memory.
+        // Re-showing is then a pure alpha change with no compositor re-acquisition stall.
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.08
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            panel.orderOut(nil)
-            panel.alphaValue = 1  // reset for next show
+            // Move off-screen so invisible window doesn't intercept mouse events
+            panel.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+            self?.isChatShowing = false
             self?.isPinned = false
             self?.updateVisibleWindowFlag()
             self?.restoreActivationPolicyIfNeeded()
@@ -506,7 +533,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Update ShortcutManager's flag so ESC is consumed only when we have visible windows.
     private func updateVisibleWindowFlag() {
         shortcutManager.hasVisibleWindow =
-            (chatPanel?.isVisible == true) || (overlayPanel?.isVisible == true) ||
+            isChatShowing || (overlayPanel?.isVisible == true) ||
             (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true) ||
             (frozenScreenWindow?.isVisible == true) || (nativeSelectionOverlay != nil)
     }
@@ -562,17 +589,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showChat()
             return
         }
-        // If chat is visible and key on this Space, just focus it.
-        if let panel = chatPanel, panel.isVisible {
+        // If chat is showing, either refocus or re-quote.
+        if let panel = chatPanel, isChatShowing {
             if panel.isKeyWindow {
                 panel.makeKey()
                 NSApp.activate(ignoringOtherApps: true)
                 return
             }
-            // Clear stale text context BEFORE hiding — JS runs on visible WebView,
-            // so React clears the UI before orderOut. No flash on re-show.
+            // Chat visible but not key — user is in another app and wants to re-quote.
+            // Synchronous hide (no fade) to avoid race: hideChat's async completion
+            // would orderOut the panel AFTER showChat re-shows it.
+            lastChatDismissTime = Date()
+            lastChatSize = panel.frame.size
             ipcBridge.emit("clear-text-context")
-            hideChat()
+            ipcBridge.emit("clear-screenshot")
+            panel.alphaValue = 0
+            panel.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+            isChatShowing = false
+            isPinned = false
+            updateVisibleWindowFlag()
+            NSApp.hide(nil)
         }
 
         // Grab selected text BEFORE showing chat (source app still has focus).
@@ -642,7 +678,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Hide chat before capture so it doesn't appear in the screenshot.
-        let chatWasVisible = chatPanel?.isVisible == true
+        let chatWasVisible = isChatShowing
         if chatWasVisible {
             chatPanel?.orderOut(nil)
             isPinned = false
@@ -839,7 +875,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Frozen screen = screenshot in progress, ESC cancels it
         if frozenScreenWindow != nil { dismissFrozenScreen(); return }
         if let panel = overlayPanel,  panel.isVisible { hideOverlay();  return }
-        if let panel = chatPanel,     panel.isVisible { hideChat();     return }
+        if isChatShowing { hideChat(); return }
         if let panel = welcomePanel,  panel.isVisible { hideWelcome() }
     }
 
@@ -954,6 +990,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 // Show chat
                 panel.alphaValue = 1
                 panel.level = .floating
+                self.isChatShowing = true
+                self.updateVisibleWindowFlag()
                 if !isFullscreen {
                     NSApp.activate(ignoringOtherApps: true)
                 }

@@ -36,11 +36,13 @@ class TextGrabber {
 
         let appRef = AXUIElementCreateApplication(frontApp.processIdentifier)
 
+        let t0 = CACurrentMediaTime()
         var focusedElement: AnyObject?
         let focusResult = AXUIElementCopyAttributeValue(
             appRef, kAXFocusedUIElementAttribute as CFString, &focusedElement)
+        let axMs = (CACurrentMediaTime() - t0) * 1000
         guard focusResult == .success, let element = focusedElement else {
-            NSLog("[TextGrab] focusedElement failed (\(focusResult.rawValue))")
+            NSLog("[TextGrab] focusedElement failed (\(focusResult.rawValue)) [%.1fms]", axMs)
             return .appFailed
         }
 
@@ -55,19 +57,20 @@ class TextGrabber {
         return .success(text)
     }
 
-    /// Cmd+C simulation fallback. Must be called from a background thread
-    /// (uses Thread.sleep + DispatchQueue.main.sync). May beep if nothing selected.
+    /// Cmd+C simulation fallback. Must be called from a background thread.
+    /// All clipboard ops run on the background thread (NSPasteboard is thread-safe
+    /// for these operations) to avoid blocking the main thread's run loop, which
+    /// would cause Core Animation frame drops on the subsequent fade-in.
     func grabViaCmdC() -> String? {
+        let t0 = CACurrentMediaTime()
         let pasteboard = NSPasteboard.general
         let originalString = pasteboard.string(forType: .string)
         let originalChangeCount = pasteboard.changeCount
 
         // Write sentinel to detect clipboard change
         let sentinel = "__glimpse_\(ProcessInfo.processInfo.systemUptime)"
-        DispatchQueue.main.sync {
-            pasteboard.clearContents()
-            pasteboard.setString(sentinel, forType: .string)
-        }
+        pasteboard.clearContents()
+        pasteboard.setString(sentinel, forType: .string)
 
         simulateCmdC()
 
@@ -85,17 +88,16 @@ class TextGrabber {
         }
 
         // Restore original clipboard
-        DispatchQueue.main.sync {
-            pasteboard.clearContents()
-            if let original = originalString {
-                pasteboard.setString(original, forType: .string)
-            }
+        pasteboard.clearContents()
+        if let original = originalString {
+            pasteboard.setString(original, forType: .string)
         }
 
+        let cmdCMs = (CACurrentMediaTime() - t0) * 1000
         if let text = grabbed {
-            NSLog("[TextGrab] Cmd+C grabbed \(text.count) chars")
+            NSLog("[TextGrab] Cmd+C grabbed \(text.count) chars [%.1fms]", cmdCMs)
         } else {
-            NSLog("[TextGrab] Cmd+C: nothing selected")
+            NSLog("[TextGrab] Cmd+C: nothing selected [%.1fms]", cmdCMs)
         }
         return grabbed
     }

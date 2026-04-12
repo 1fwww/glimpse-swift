@@ -279,7 +279,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Chat Panel
 
     func prewarmChat() {
-        let panel = GlimpsePanel(size: NSSize(width: 432, height: 412))
+        let panel = GlimpsePanel(size: NSSize(width: 380, height: 412))
         let webView = createWebView(
             in: panel,
             bridge: ipcBridge,
@@ -289,10 +289,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ipcBridge.webView = webView
         panel.orderOut(nil)
 
-        // Chat-specific styling: shadow + rounded corners (not for overlay)
+        // Chat-specific styling: shadow + rounded corners (not for overlay).
+        // cornerRadius 20 matches CSS .chat-only-inner.pinned (20px).
+        // masksToBounds OFF so CSS outer box-shadow (brand glow) renders.
         panel.hasShadow = true
-        webView.layer?.cornerRadius = 16  // matches CSS --radius-lg
-        webView.layer?.masksToBounds = true
+        webView.layer?.cornerRadius = 20
 
         self.chatPanel = panel
         self.chatWebView = webView
@@ -429,12 +430,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = isPinned ? .floating : .normal
         ipcBridge.emit("pin-state", data: isPinned)
 
-        // Lift/sink animation (300ms ease-out quintic)
+        // Lift/sink animation (350ms ease-out quintic)
         let liftAmount: CGFloat = isPinned ? 12 : -12
         let startY = panel.frame.origin.y
         let startTime = CACurrentMediaTime()
+        let duration = 0.35
         Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { timer in
-            let t = min((CACurrentMediaTime() - startTime) / 0.3, 1.0)
+            let t = min((CACurrentMediaTime() - startTime) / duration, 1.0)
             let ease = 1.0 - pow(1.0 - t, 5)
             panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
             if t >= 1.0 { timer.invalidate() }

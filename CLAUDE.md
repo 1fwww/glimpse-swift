@@ -57,6 +57,30 @@ The React frontend source lives in `../glimpse-tauri/src/` and builds to `dist/`
 cd ../glimpse-tauri && npm run build && rm -rf ../glimpse-swift/dist && cp -r dist ../glimpse-swift/dist
 ```
 
+**CRITICAL**: After `swift build`, you must also copy `dist/` into the app bundle. `swift build` does NOT do this automatically. Without this step, frontend changes won't take effect:
+```bash
+rm -rf .build/Glimpse.app/Contents/Resources/dist && cp -r dist .build/Glimpse.app/Contents/Resources/dist
+```
+
+### New User Test (Welcome Flow)
+Simulates a fresh install to test the welcome/onboarding flow. Three things must be cleared:
+1. **UserDefaults** (`hasCompletedWelcome` flag)
+2. **WKWebView localStorage** (`welcome-step`, `welcome-session` — persists in WebKit cache)
+3. **User data stays** — do NOT delete `~/Library/Application Support/glimpse/` (API keys needed)
+
+```bash
+pkill -f "[Gg]limpse"
+defaults write com.yifuwu.glimpse hasCompletedWelcome -bool false
+rm -rf ~/Library/WebKit/com.yifuwu.glimpse
+rm -rf ~/Library/Caches/com.yifuwu.glimpse
+.build/Glimpse.app/Contents/MacOS/Glimpse
+```
+
+To restore after testing:
+```bash
+defaults write com.yifuwu.glimpse hasCompletedWelcome -bool true
+```
+
 ## Architecture
 
 ### File Structure

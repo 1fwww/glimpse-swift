@@ -438,11 +438,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func togglePin() {
         isPinned.toggle()
         NSLog("[App] Pin toggled: \(isPinned)")
-        if let panel = chatPanel {
-            panel.level = isPinned ? .floating : .normal
-        }
-        // Notify frontend
+        guard let panel = chatPanel else { return }
+        panel.level = isPinned ? .floating : .normal
         ipcBridge.emit("pin-state", data: isPinned)
+
+        // Lift/sink animation (300ms ease-out quintic)
+        let liftAmount: CGFloat = isPinned ? 12 : -12
+        let startY = panel.frame.origin.y
+        let startTime = CACurrentMediaTime()
+        Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { timer in
+            let t = min((CACurrentMediaTime() - startTime) / 0.3, 1.0)
+            let ease = 1.0 - pow(1.0 - t, 5)
+            panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
+            if t >= 1.0 { timer.invalidate() }
+        }
     }
 
     // MARK: - Overlay Panel
@@ -975,14 +984,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
 
-                // 6pt lift animation (300ms ease-out quintic)
+                // Lift animation (300ms ease-out quintic)
                 let liftStart = CACurrentMediaTime()
                 let liftDuration = 0.3
+                let liftAmount: CGFloat = 12
                 let startY = panel.frame.origin.y
                 Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { timer in
                     let t = min((CACurrentMediaTime() - liftStart) / liftDuration, 1.0)
                     let ease = 1.0 - pow(1.0 - t, 5)
-                    panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + 6.0 * ease))
+                    panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
                     if t >= 1.0 { timer.invalidate() }
                 }
 
@@ -1057,9 +1067,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // then dismiss native. Masks the inherent color difference between
         // WKWebView's screenshot rendering and the real screen.
         guard let overlay = overlayPanel else { return }
+
+        // Set alpha=0 BEFORE showing, in a CATransaction to prevent any flash
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         overlay.alphaValue = 0
         showOverlay()
+        CATransaction.commit()
 
+        // Fade in over 80ms
         let startTime = CACurrentMediaTime()
         let duration = 0.08
         Timer.scheduledTimer(withTimeInterval: 1.0/120, repeats: true) { [weak self] timer in
@@ -1303,7 +1319,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Round the contentView layer so system shadow follows the corner radius
         webView.wantsLayer = true
-        webView.layer?.cornerRadius = 22  // 16px CSS radius + 6px .chat-only-app padding
+        webView.layer?.cornerRadius = 16  // matches CSS --radius-lg
         webView.layer?.masksToBounds = true
 
         if let distURL = findDistURL() {

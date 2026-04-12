@@ -23,7 +23,7 @@ class GlimpsePanel: NSPanel {
         hidesOnDeactivate = false
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false
+        hasShadow = true
 
         // Accept mouse events immediately
         acceptsMouseMovedEvents = true

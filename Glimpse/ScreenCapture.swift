@@ -14,9 +14,17 @@ struct ScreenCapture {
         let cursorY: Int
     }
 
-    /// Temp file path for screenshot — reused each capture to avoid accumulating files.
-    private static let tempURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("glimpse-capture.jpg")
+    /// Unique temp file per capture — avoids WKWebView file:// caching.
+    /// Previous capture file is cleaned up on next capture.
+    private static var lastTempURL: URL?
+    private static func nextTempURL() -> URL {
+        // Clean up previous file
+        if let prev = lastTempURL { try? FileManager.default.removeItem(at: prev) }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("glimpse-capture-\(UInt64(Date().timeIntervalSince1970 * 1000)).jpg")
+        lastTempURL = url
+        return url
+    }
 
     /// Capture the screen where the cursor is. Runs synchronously — call from background thread.
     /// If `belowWindowID` is provided, captures only windows below that window (excludes it).
@@ -73,15 +81,16 @@ struct ScreenCapture {
             return nil
         }
 
+        let captureURL = nextTempURL()
         do {
-            try jpegData.write(to: tempURL)
+            try jpegData.write(to: captureURL)
         } catch {
             NSLog("[Capture] Failed to write temp file: \(error)")
             return nil
         }
         let encodeMs = (CFAbsoluteTimeGetCurrent() - encodeStart) * 1000
 
-        let imageURL = tempURL.absoluteString
+        let imageURL = captureURL.absoluteString
         NSLog("[Capture] \(cgImage.width)x\(cgImage.height), \(jpegData.count / 1024)KB JPEG, capture: \(Int(captureMs))ms, encode+write: \(Int(encodeMs))ms")
 
         // Get window bounds

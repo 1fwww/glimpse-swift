@@ -372,6 +372,10 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             NotificationCenter.default.post(name: .inputFocus, object: nil)
             return true
 
+        case "log":
+            if let msg = args["msg"] as? String { NSLog("[JS] %@", msg) }
+            return true
+
         case "show_toast":
             if let message = args["message"] as? String {
                 ToastManager.shared.show(message)

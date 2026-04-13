@@ -174,7 +174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // show only after didFinish. This ensures the window server computes shadow
         // from rendered content on first show — works on Intel + Apple Silicon.
         panel.hasShadow = true
-        webView.setValue(false, forKey: "drawsBackground")  // No white flash before CSS
+        webView.layer?.cornerRadius = 16  // Match CSS --radius-lg (16px)
 
         // Center on main screen
         let screen = NSScreen.main ?? NSScreen.screens.first!
@@ -241,7 +241,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hasShadow = true
         let webView = createWebView(in: panel, bridge: settingsIPC, route: "#settings")
         settingsIPC.webView = webView
-        webView.setValue(false, forKey: "drawsBackground")
+        webView.layer?.cornerRadius = 16  // Match CSS --radius-lg
 
         // If overlay is open, settings must float above it (screensaverLevel + 1)
         let fromOverlay = overlayPanel?.isVisible == true

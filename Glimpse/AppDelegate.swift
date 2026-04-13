@@ -166,9 +166,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let webView = createWebView(in: panel, bridge: welcomeIPC, route: "#welcome")
         welcomeIPC.webView = webView
 
-        // Match chat panel styling: shadow + rounded corners
+        // Shadow for depth. Do NOT set cornerRadius on WKWebView layer here —
+        // unlike chat panel (prewarmed hidden, compositor has time), welcome is
+        // created + shown immediately. Native cornerRadius conflicts with CSS
+        // border-radius on slower machines, causing border to flicker.
+        // CSS .welcome-inner { border-radius } handles rounding.
         panel.hasShadow = true
-        webView.layer?.cornerRadius = 20
 
         // Center on main screen
         let screen = NSScreen.main ?? NSScreen.screens.first!
@@ -252,15 +255,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.settingsPanel = panel
         self.settingsWebView = webView
 
+        // Show at alpha=0 — WebView needs to render first so native shadow has content shape
+        panel.alphaValue = 0
         if fromOverlay {
-            // Don't activate app — avoids Space switch; settings is already above overlay
             panel.orderFrontRegardless()
             panel.makeKey()
         } else {
             panel.showAndFocus()
         }
         updateVisibleWindowFlag()
-        NSLog("[App] Settings shown (fromOverlay=\(fromOverlay))")
+        NSLog("[App] Settings shown (fromOverlay=\(fromOverlay), waiting for load)")
     }
 
     /// Position settings window adjacent to its caller, avoiding overlap.
@@ -1484,11 +1488,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
-        // Welcome WebView loaded — reveal window
+        // Welcome WebView loaded — reveal window (shadow needs rendered content)
         if webView === welcomeWebView {
             DispatchQueue.main.async { [weak self] in
                 self?.welcomePanel?.alphaValue = 1
                 NSLog("[App] Welcome revealed")
+            }
+        }
+        // Settings WebView loaded — reveal window
+        if webView === settingsWebView {
+            DispatchQueue.main.async { [weak self] in
+                self?.settingsPanel?.alphaValue = 1
+                NSLog("[App] Settings revealed")
             }
         }
         // Overlay WebView ready — React renders on next frame

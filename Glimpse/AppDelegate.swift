@@ -33,6 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var lastChatDismissTime: Date = .distantPast
     var lastChatSize: NSSize?
     var lastChatWasNewThread = true
+    var userDidResizeChat = false
 
     // Overlay (screenshot)
     var overlayPanel: GlimpsePanel?
@@ -319,6 +320,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             overlayWasNewThread = true
         } else {
             lastChatWasNewThread = true
+            userDidResizeChat = false
         }
     }
 
@@ -355,9 +357,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // masksToBounds OFF so CSS outer box-shadow (brand glow) renders.
         panel.hasShadow = true
         webView.layer?.cornerRadius = 20
+        webView.showsResizeCursors = true
+        // Remove .resizable — we handle resize manually in GlimpseWebView.
+        // System's .resizable adds its own cursors that conflict with ours.
+        panel.styleMask.remove(.resizable)
+
+        // Chat size limits: min 320×300, max 600×85% screen
+        panel.minSize = NSSize(width: 320, height: 300)
+        let screenH = (NSScreen.main ?? NSScreen.screens.first!).visibleFrame.height
+        panel.maxSize = NSSize(width: 600, height: screenH * 0.85)
 
         self.chatPanel = panel
         self.chatWebView = webView
+
+        // Detect user manual resize (NOT triggered by programmatic setFrame)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleUserResizedChat),
+            name: NSWindow.didEndLiveResizeNotification, object: panel
+        )
+
         NSLog("[App] Chat panel pre-warmed (hidden)")
     }
 
@@ -430,6 +448,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
             ipcBridge.emit("start-new-thread")
             lastChatWasNewThread = true
+            userDidResizeChat = false
         } else if lastChatWasNewThread {
             // Recent but was a new/empty thread — compact, fresh start
             panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
@@ -1225,19 +1244,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var hasShownOverlayBefore = false
+
     @objc func handleOverlayRendered() {
         // Idempotent — may fire multiple times (image onload + safety timeout)
         guard nativeSelectionOverlay != nil || frozenScreenWindow != nil else { return }
 
         dismissFrozenScreen()
 
-        // React has rendered + image decoded. Atomic swap:
-        // show WebView overlay + dismiss native in one run loop iteration.
-        showOverlay()
-        nativeSelectionOverlay?.dismiss()
-        nativeSelectionOverlay = nil
-        updateVisibleWindowFlag()
-        NSLog("[App] Overlay rendered — atomic swap complete")
+        if !hasShownOverlayBefore {
+            // First screenshot: WebView's IOSurface has never composited screenshot
+            // content. Extra delay lets the compositor flush before we swap.
+            // Subsequent screenshots reuse the IOSurface (warm pipeline, no delay).
+            hasShownOverlayBefore = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self else { return }
+                self.showOverlay()
+                self.nativeSelectionOverlay?.dismiss()
+                self.nativeSelectionOverlay = nil
+                self.updateVisibleWindowFlag()
+                NSLog("[App] Overlay rendered — first-time swap (100ms delay)")
+            }
+        } else {
+            // Subsequent: warm IOSurface, swap immediately
+            showOverlay()
+            nativeSelectionOverlay?.dismiss()
+            nativeSelectionOverlay = nil
+            updateVisibleWindowFlag()
+            NSLog("[App] Overlay rendered — atomic swap complete")
+        }
     }
 
     @objc func handleLowerOverlay() {
@@ -1256,7 +1291,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var resizeTimer: Timer?
 
+    @objc func handleUserResizedChat() {
+        userDidResizeChat = true
+        lastChatSize = chatPanel?.frame.size
+        NSLog("[App] User manually resized chat to \(chatPanel?.frame.size.debugDescription ?? "nil")")
+    }
+
     @objc func handleResizeChatWindow(_ notification: Notification) {
+        // Skip programmatic resize if user has manually set a size this session
+        if userDidResizeChat { return }
+
         guard let panel = chatPanel,
               let size = notification.userInfo,
               let width = size["width"] as? CGFloat ?? (size["width"] as? Int).map({ CGFloat($0) }),
@@ -1265,13 +1309,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let currentFrame = panel.frame
 
-        // Clamp to screen
-        var clampedHeight = height
-        var clampedWidth = width
+        // Clamp to min/max and screen
+        var clampedWidth = max(panel.minSize.width, min(width, panel.maxSize.width))
+        var clampedHeight = max(panel.minSize.height, min(height, panel.maxSize.height))
         if let screen = panel.screen {
             let visible = screen.visibleFrame
-            clampedHeight = min(height, visible.height * 0.75)
-            clampedWidth = min(width, visible.width)
+            clampedHeight = min(clampedHeight, visible.height * 0.85)
+            clampedWidth = min(clampedWidth, visible.width)
         }
 
         // Smart anchor: choose bottom-anchor (grow up) or top-anchor (grow down)

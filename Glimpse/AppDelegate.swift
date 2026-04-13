@@ -60,6 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Settings window
     var settingsPanel: GlimpsePanel?
     var settingsWebView: WKWebView?
+    var settingsFromOverlay = false
     var settingsIPC = IPCBridge()
 
     static let screensaverLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
@@ -166,32 +167,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let webView = createWebView(in: panel, bridge: welcomeIPC, route: "#welcome")
         welcomeIPC.webView = webView
 
-        // Shadow for depth. Do NOT set cornerRadius on WKWebView layer here —
-        // unlike chat panel (prewarmed hidden, compositor has time), welcome is
-        // created + shown immediately. Native cornerRadius conflicts with CSS
-        // border-radius on slower machines, causing border to flicker.
-        // CSS .welcome-inner { border-radius } handles rounding.
+        // Same prewarm pattern as chat: create hidden (orderOut), let WebView render,
+        // show only after didFinish. This ensures the window server computes shadow
+        // from rendered content on first show — works on Intel + Apple Silicon.
         panel.hasShadow = true
+        webView.setValue(false, forKey: "drawsBackground")  // No white flash before CSS
 
         // Center on main screen
         let screen = NSScreen.main ?? NSScreen.screens.first!
         let sf = screen.frame
         panel.setFrameOrigin(NSPoint(x: sf.midX - 220, y: sf.midY - 290))
-        // Use .normal so system permission dialogs appear above the welcome window
         panel.level = .normal
-        // isMovableByWindowBackground is set for discovery, but actual drag is handled
-        // by swift-shim.js universal drag → _start_drag IPC → GlimpseWebView.startWindowDrag()
-        // (NSEvent local monitor fallback when CGEventTap isn't installed yet)
         panel.isMovableByWindowBackground = true
 
         self.welcomePanel = panel
         self.welcomeWebView = webView
 
-        // Show at alpha=0, reveal after WebView loads (prevents blank first frame)
-        panel.alphaValue = 0
-        panel.showAndFocus()
+        // Keep hidden until WebView finishes loading (didFinish → showAndFocus)
+        panel.orderOut(nil)
         updateVisibleWindowFlag()
-        NSLog("[App] Welcome window shown (waiting for load)")
+        NSLog("[App] Welcome panel created (waiting for WebView load)")
     }
 
     func hideWelcome() {
@@ -243,6 +238,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hasShadow = true
         let webView = createWebView(in: panel, bridge: settingsIPC, route: "#settings")
         settingsIPC.webView = webView
+        webView.setValue(false, forKey: "drawsBackground")
 
         // If overlay is open, settings must float above it (screensaverLevel + 1)
         let fromOverlay = overlayPanel?.isVisible == true
@@ -254,17 +250,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.settingsPanel = panel
         self.settingsWebView = webView
+        self.settingsFromOverlay = fromOverlay
 
-        // Show at alpha=0 — WebView needs to render first so native shadow has content shape
-        panel.alphaValue = 0
-        if fromOverlay {
-            panel.orderFrontRegardless()
-            panel.makeKey()
-        } else {
-            panel.showAndFocus()
-        }
-        updateVisibleWindowFlag()
-        NSLog("[App] Settings shown (fromOverlay=\(fromOverlay), waiting for load)")
+        // Same prewarm pattern: hidden until WebView loads (didFinish → show)
+        panel.orderOut(nil)
+        NSLog("[App] Settings created (fromOverlay=\(fromOverlay), waiting for load)")
     }
 
     /// Position settings window adjacent to its caller, avoiding overlap.
@@ -1489,22 +1479,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
-        // Welcome WebView loaded — reveal window (shadow needs rendered content)
+        // Welcome WebView loaded — now show it (content rendered, shadow computes correctly)
         if webView === welcomeWebView {
             DispatchQueue.main.async { [weak self] in
                 guard let panel = self?.welcomePanel else { return }
                 panel.alphaValue = 1
-                panel.invalidateShadow()  // Force shadow recompute with rendered content
-                NSLog("[App] Welcome revealed")
+                panel.showAndFocus()
+                self?.updateVisibleWindowFlag()
+                NSLog("[App] Welcome shown (WebView loaded)")
             }
         }
-        // Settings WebView loaded — reveal window
+        // Settings WebView loaded — now show it
         if webView === settingsWebView {
             DispatchQueue.main.async { [weak self] in
-                guard let panel = self?.settingsPanel else { return }
+                guard let self, let panel = self.settingsPanel else { return }
                 panel.alphaValue = 1
-                panel.invalidateShadow()
-                NSLog("[App] Settings revealed")
+                if self.settingsFromOverlay {
+                    panel.orderFrontRegardless()
+                    panel.makeKey()
+                } else {
+                    panel.showAndFocus()
+                }
+                self.updateVisibleWindowFlag()
+                NSLog("[App] Settings shown (WebView loaded)")
             }
         }
         // Overlay WebView ready — React renders on next frame

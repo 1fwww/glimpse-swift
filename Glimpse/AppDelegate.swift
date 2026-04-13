@@ -482,6 +482,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // so the DOM update completes before the next paint.
         DispatchQueue.main.async {
             panel.alphaValue = 1
+            panel.invalidateShadow()
         }
         NSLog("[App] Chat shown (fullscreen=\(isFullscreen), pinned=\(isPinned))")
 
@@ -1491,14 +1492,18 @@ extension AppDelegate: WKNavigationDelegate {
         // Welcome WebView loaded — reveal window (shadow needs rendered content)
         if webView === welcomeWebView {
             DispatchQueue.main.async { [weak self] in
-                self?.welcomePanel?.alphaValue = 1
+                guard let panel = self?.welcomePanel else { return }
+                panel.alphaValue = 1
+                panel.invalidateShadow()  // Force shadow recompute with rendered content
                 NSLog("[App] Welcome revealed")
             }
         }
         // Settings WebView loaded — reveal window
         if webView === settingsWebView {
             DispatchQueue.main.async { [weak self] in
-                self?.settingsPanel?.alphaValue = 1
+                guard let panel = self?.settingsPanel else { return }
+                panel.alphaValue = 1
+                panel.invalidateShadow()
                 NSLog("[App] Settings revealed")
             }
         }

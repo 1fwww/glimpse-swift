@@ -4,7 +4,7 @@ set -euo pipefail
 # ── Configuration ──
 APP_NAME="Glimpse"
 BUNDLE_ID="com.yifuwu.glimpse"
-VERSION="0.2.1"
+VERSION="0.2.2"
 BUILD_NUMBER="1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/.build"

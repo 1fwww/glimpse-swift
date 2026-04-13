@@ -156,10 +156,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Welcome Window
 
     func showWelcome() {
-        // If already showing, just focus
-        if let panel = welcomePanel, panel.isVisible {
-            panel.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        // If panel exists (visible or loading), just focus if visible
+        if let panel = welcomePanel {
+            if panel.isVisible {
+                panel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            // Panel exists but loading — don't create another
             return
         }
 
@@ -228,9 +231,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Settings Window
 
     func showSettings(panelBounds: [String: Any]? = nil) {
-        if let panel = settingsPanel, panel.isVisible {
-            panel.makeKeyAndOrderFront(nil)
-            return
+        if let panel = settingsPanel {
+            if panel.isVisible { panel.makeKeyAndOrderFront(nil) }
+            return  // Exists (visible or loading) — don't create another
         }
 
         let settingsSize = NSSize(width: 480, height: 540)
@@ -1479,29 +1482,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
-        // Welcome WebView loaded — now show it (content rendered, shadow computes correctly)
+        // Welcome WebView loaded — delay 100ms for React to render .welcome-inner background,
+        // then show. Window server needs rendered opaque content to compute shadow shape.
         if webView === welcomeWebView {
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let panel = self?.welcomePanel else { return }
-                panel.alphaValue = 1
                 panel.showAndFocus()
+                panel.invalidateShadow()
                 self?.updateVisibleWindowFlag()
-                NSLog("[App] Welcome shown (WebView loaded)")
+                NSLog("[App] Welcome shown (didFinish + 100ms)")
             }
         }
-        // Settings WebView loaded — now show it
+        // Settings WebView loaded — delay 100ms for React render, then show
         if webView === settingsWebView {
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self, let panel = self.settingsPanel else { return }
-                panel.alphaValue = 1
                 if self.settingsFromOverlay {
                     panel.orderFrontRegardless()
                     panel.makeKey()
                 } else {
                     panel.showAndFocus()
                 }
+                panel.invalidateShadow()
                 self.updateVisibleWindowFlag()
-                NSLog("[App] Settings shown (WebView loaded)")
+                NSLog("[App] Settings shown (didFinish + 100ms)")
             }
         }
         // Overlay WebView ready — React renders on next frame

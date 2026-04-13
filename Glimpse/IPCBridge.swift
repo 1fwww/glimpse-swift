@@ -20,8 +20,14 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
         // Window drag — CGEventTap tracks mouseDragged at HID level
         if command == "_start_drag" {
             DispatchQueue.main.async { [weak self] in
-                if let window = self?.webView?.window {
-                    ShortcutManager.shared?.startDrag(window: window)
+                guard let webView = self?.webView as? GlimpseWebView else { return }
+                if ShortcutManager.shared?.eventTap != nil {
+                    // CGEventTap available — use it (handles HID-level drag)
+                    ShortcutManager.shared?.startDrag(window: webView.window!)
+                } else {
+                    // No CGEventTap (e.g., during welcome before accessibility granted)
+                    // Fall back to NSEvent local monitor drag
+                    webView.startWindowDrag()
                 }
             }
             return

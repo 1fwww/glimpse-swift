@@ -157,6 +157,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Welcome Window
 
     func showWelcome() {
+        // If already showing, just focus
+        if let panel = welcomePanel, panel.isVisible {
+            panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
         let panel = GlimpsePanel(size: NSSize(width: 440, height: 580))
         let webView = createWebView(in: panel, bridge: welcomeIPC, route: "#welcome")
         welcomeIPC.webView = webView
@@ -171,7 +178,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrameOrigin(NSPoint(x: sf.midX - 220, y: sf.midY - 290))
         // Use .normal so system permission dialogs appear above the welcome window
         panel.level = .normal
-        // Allow dragging by any part of the window (works without CGEventTap/accessibility)
+        // isMovableByWindowBackground is set for discovery, but actual drag is handled
+        // by swift-shim.js universal drag → _start_drag IPC → GlimpseWebView.startWindowDrag()
+        // (NSEvent local monitor fallback when CGEventTap isn't installed yet)
         panel.isMovableByWindowBackground = true
 
         self.welcomePanel = panel

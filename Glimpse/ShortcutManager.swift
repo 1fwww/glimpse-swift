@@ -13,7 +13,7 @@ class ShortcutManager {
     /// Set to true when Glimpse has visible windows — ESC will be consumed to prevent beep
     var hasVisibleWindow = false
 
-    private var eventTap: CFMachPort?
+    private(set) var eventTap: CFMachPort?
 
     // Window drag state
     private var isDragging = false

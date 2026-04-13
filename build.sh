@@ -87,13 +87,19 @@ fi
 cp "$SCRIPT_DIR/Glimpse/swift-shim.js" "$APP_DIR/Contents/Resources/Glimpse/swift-shim.js"
 echo "       Shim: swift-shim.js"
 
-# Frontend dist
-if [ -d "$SCRIPT_DIR/dist" ]; then
+# Frontend dist — always sync from glimpse-tauri (source of truth)
+TAURI_DIST="$SCRIPT_DIR/../glimpse-tauri/dist"
+if [ -d "$TAURI_DIST" ]; then
+    rm -rf "$SCRIPT_DIR/dist"
+    cp -r "$TAURI_DIST" "$SCRIPT_DIR/dist"
     cp -r "$SCRIPT_DIR/dist" "$APP_DIR/Contents/Resources/dist"
-    echo "       Frontend: dist/ ($(find "$SCRIPT_DIR/dist" -type f | wc -l | tr -d ' ') files)"
+    echo "       Frontend: dist/ ($(find "$SCRIPT_DIR/dist" -type f | wc -l | tr -d ' ') files, synced from glimpse-tauri)"
+elif [ -d "$SCRIPT_DIR/dist" ]; then
+    cp -r "$SCRIPT_DIR/dist" "$APP_DIR/Contents/Resources/dist"
+    echo "       Frontend: dist/ ($(find "$SCRIPT_DIR/dist" -type f | wc -l | tr -d ' ') files, LOCAL — may be stale!)"
 else
-    echo "WARNING: dist/ not found — run frontend build first:"
-    echo "  cd ../glimpse-tauri && npm run build && cp -r dist ../glimpse-swift/dist"
+    echo "ERROR: No dist/ found. Run: cd ../glimpse-tauri && npm run build"
+    exit 1
     exit 1
 fi
 

@@ -98,6 +98,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseChatWindow), name: .closeChatWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleChatReady), name: .chatReady, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleWelcomeReady), name: .welcomeReady, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsReady), name: .settingsReady, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleResizeChatWindow(_:)), name: .resizeChatWindow, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleTogglePin), name: .togglePin, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handlePinChat(_:)), name: .pinChat, object: nil)
@@ -986,6 +988,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// React rendered welcome — two-step compositor show (same as showChat)
+    @objc func handleWelcomeReady() {
+        guard let panel = welcomePanel else { return }
+        NSLog("[App] Welcome ready (React rendered)")
+        panel.alphaValue = 0
+        panel.showAndFocus()
+        updateVisibleWindowFlag()
+        DispatchQueue.main.async {
+            panel.alphaValue = 1
+            panel.invalidateShadow()
+            NSLog("[App] Welcome revealed")
+        }
+    }
+
+    /// React rendered settings — two-step compositor show
+    @objc func handleSettingsReady() {
+        guard let panel = settingsPanel else { return }
+        NSLog("[App] Settings ready (React rendered)")
+        panel.alphaValue = 0
+        if settingsFromOverlay {
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        } else {
+            panel.showAndFocus()
+        }
+        updateVisibleWindowFlag()
+        DispatchQueue.main.async {
+            panel.alphaValue = 1
+            panel.invalidateShadow()
+            NSLog("[App] Settings revealed")
+        }
+    }
+
     @objc func handleChatReady() {
         chatReady = true
         NSLog("[App] Chat ready")
@@ -1482,42 +1517,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
-        // Welcome WebView loaded — two-step compositor entry (same as chat):
-        // 1. alpha=0 + showAndFocus → compositor sees content shape but window invisible
-        // 2. Next run loop → alpha=1 + invalidateShadow → reveal with correct shadow
-        // This gives the window server one frame to compute shadow from rendered content.
-        if webView === welcomeWebView {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard let panel = self?.welcomePanel else { return }
-                panel.alphaValue = 0
-                panel.showAndFocus()
-                self?.updateVisibleWindowFlag()
-                DispatchQueue.main.async {
-                    panel.alphaValue = 1
-                    panel.invalidateShadow()
-                    NSLog("[App] Welcome shown (two-step compositor entry)")
-                }
-            }
-        }
-        // Settings WebView loaded — two-step compositor entry (same as chat)
-        if webView === settingsWebView {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard let self, let panel = self.settingsPanel else { return }
-                panel.alphaValue = 0
-                if self.settingsFromOverlay {
-                    panel.orderFrontRegardless()
-                    panel.makeKey()
-                } else {
-                    panel.showAndFocus()
-                }
-                self.updateVisibleWindowFlag()
-                DispatchQueue.main.async {
-                    panel.alphaValue = 1
-                    panel.invalidateShadow()
-                    NSLog("[App] Settings shown (two-step compositor entry)")
-                }
-            }
-        }
+        // Welcome/settings show is handled by handleWelcomeReady/handleSettingsReady
+        // (React signals after mount + paint — same pattern as chat_ready)
         // Overlay WebView ready — React renders on next frame
         if webView === overlayWebView {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in

@@ -302,6 +302,14 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             NotificationCenter.default.post(name: .chatReady, object: nil)
             return true
 
+        case "welcome_ready":
+            NotificationCenter.default.post(name: .welcomeReady, object: nil)
+            return true
+
+        case "settings_ready":
+            NotificationCenter.default.post(name: .settingsReady, object: nil)
+            return true
+
         case "overlay_ready":
             NotificationCenter.default.post(name: .overlayReady, object: nil)
             return true
@@ -486,4 +494,6 @@ extension Notification.Name {
     static let providersChanged = Notification.Name("providersChanged")
     static let newThreadCreated = Notification.Name("newThreadCreated")
     static let chatConversationStarted = Notification.Name("chatConversationStarted")
+    static let welcomeReady = Notification.Name("welcomeReady")
+    static let settingsReady = Notification.Name("settingsReady")
 }

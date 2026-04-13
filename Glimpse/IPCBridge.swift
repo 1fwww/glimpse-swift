@@ -329,9 +329,13 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
         case "pin_chat":
             let threadData = args["threadData"] as? [String: Any]
             let bounds = args["bounds"] as? [String: Any]
+            let pinned = (threadData?["pinned"] as? Bool) ?? true
+            let pendingSend = (threadData?["pendingSend"] as? Bool) ?? false
             NotificationCenter.default.post(name: .pinChat, object: nil, userInfo: [
                 "threadData": threadData as Any,
-                "bounds": bounds as Any
+                "bounds": bounds as Any,
+                "pinned": pinned,
+                "pendingSend": pendingSend,
             ])
             return true
 

@@ -181,11 +181,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.welcomePanel = panel
         self.welcomeWebView = webView
 
-        // CRITICAL: orderOut FIRST, then set shadow + cornerRadius.
-        // This matches prewarmChat() exactly. Setting these AFTER orderOut
-        // ensures the window server gets the configuration for a hidden window,
-        // which it correctly applies on first show. Reversed order breaks
-        // shadow computation on Intel Macs.
         panel.orderOut(nil)
         panel.hasShadow = true
         panel.level = .normal
@@ -250,7 +245,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.settingsWebView = webView
         self.settingsFromOverlay = fromOverlay
 
-        // CRITICAL: orderOut FIRST, then set shadow/level/cornerRadius (matches prewarmChat)
         panel.orderOut(nil)
         panel.hasShadow = true
         panel.level = fromOverlay
@@ -1068,10 +1062,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func handlePinChat(_ notification: Notification) {
         let threadData = notification.userInfo?["threadData"] as? [String: Any]
         let bounds = notification.userInfo?["bounds"] as? [String: Any]
+        let wantsPinned = (notification.userInfo?["pinned"] as? Bool) ?? true
+        let pendingSend = (notification.userInfo?["pendingSend"] as? Bool) ?? false
 
         // Capture overlay frame before any changes
         let overlayFrame = overlayPanel?.frame
-        NSLog("[App] Pin chat: overlayFrame=\(overlayFrame.map { "\($0)" } ?? "nil"), hasBounds=\(bounds != nil)")
+        NSLog("[App] Pin chat: overlayFrame=\(overlayFrame.map { "\($0)" } ?? "nil"), hasBounds=\(bounds != nil), pinned=\(wantsPinned)")
 
         // Compute target chat frame from overlay chat panel bounds.
         // bounds: CSS viewport coords (top-left origin, relative to overlay).
@@ -1090,7 +1086,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("[App] Pin frame: CSS(\(bx),\(by),\(bw),\(bh)) → screen(\(screenX),\(screenY))")
         }
 
-        isPinned = true
+        isPinned = wantsPinned
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
@@ -1107,7 +1103,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let threadData = threadData {
                 self.ipcBridge.emit("load-thread-data", data: threadData)
             }
-            self.ipcBridge.emit("pin-state", data: true)
+            self.ipcBridge.emit("pin-state", data: wantsPinned)
+            if pendingSend {
+                self.ipcBridge.emit("auto-send")
+            }
 
             // 2. Show chat at alpha=0 above overlay (invisible, but WebKit paints)
             panel.alphaValue = 0
@@ -1129,7 +1128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                 // Show chat
                 panel.alphaValue = 1
-                panel.level = .floating
+                panel.level = wantsPinned ? .floating : .normal
                 self.isChatShowing = true
                 self.updateVisibleWindowFlag()
                 if !isFullscreen {
@@ -1151,16 +1150,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
 
-                // Lift animation (300ms ease-out quintic)
-                let liftStart = CACurrentMediaTime()
-                let liftDuration = 0.3
-                let liftAmount: CGFloat = 12
-                let startY = panel.frame.origin.y
-                Timer.scheduledTimer(withTimeInterval: Self.animationFrameInterval, repeats: true) { timer in
-                    let t = min((CACurrentMediaTime() - liftStart) / liftDuration, 1.0)
-                    let ease = 1.0 - pow(1.0 - t, 5)
-                    panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
-                    if t >= 1.0 { timer.invalidate() }
+                // Lift animation only for pinned transitions (not for dismiss/send)
+                if wantsPinned {
+                    let liftStart = CACurrentMediaTime()
+                    let liftDuration = 0.3
+                    let liftAmount: CGFloat = 12
+                    let startY = panel.frame.origin.y
+                    Timer.scheduledTimer(withTimeInterval: Self.animationFrameInterval, repeats: true) { timer in
+                        let t = min((CACurrentMediaTime() - liftStart) / liftDuration, 1.0)
+                        let ease = 1.0 - pow(1.0 - t, 5)
+                        panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: startY + liftAmount * ease))
+                        if t >= 1.0 { timer.invalidate() }
+                    }
                 }
 
                 // Lock to current Space after transition

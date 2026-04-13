@@ -1217,6 +1217,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func handleOverlayReady() {
         overlayReady = true
         NSLog("[App] Overlay ready")
+
+        // Pre-warm IOSurface: briefly put panel in compositor at alpha=0.
+        // Without this, the first screenshot flashes because the IOSurface
+        // backing store is empty (never composited). Showing at alpha=0
+        // forces the GPU to allocate and initialize the IOSurface.
+        if let panel = overlayPanel, !hasShownOverlayBefore {
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
+            DispatchQueue.main.async {
+                panel.orderOut(nil)
+                panel.alphaValue = 1
+                NSLog("[App] Overlay IOSurface pre-warmed")
+            }
+        }
+
         if let result = pendingCaptureResult {
             pendingCaptureResult = nil
             // Emit data then show WebView BEHIND native overlay for painting.
@@ -1252,27 +1267,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         dismissFrozenScreen()
 
-        if !hasShownOverlayBefore {
-            // First screenshot: WebView's IOSurface has never composited screenshot
-            // content. Extra delay lets the compositor flush before we swap.
-            // Subsequent screenshots reuse the IOSurface (warm pipeline, no delay).
-            hasShownOverlayBefore = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard let self else { return }
-                self.showOverlay()
-                self.nativeSelectionOverlay?.dismiss()
-                self.nativeSelectionOverlay = nil
-                self.updateVisibleWindowFlag()
-                NSLog("[App] Overlay rendered — first-time swap (100ms delay)")
-            }
-        } else {
-            // Subsequent: warm IOSurface, swap immediately
-            showOverlay()
-            nativeSelectionOverlay?.dismiss()
-            nativeSelectionOverlay = nil
-            updateVisibleWindowFlag()
-            NSLog("[App] Overlay rendered — atomic swap complete")
-        }
+        hasShownOverlayBefore = true
+        showOverlay()
+        nativeSelectionOverlay?.dismiss()
+        nativeSelectionOverlay = nil
+        updateVisibleWindowFlag()
+        NSLog("[App] Overlay rendered — atomic swap complete")
     }
 
     @objc func handleLowerOverlay() {

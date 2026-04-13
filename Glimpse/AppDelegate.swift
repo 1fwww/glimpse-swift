@@ -1482,30 +1482,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
-        // Welcome WebView loaded — delay 100ms for React to render .welcome-inner background,
-        // then show. Window server needs rendered opaque content to compute shadow shape.
+        // Welcome WebView loaded — two-step compositor entry (same as chat):
+        // 1. alpha=0 + showAndFocus → compositor sees content shape but window invisible
+        // 2. Next run loop → alpha=1 + invalidateShadow → reveal with correct shadow
+        // This gives the window server one frame to compute shadow from rendered content.
         if webView === welcomeWebView {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let panel = self?.welcomePanel else { return }
+                panel.alphaValue = 0
                 panel.showAndFocus()
-                panel.invalidateShadow()
                 self?.updateVisibleWindowFlag()
-                NSLog("[App] Welcome shown (didFinish + 100ms)")
+                DispatchQueue.main.async {
+                    panel.alphaValue = 1
+                    panel.invalidateShadow()
+                    NSLog("[App] Welcome shown (two-step compositor entry)")
+                }
             }
         }
-        // Settings WebView loaded — delay 100ms for React render, then show
+        // Settings WebView loaded — two-step compositor entry (same as chat)
         if webView === settingsWebView {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self, let panel = self.settingsPanel else { return }
+                panel.alphaValue = 0
                 if self.settingsFromOverlay {
                     panel.orderFrontRegardless()
                     panel.makeKey()
                 } else {
                     panel.showAndFocus()
                 }
-                panel.invalidateShadow()
                 self.updateVisibleWindowFlag()
-                NSLog("[App] Settings shown (didFinish + 100ms)")
+                DispatchQueue.main.async {
+                    panel.alphaValue = 1
+                    panel.invalidateShadow()
+                    NSLog("[App] Settings shown (two-step compositor entry)")
+                }
             }
         }
         // Overlay WebView ready — React renders on next frame

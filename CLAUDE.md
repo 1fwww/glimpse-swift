@@ -380,61 +380,69 @@ These properties are intended for the chat panel only. Apply them in `prewarmCha
 #### React State Ordering
 - `resetState()` includes `setScreenImage(null)` — must be called BEFORE `setScreenImage(newUrl)` in event handlers, not after. Wrong order: set image → reset → image cleared → invisible overlay.
 
-## Chat Window Behavior (Hard-Won, 2026-04-12)
+## Chat Window Behavior (Consolidated 2026-04-13)
 
-### Architecture: Two Independent Chat Instances
+### Architecture: Unified State, Two Render Targets
 - **Standalone** (`ChatOnlyApp.jsx` + Swift NSPanel): window size controlled by Swift (`lastChatSize`, `resizeChatWindow`)
-- **Screenshot overlay** (`App.jsx`): chat size controlled by React (`chatFullSize`, `chatMinimized`)
-- Same `ChatPanel` component shared, but two different sizing mechanisms
-- Each has own IPC bridge (`bridgeId="main"` vs `"overlay"`), stale timer, and new-thread flag
+- **Screenshot overlay** (`App.jsx`): chat size controlled by React (`chatFullSize`, `chatMinimized`), but initial state decided by Swift
+- Same `ChatPanel` component shared; two IPC bridges (`bridgeId="main"` vs `"overlay"`) for routing only
+- **Single set of state flags** in Swift — no separate overlay/standalone tracking
 
 ### State Flags (Swift side)
-| Flag | Standalone | Overlay | Set by |
-|---|---|---|---|
-| `lastChatDismissTime` | When chat hidden | — | `hideChat()` |
-| `lastOverlayDismissTime` | — | When overlay hidden | `hideOverlay()` |
-| `lastChatWasNewThread` | true=compact on reopen | — | `newThreadCreated` (source=main), `chatConversationStarted` (source=main) |
-| `overlayWasNewThread` | — | true=compact on reopen | `newThreadCreated` (source=overlay), `chatConversationStarted` (source=overlay) |
-| `overlayKeepThread` | — | !stale, passed to React | `handleScreenshotShortcut()` |
+| Flag | Purpose | Set by |
+|---|---|---|
+| `lastDismissTime` | When any chat was last hidden | `hideChat()`, `hideOverlay()` |
+| `wasNewThread` | Last session was empty/new thread | `handleNewThreadCreated()`, `handleConversationStarted()` |
+| `lastChatSize` | Standalone window size to restore | `hideChat()` |
+| `userDidResizeChat` | User manually resized (block JS resize) | `didEndLiveResize` |
 
-### Critical Rules
-1. **IPC notifications MUST carry `source` bridgeId.** `chatConversationStarted` and `newThreadCreated` fire for both bridges. Without source, overlay AI replies corrupt standalone's `lastChatWasNewThread` flag → standalone opens expanded when it should be compact.
-
-2. **Don't rely on React's `tm.isNewThread` in `onScreenCaptured`.** `refreshWithHeuristic` is async — by the time `onScreenCaptured` handler reads `tm.isNewThread`, the value is stale. Use Swift's `wasNewThread` flag passed in the event data instead.
-
-3. **`cropSelection` must receive `displayInfo`/`windowOffset` as direct params.** Closure capture gets stale values (React hasn't re-rendered yet when `setTimeout(cropSelection, 50)` fires). First screenshot gets black image otherwise.
-
-4. **Re-quote `initialContext.seq` must use `Date.now()`.** Incremental counter (0→1→clear→0→text→1) cycles back to same value — `useEffect` dependency doesn't change, text doesn't update.
-
-5. **Don't `NSApp.hide` in re-quote path.** `NSApp.hide` deactivates the app, racing with the subsequent `NSApp.activate` in `showAndFocus`. Result: chat window stays behind source app.
-
-6. **`scrollToRevealLoading` must fire in compact mode too.** Removing `if (chatFullSize)` guard — compact chat also needs "Glimpsing..." visible.
-
-7. **Overlay `onThreadChange` needs wrapper.** `handleThreadChange` only calls `resizeChatWindow` (standalone-only). Overlay must also set `chatFullSize`/`chatMinimized` based on thread message count.
+### Unified Decision Function
+```swift
+func decideChatState() -> ChatInitState {
+    let isStale = Date().timeIntervalSince(lastDismissTime) >= chatStaleThreshold // 5 min
+    if isStale || wasNewThread {
+        return (startNewThread: true, compact: true)
+    }
+    return (startNewThread: false, compact: false)
+}
+```
+Used by both `showChat()` (standalone) and `handleScreenshotShortcut()` (overlay). Swift is the sole authority on stale detection — JS has no `STALE_THRESHOLD`.
 
 ### Compact vs Expanded Decision Flow
 ```
-Standalone open:
-  isStale (>5min) OR lastChatWasNewThread → compact (380×412) + start-new-thread
-  else → restore lastChatSize
+Any open (standalone or screenshot):
+  decideChatState() → stale OR wasNewThread → compact + start-new-thread
+  decideChatState() → !stale AND !wasNewThread → expanded + keep thread
 
-Screenshot open:
-  keepThread && !wasNewThread → preserve chatFullSize/chatMinimized (continuing conversation)
-  else → chatMinimized=true, chatFullSize=false (compact new chat)
+Standalone: compact = 380×412 setFrame, expanded = restore lastChatSize
+Overlay: compact = setChatMinimized(true) + setChatFullSize(false)
+         expanded = setChatMinimized(userMinimizedRef) + setChatFullSize(true)
 
 "+" clicked:
-  notifyNewThread(source) → sets wasNewThread=true for that source
+  notifyNewThread → wasNewThread=true
   Next open → compact
 
 AI replies:
-  chatConversationStarted(source) → sets wasNewThread=false for that source
-  Next open within 5min → restores expanded size
+  chatConversationStarted → wasNewThread=false
+  Next open within 5min → expanded + keep thread
 ```
 
-### Known Fragile Patterns (Future Consolidation)
-- **Dual stale check**: Swift (`chatStaleThreshold`) and React (`STALE_THRESHOLD` in `refreshWithHeuristic`) independently check 5 minutes — can disagree
+### Cross-Entry Thread Sync
+Overlay WebView is pre-warmed at startup — its thread state may be stale. When `!startNewThread`, overlay calls `tm.loadLatestThread()` to reload the most recent thread from disk (which may have been created by standalone chat).
+
+### Critical Rules (Still Valid)
+1. **`cropSelection` must receive `displayInfo`/`windowOffset` as direct params.** Closure capture gets stale values (React hasn't re-rendered yet when `setTimeout(cropSelection, 50)` fires). First screenshot gets black image otherwise.
+
+2. **Re-quote `initialContext.seq` must use `Date.now()`.** Incremental counter cycles back to same value — `useEffect` dependency doesn't change.
+
+3. **Don't `NSApp.hide` in re-quote path.** Races with `NSApp.activate` in `showAndFocus`.
+
+4. **`scrollToRevealLoading` must fire in compact mode too.**
+
+5. **Overlay `onThreadChange` needs wrapper.** `handleThreadChange` only calls `resizeChatWindow` (standalone-only). Overlay must also set `chatFullSize`/`chatMinimized`.
+
+### Known Remaining Pattern
 - **`handleResizeChatWindow` cross-fire**: Both bridges post `.resizeChatWindow` notification — overlay's ChatPanel resize attempts to resize standalone NSPanel
-- **Thread data not shared**: Overlay and standalone have separate in-memory threads; only pin transition transfers data
 
 ## macOS API Quick Reference
 

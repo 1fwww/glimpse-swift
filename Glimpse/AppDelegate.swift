@@ -30,9 +30,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var isPinned = false
     var isChatShowing = false
     var pendingTextContext: String?
-    var lastChatDismissTime: Date = .distantPast
+    var lastDismissTime: Date = .distantPast
     var lastChatSize: NSSize?
-    var lastChatWasNewThread = true
+    var wasNewThread = true
     var userDidResizeChat = false
 
     // Overlay (screenshot)
@@ -46,9 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var nativeSelectionOverlay: NativeSelectionOverlay?
     var lastSpaceChangeTime: Date = .distantPast
     var screenshotDeferPending = false
-    var lastOverlayDismissTime: Date = .distantPast
-    var overlayKeepThread = false
-    var overlayWasNewThread = true
+    // (overlay state unified into wasNewThread + lastDismissTime above)
     private var spaceChangeSettleTime: TimeInterval { Self.spaceSettleDelay }
 
     // Welcome / onboarding
@@ -63,6 +61,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var settingsWebView: WKWebView?
     var settingsFromOverlay = false
     var settingsIPC = IPCBridge()
+
+    // Image viewer
+    var imageViewerPanel: ImageViewerPanel?
 
     static let screensaverLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
 
@@ -132,6 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleNewThreadCreated), name: .newThreadCreated, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleConversationStarted), name: .chatConversationStarted, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleShowImageViewer), name: .showImageViewer, object: nil)
 
         // Track Space changes so screenshot shortcut can wait for transitions to settle
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -296,6 +298,77 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Settings closed")
     }
 
+    // MARK: - Image Viewer
+
+    func showImageViewer(imagePath: String) {
+        let panel: ImageViewerPanel
+        if let existing = imageViewerPanel {
+            panel = existing
+        } else {
+            panel = ImageViewerPanel()
+            imageViewerPanel = panel
+        }
+
+        guard panel.showImage(at: imagePath) else { return }
+
+        // Position next to chat window
+        if let chatFrame = chatPanel?.frame {
+            let viewerSize = panel.frame.size
+            let screen = NSScreen.main ?? NSScreen.screens.first!
+            let sf = screen.frame
+
+            // Prefer left side of chat; fall back to right; then center
+            var x = chatFrame.origin.x - viewerSize.width - 8
+            if x < sf.minX { x = chatFrame.maxX + 8 }
+            if x + viewerSize.width > sf.maxX { x = sf.midX - viewerSize.width / 2 }
+
+            // Align tops, clamp vertically
+            var y = chatFrame.maxY - viewerSize.height
+            y = max(sf.minY + 8, min(y, sf.maxY - viewerSize.height - 8))
+
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        // Match chat window level
+        panel.level = isPinned ? .floating : .normal
+        panel.collectionBehavior = [.fullScreenAuxiliary]
+        panel.showWithFade()
+        updateVisibleWindowFlag()
+        NSLog("[App] Image viewer shown")
+    }
+
+    private var viewerTempFile: URL?
+
+    func showImageViewerFromDataUrl(_ dataUrl: String) {
+        // Decode data URL → NSImage → write to temp file → show viewer
+        guard let commaIndex = dataUrl.firstIndex(of: ",") else { return }
+        let base64 = String(dataUrl[dataUrl.index(after: commaIndex)...])
+        guard let data = Data(base64Encoded: base64),
+              let image = NSImage(data: data) else {
+            NSLog("[App] Failed to decode data URL for image viewer")
+            return
+        }
+        // Clean up previous temp file
+        if let prev = viewerTempFile { try? FileManager.default.removeItem(at: prev) }
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("glimpse-viewer-\(UInt64(Date().timeIntervalSince1970 * 1000)).png")
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let pngData = rep.representation(using: .png, properties: [:]) else { return }
+        try? pngData.write(to: tempURL)
+        viewerTempFile = tempURL
+        showImageViewer(imagePath: tempURL.path)
+    }
+
+    func hideImageViewer() {
+        guard imageViewerPanel?.isVisible == true else { return }
+        imageViewerPanel?.orderOut(nil)
+        imageViewerPanel = nil
+        if let temp = viewerTempFile { try? FileManager.default.removeItem(at: temp); viewerTempFile = nil }
+        updateVisibleWindowFlag()
+        NSLog("[App] Image viewer closed")
+    }
+
     @objc func handleToggleSettings(_ notification: Notification) {
         if let panel = settingsPanel, panel.isVisible {
             hideSettings()
@@ -315,21 +388,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func handleNewThreadCreated(_ notification: Notification) {
-        let source = notification.userInfo?["source"] as? String ?? "main"
-        if source == "overlay" {
-            overlayWasNewThread = true
-        } else {
-            lastChatWasNewThread = true
-            userDidResizeChat = false
-        }
+        wasNewThread = true
+        userDidResizeChat = false
     }
 
     @objc func handleConversationStarted(_ notification: Notification) {
-        let source = notification.userInfo?["source"] as? String ?? "main"
-        if source == "overlay" {
-            overlayWasNewThread = false
-        } else {
-            lastChatWasNewThread = false
+        wasNewThread = false
+    }
+
+    @objc func handleShowImageViewer(_ notification: Notification) {
+        if let relativePath = notification.userInfo?["path"] as? String {
+            let fullPath = settingsStore.appSupportDir.appendingPathComponent(relativePath).path
+            showImageViewer(imagePath: fullPath)
+        } else if let dataUrl = notification.userInfo?["dataUrl"] as? String {
+            showImageViewerFromDataUrl(dataUrl)
         }
     }
 
@@ -337,6 +409,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Notify all open WebViews so provider dropdowns refresh
         ipcBridge.emit("providers-changed")
         overlayIPC.emit("providers-changed")
+    }
+
+    // MARK: - Unified Chat State Decision
+
+    struct ChatInitState {
+        let startNewThread: Bool
+        let compact: Bool
+    }
+
+    /// Single decision function for both standalone and overlay chat.
+    /// Uses unified lastDismissTime + wasNewThread (no separate overlay/standalone tracking).
+    func decideChatState() -> ChatInitState {
+        let isStale = Date().timeIntervalSince(lastDismissTime) >= Self.chatStaleThreshold
+        if isStale || wasNewThread {
+            return ChatInitState(startNewThread: true, compact: true)
+        }
+        return ChatInitState(startNewThread: false, compact: false)
     }
 
     // MARK: - Chat Panel
@@ -437,22 +526,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ipcBridge.emit("clear-screenshot")
         ipcBridge.emit("clear-text-context")
 
-        // Decide chat size from Swift — avoids heavy JS check-size round-trip.
-        // WebView still has previous React state (messages, thread), so within
-        // 5 minutes we just restore the saved size. Beyond 5 min, reset to compact
-        // and tell JS to start a new thread (lightweight, no message re-render).
-        let isStale = Date().timeIntervalSince(lastChatDismissTime) >= Self.chatStaleThreshold
+        // Decide chat size from Swift — single decision function shared with overlay.
+        let chatState = decideChatState()
         let compactSize = NSSize(width: 380, height: 412)
-        if isStale {
-            // Stale — compact size, new thread
+        if chatState.compact {
             panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
             ipcBridge.emit("start-new-thread")
-            lastChatWasNewThread = true
+            wasNewThread = true
             userDidResizeChat = false
-        } else if lastChatWasNewThread {
-            // Recent but was a new/empty thread — compact, fresh start
-            panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
-            ipcBridge.emit("start-new-thread")
         } else if let savedSize = lastChatSize {
             // Recent with conversation — restore saved size
             panel.setFrame(NSRect(origin: panel.frame.origin, size: savedSize), display: false)
@@ -501,11 +582,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func hideChat() {
+        hideImageViewer()
         if settingsPanel?.isVisible == true { hideSettings() }
         guard let panel = chatPanel else { return }
 
         // Remember state for next showChat — avoids heavy JS work on re-show
-        lastChatDismissTime = Date()
+        lastDismissTime = Date()
         lastChatSize = panel.frame.size
 
         // Clear transient state while WebView is still visible — by the next
@@ -604,7 +686,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func hideOverlay() {
         if settingsPanel?.isVisible == true { hideSettings() }
         dismissFrozenScreen()
-        lastOverlayDismissTime = Date()
+        lastDismissTime = Date()
         overlayPanel?.orderOut(nil)
         updateVisibleWindowFlag()
         restoreActivationPolicyIfNeeded()
@@ -616,6 +698,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shortcutManager.hasVisibleWindow =
             isChatShowing || (overlayPanel?.isVisible == true) ||
             (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true) ||
+            (imageViewerPanel?.isVisible == true) ||
             (frozenScreenWindow?.isVisible == true) || (nativeSelectionOverlay != nil)
     }
 
@@ -634,13 +717,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func emitCaptureToOverlay(_ result: ScreenCapture.CaptureResult) {
+        let chatState = decideChatState()
         overlayIPC.emit("screen-captured", data: [
             "imageURL": result.imageURL,
             "windowBounds": result.windowBounds,
             "displayInfo": result.displayInfo,
             "offset": result.offset,
             "cursorX": result.cursorX,
-            "cursorY": result.cursorY
+            "cursorY": result.cursorY,
+            "startNewThread": chatState.startNewThread,
+            "compact": chatState.compact
         ])
         NSLog("[App] Emitted screen-captured to overlay (cursor: \(result.cursorX),\(result.cursorY))")
     }
@@ -684,7 +770,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Chat visible but not key — user is in another app and wants to re-quote.
             // Synchronous hide (no fade) to avoid race: hideChat's async completion
             // would orderOut the panel AFTER showChat re-shows it.
-            lastChatDismissTime = Date()
+            lastDismissTime = Date()
             lastChatSize = panel.frame.size
             ipcBridge.emit("clear-text-context")
             ipcBridge.emit("clear-screenshot")
@@ -726,6 +812,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleScreenshotShortcut() {
+        hideImageViewer()
         NSLog("[App] Screenshot shortcut triggered")
         // During onboarding: intercept — reopen/focus welcome and emit shortcut-tried
         if isOnboarding {
@@ -771,10 +858,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
         // Prewarm WebView overlay in parallel (for post-selection annotations/chat)
-        let overlayStale = Date().timeIntervalSince(lastOverlayDismissTime) >= Self.chatStaleThreshold
-        overlayKeepThread = !overlayStale
+        let chatState = decideChatState()
         if overlayReady && !isFullscreen {
-            overlayIPC.emit(overlayStale ? "reset-overlay" : "reset-overlay-keep-thread")
+            overlayIPC.emit(chatState.startNewThread ? "reset-overlay" : "reset-overlay-keep-thread")
             overlayPanel?.orderOut(nil)
         } else {
             overlayPanel?.orderOut(nil)
@@ -841,6 +927,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     // React renders invisibly while native overlay stays visible.
                     // React signals overlay_rendered → handleOverlayRendered does
                     // atomic swap: show WebView + dismiss native in same run loop.
+                    let chatState = self.decideChatState()
                     self.overlayIPC.emit("screen-captured", data: [
                         "imageURL": result.imageURL,
                         "windowBounds": result.windowBounds,
@@ -849,8 +936,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         "cursorX": result.cursorX,
                         "cursorY": result.cursorY,
                         "selection": selectionData,
-                        "keepThread": self.overlayKeepThread,
-                        "wasNewThread": self.overlayWasNewThread
+                        "startNewThread": chatState.startNewThread,
+                        "compact": chatState.compact
                     ])
                     // Do NOT show overlay here — wait for overlayRendered callback.
                     // Safety timeout: if callback never fires, swap after 500ms anyway.
@@ -956,7 +1043,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleEscape() {
-        // Settings always closes first (ESC highest priority)
+        // Image viewer closes first (ESC highest priority)
+        if imageViewerPanel?.isVisible == true { hideImageViewer(); return }
+        // Settings closes next
         if let panel = settingsPanel, panel.isVisible { hideSettings(); return }
         // Native selection in progress, ESC cancels it
         if nativeSelectionOverlay != nil { dismissNativeSelection(); return }
@@ -1235,6 +1324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let result = pendingCaptureResult {
             pendingCaptureResult = nil
             // Emit data then show WebView BEHIND native overlay for painting.
+            let chatState = decideChatState()
             if let sel = pendingSelection {
                 pendingSelection = nil
                 overlayIPC.emit("screen-captured", data: [
@@ -1244,7 +1334,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     "offset": result.offset,
                     "cursorX": result.cursorX,
                     "cursorY": result.cursorY,
-                    "selection": sel
+                    "selection": sel,
+                    "startNewThread": chatState.startNewThread,
+                    "compact": chatState.compact
                 ])
             } else {
                 emitCaptureToOverlay(result)
@@ -1500,6 +1592,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 injectionTime: .atDocumentStart, forMainFrameOnly: true
             ))
         }
+
+        // Expose app support directory path so JS can construct file:// URLs for persisted images
+        let appSupportPath = settingsStore.appSupportDir.path.replacingOccurrences(of: "'", with: "\\'")
+        userContent.addUserScript(WKUserScript(
+            source: "window._glimpseAppSupportDir = '\(appSupportPath)';",
+            injectionTime: .atDocumentStart, forMainFrameOnly: true
+        ))
 
         if let shimCode = loadShimJS() {
             userContent.addUserScript(WKUserScript(

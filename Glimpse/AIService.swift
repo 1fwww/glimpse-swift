@@ -133,12 +133,16 @@ class AIService {
         url.setValue("application/json", forHTTPHeaderField: "content-type")
 
         // Convert messages: flatten content arrays to string for non-vision
-        let apiMessages = messages.map { msg -> [String: Any] in
+        let apiMessages = messages.compactMap { msg -> [String: Any]? in
             var m: [String: Any] = ["role": msg["role"] ?? "user"]
             if let content = msg["content"] as? String {
                 m["content"] = content
             } else if let contentArr = msg["content"] as? [[String: Any]] {
-                // Keep array format (supports images)
+                // Skip messages with empty content (can happen when file-referenced images are stripped)
+                guard !contentArr.isEmpty else {
+                    NSLog("[AI] Skipping message with empty content (images stripped)")
+                    return nil
+                }
                 m["content"] = contentArr
             }
             return m
@@ -172,6 +176,8 @@ class AIService {
               let content = json["content"] as? [[String: Any]],
               let firstBlock = content.first,
               let text = firstBlock["text"] as? String else {
+            let bodyStr = String(data: data, encoding: .utf8) ?? ""
+            NSLog("[AI] Claude parse fail. Body: \(bodyStr.prefix(500))")
             throw APIError.parseError("Could not parse Claude response")
         }
         return text

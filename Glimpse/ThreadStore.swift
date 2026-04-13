@@ -5,11 +5,44 @@ import Foundation
 /// Keeps only the 5 most recent threads.
 class ThreadStore {
     let threadsDir: URL
+    let imagesDir: URL
     private let maxThreads = 5
 
     init(appSupportDir: URL) {
         threadsDir = appSupportDir.appendingPathComponent("threads")
+        imagesDir = appSupportDir.appendingPathComponent("images")
         try? FileManager.default.createDirectory(at: threadsDir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+    }
+
+    /// Save a base64-encoded image to disk. Returns relative path (e.g. "images/abc_0.png") or nil on failure.
+    func saveImage(threadId: String, messageIndex: Int, base64Data: String, mediaType: String) -> String? {
+        guard let data = Data(base64Encoded: base64Data) else {
+            NSLog("[ThreadStore] Failed to decode base64 image data")
+            return nil
+        }
+        let ext = mediaType.contains("jpeg") ? "jpg" : "png"
+        let filename = "\(threadId)_\(messageIndex).\(ext)"
+        let fileURL = imagesDir.appendingPathComponent(filename)
+        do {
+            try data.write(to: fileURL)
+            NSLog("[ThreadStore] Saved image \(filename) (\(data.count / 1024)KB)")
+            return "images/\(filename)"
+        } catch {
+            NSLog("[ThreadStore] Failed to save image: \(error)")
+            return nil
+        }
+    }
+
+    /// Delete all images associated with a thread ID.
+    private func deleteImages(forThreadId id: String) {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: imagesDir, includingPropertiesForKeys: nil) else { return }
+        let prefix = "\(id)_"
+        for file in files where file.lastPathComponent.hasPrefix(prefix) {
+            try? fm.removeItem(at: file)
+            NSLog("[ThreadStore] Deleted image \(file.lastPathComponent)")
+        }
     }
 
     func getThreads() -> [[String: Any]] {
@@ -26,10 +59,10 @@ class ThreadStore {
             }
         }
 
-        // Sort by updatedAt descending
+        // Sort by updatedAt descending (JS sends Date.now() = milliseconds number)
         threads.sort { a, b in
-            let aTime = a["updatedAt"] as? String ?? ""
-            let bTime = b["updatedAt"] as? String ?? ""
+            let aTime = (a["updatedAt"] as? NSNumber)?.doubleValue ?? 0
+            let bTime = (b["updatedAt"] as? NSNumber)?.doubleValue ?? 0
             return aTime > bTime
         }
 
@@ -58,6 +91,7 @@ class ThreadStore {
     func deleteThread(id: String) -> [String: Any] {
         let fileURL = threadsDir.appendingPathComponent("\(id).json")
         try? FileManager.default.removeItem(at: fileURL)
+        deleteImages(forThreadId: id)
         return ["success": true]
     }
 
@@ -74,6 +108,7 @@ class ThreadStore {
             let id = file.deletingPathExtension().lastPathComponent
             if !keptIDs.contains(id) {
                 try? fm.removeItem(at: file)
+                deleteImages(forThreadId: id)
             }
         }
     }

@@ -88,6 +88,10 @@ window.electronAPI = {
   getThreads: () => invoke('get_threads'),
   saveThread: (thread) => invoke('save_thread', { thread }),
   deleteThread: (id) => invoke('delete_thread', { id }),
+  saveThreadImage: (threadId, messageIndex, base64Data, mediaType) =>
+    invoke('save_thread_image', { threadId, messageIndex, base64Data, mediaType }),
+  showImageViewer: (path) => invoke('show_image_viewer', { path }),
+  showImageViewerData: (dataUrl) => invoke('show_image_viewer', { dataUrl }),
 
   // ── AI ──
   chatWithAI: (messages, provider, modelId) => invoke('chat_with_ai', { messages, provider, modelId }),
@@ -151,6 +155,7 @@ window.electronAPI = {
   openPermissionSettings: (type) => invoke('open_permission_settings', { type }),
 
   // ── Utilities ──
+  log: (msg) => invoke('log', { msg }),
   openExternal: (url) => invoke('open_external', { url }),
   inputFocus: () => invoke('input_focus'),
   lowerOverlay: () => invoke('lower_overlay'),
@@ -160,7 +165,7 @@ window.electronAPI = {
   onScreenCaptured: (cb) => listen('screen-captured', (data) => {
     // imageURL is a file:// URL to a unique JPEG in /tmp (timestamp in filename)
     var imageUrl = data.imageURL || data.dataUrl
-    cb(imageUrl, data.windowBounds, data.displayInfo, data.offset, data.selection || null, data.keepThread || false, data.wasNewThread !== false)
+    cb(imageUrl, data.windowBounds, data.displayInfo, data.offset, data.selection || null, data.startNewThread || false, data.compact || false)
     // Auto-trigger hover detection at cursor position so the window under
     // the cursor is highlighted immediately (only when no pre-applied selection)
     if (!data.selection && data.cursorX !== undefined) {
@@ -179,7 +184,7 @@ window.electronAPI = {
   onSetCroppedImage: (cb) => listen('set-cropped-image', cb),
   onClearScreenshot: (cb) => listen('clear-screenshot', cb),
   onClearTextContext: (cb) => listen('clear-text-context', cb),
-  onCheckSize: (cb) => listen('check-size', cb),
+  // onCheckSize removed — Swift decides chat state via decideChatState()
   onStartNewThread: (cb) => listen('start-new-thread', cb),
   onTextContext: (cb) => listen('text-context', cb),
   onShortcutTried: (cb) => listen('shortcut-tried', cb),

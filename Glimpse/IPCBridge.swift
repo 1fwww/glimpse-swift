@@ -69,9 +69,8 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             }
             let result = await aiService.chatWithAI(messages: messages, provider: provider, modelId: modelId, apiKey: apiKey)
             if let success = result["success"] as? Bool, success {
-                let source = self.bridgeId
                 DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: .chatConversationStarted, object: nil, userInfo: ["source": source])
+                    NotificationCenter.default.post(name: .chatConversationStarted, object: nil)
                 }
             }
             return result
@@ -263,6 +262,18 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             }
             return ["success": false, "error": "Missing thread data"]
 
+        case "save_thread_image":
+            guard let threadId = args["threadId"] as? String,
+                  let messageIndex = (args["messageIndex"] as? NSNumber)?.intValue,
+                  let base64Data = args["base64Data"] as? String,
+                  let mediaType = args["mediaType"] as? String else {
+                return ["success": false, "error": "Missing parameters"]
+            }
+            if let path = threadStore.saveImage(threadId: threadId, messageIndex: messageIndex, base64Data: base64Data, mediaType: mediaType) {
+                return ["success": true, "path": path]
+            }
+            return ["success": false, "error": "Failed to save image"]
+
         case "delete_thread":
             if let id = args["id"] as? String {
                 return threadStore.deleteThread(id: id)
@@ -294,6 +305,14 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             return true
 
         // ── Window management ──
+        case "show_image_viewer":
+            if let imagePath = args["path"] as? String {
+                NotificationCenter.default.post(name: .showImageViewer, object: nil, userInfo: ["path": imagePath])
+            } else if let dataUrl = args["dataUrl"] as? String {
+                NotificationCenter.default.post(name: .showImageViewer, object: nil, userInfo: ["dataUrl": dataUrl])
+            }
+            return true
+
         case "close_chat_window":
             NotificationCenter.default.post(name: .closeChatWindow, object: nil)
             return true
@@ -387,7 +406,7 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             return true
 
         case "notify_new_thread":
-            NotificationCenter.default.post(name: .newThreadCreated, object: nil, userInfo: ["source": bridgeId])
+            NotificationCenter.default.post(name: .newThreadCreated, object: nil)
             return true
 
         // ── Welcome / Settings windows ──
@@ -483,6 +502,7 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
 // Notification names
 extension Notification.Name {
     static let closeChatWindow = Notification.Name("closeChatWindow")
+    static let showImageViewer = Notification.Name("showImageViewer")
     static let chatReady = Notification.Name("chatReady")
     static let resizeChatWindow = Notification.Name("resizeChatWindow")
     static let togglePin = Notification.Name("togglePin")

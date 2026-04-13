@@ -104,12 +104,28 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
 
         case "request_screen_permission":
             // Triggers system permission prompt if not yet determined; returns current status
-            let granted = await MainActor.run { CGRequestScreenCaptureAccess() }
+            // Briefly lower welcome window so system dialog appears above it
+            let granted = await MainActor.run {
+                NotificationCenter.default.post(name: .lowerWelcome, object: nil)
+                let result = CGRequestScreenCaptureAccess()
+                // Restore after a short delay to let the system dialog appear
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationCenter.default.post(name: .restoreWelcome, object: nil)
+                }
+                return result
+            }
             return ["granted": granted]
 
         case "request_accessibility_permission":
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            let trusted = await MainActor.run { AXIsProcessTrustedWithOptions(options) }
+            let trusted = await MainActor.run {
+                NotificationCenter.default.post(name: .lowerWelcome, object: nil)
+                let result = AXIsProcessTrustedWithOptions(options)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationCenter.default.post(name: .restoreWelcome, object: nil)
+                }
+                return result
+            }
             // If just granted, install the event tap now
             if trusted {
                 await MainActor.run { ShortcutManager.shared?.installEventTap() }
@@ -473,4 +489,6 @@ extension Notification.Name {
     static let providersChanged = Notification.Name("providersChanged")
     static let newThreadCreated = Notification.Name("newThreadCreated")
     static let chatConversationStarted = Notification.Name("chatConversationStarted")
+    static let lowerWelcome = Notification.Name("lowerWelcome")
+    static let restoreWelcome = Notification.Name("restoreWelcome")
 }

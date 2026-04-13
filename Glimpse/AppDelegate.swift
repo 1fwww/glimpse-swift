@@ -123,6 +123,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleRefreshTrayMenu), name: .refreshTrayMenu, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseWelcome), name: .closeWelcome, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleWelcomeDone), name: .welcomeDone, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleLowerWelcome), name: .lowerWelcome, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRestoreWelcome), name: .restoreWelcome, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleToggleSettings), name: .toggleSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseSettings), name: .closeSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
@@ -159,6 +161,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let webView = createWebView(in: panel, bridge: welcomeIPC, route: "#welcome")
         welcomeIPC.webView = webView
 
+        // Match chat panel styling: shadow + rounded corners
+        panel.hasShadow = true
+        webView.layer?.cornerRadius = 20
+
         // Center on main screen
         let screen = NSScreen.main ?? NSScreen.screens.first!
         let sf = screen.frame
@@ -192,14 +198,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Welcome dismissed mid-flow — onboarding continues")
     }
 
+    @objc func handleLowerWelcome() {
+        welcomePanel?.level = .init(rawValue: NSWindow.Level.normal.rawValue - 1)
+    }
+
+    @objc func handleRestoreWelcome() {
+        welcomePanel?.level = .normal
+        welcomePanel?.makeKeyAndOrderFront(nil)
+    }
+
     @objc func handleWelcomeDone() {
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
         isOnboarding = false
         hideWelcome()
         // Switch to tray-only mode — remove dock icon
         NSApp.setActivationPolicy(.accessory)
-        // Install event tap if accessibility was granted during welcome
+        // Install event tap if accessibility was granted during welcome.
+        // macOS may need a moment after granting accessibility before the tap works,
+        // so retry a few times with short delays.
         shortcutManager.installEventTap()
+        for delay in [0.5, 1.0, 2.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.shortcutManager.installEventTap()
+            }
+        }
         // Chat was prewarmed at launch — it's ready, just don't auto-show it.
         // User will trigger it via shortcut or tray.
         NSLog("[App] Welcome completed — onboarding done")
@@ -586,14 +608,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             (frozenScreenWindow?.isVisible == true) || (nativeSelectionOverlay != nil)
     }
 
-    /// Restore Regular activation policy after showing windows on fullscreen Spaces.
-    /// Uses hide-then-restore pattern to avoid Space switch.
+    /// Restore activation policy after fullscreen Space operations.
+    /// Fullscreen path sets .accessory to avoid Space switch; this restores normal state.
+    /// During onboarding we stay .regular (dock icon visible); after onboarding we go .accessory (tray only).
     private func restoreActivationPolicyIfNeeded() {
         guard NSApp.activationPolicy() == .accessory else { return }
-        NSApp.hide(nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.activationPolicyRestoreDelay) {
-            NSApp.setActivationPolicy(.regular)
+        if isOnboarding {
+            NSApp.hide(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.activationPolicyRestoreDelay) {
+                NSApp.setActivationPolicy(.regular)
+            }
         }
+        // After onboarding: already .accessory, nothing to do — stay tray-only
     }
 
     func emitCaptureToOverlay(_ result: ScreenCapture.CaptureResult) {

@@ -49,49 +49,39 @@ function listen(event, callback) {
   return () => window.removeEventListener('glimpse:' + event, handler);
 }
 
-// Window dragging: React's handleHeaderMouseDown checks for __TAURI_INTERNALS__
-// and returns early when chatFullSize=true. We can't intercept that cleanly, so
-// we add a capture-phase listener directly on .chat-header that fires BEFORE React.
-var _dragObserver = new MutationObserver(function() {
-  var header = document.querySelector('.chat-header');
-  if (header && !header._glimpseDragBound) {
-    header._glimpseDragBound = true;
-    header.addEventListener('mousedown', function(e) {
-      if (e.target.closest('button') || e.target.closest('[data-no-drag]')) return;
-      window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
-    }, true); // capture phase — fires before React's bubble-phase handler
-    _dragObserver.disconnect();
-  }
-});
-_dragObserver.observe(document, { childList: true, subtree: true });
-
-// Settings window drag header
-var _settingsDragObserver = new MutationObserver(function() {
-  var header = document.querySelector('.settings-header');
-  if (header && !header._glimpseDragBound) {
-    header._glimpseDragBound = true;
-    header.addEventListener('mousedown', function(e) {
-      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('[data-no-drag]')) return;
-      window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
-    }, true);
-    _settingsDragObserver.disconnect();
-  }
-});
-_settingsDragObserver.observe(document, { childList: true, subtree: true });
-
-// Welcome window drag bar
-var _welcomeDragObserver = new MutationObserver(function() {
-  var bar = document.querySelector('.welcome-drag-bar');
-  if (bar && !bar._glimpseDragBound) {
-    bar._glimpseDragBound = true;
-    bar.addEventListener('mousedown', function(e) {
-      if (e.target.closest('button') || e.target.closest('[data-no-drag]')) return;
-      window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
-    }, true);
-    _welcomeDragObserver.disconnect();
-  }
-});
-_welcomeDragObserver.observe(document, { childList: true, subtree: true });
+// Universal window dragging: any mousedown on non-interactive "dead space" starts a drag.
+// Uses capture phase to fire BEFORE React's bubble-phase handlers.
+// Rule: everything inside a draggable container is draggable EXCEPT interactive elements.
+//
+// Draggable containers (essentially the whole chat/settings/welcome window):
+//   .chat-only-inner — standalone chat (entire window)
+//   .settings-inner  — settings window
+//   .welcome-inner   — welcome window
+//
+// NOT draggable (interactive elements that consume clicks):
+//   buttons, inputs, textareas, links, selects
+//   .chat-msg — chat bubbles (user may select/copy text)
+//   .chat-messages — scrollable message list
+//   .chat-input-box — input container (textarea inside)
+//   .model-menu — model selector dropdown
+//   .overlay — screenshot overlay (has its own click handling)
+//   .selection-move-handle, .sel-handle — selection resize
+//   .drawing-canvas — annotation drawing
+//   .edit-toolbar — annotation toolbar
+//   .panel-resize-edge — window resize edges
+//   [data-no-drag] — explicit opt-out
+var _NO_DRAG_SELECTORS = 'button, input, textarea, select, a, [data-no-drag], ' +
+  '.chat-msg, .chat-messages, .chat-input-box, .model-menu, ' +
+  '.overlay, .selection-move-handle, .sel-handle, .drawing-canvas, ' +
+  '.edit-toolbar, .panel-resize-edge, .thread-list';
+var _DRAG_CONTAINERS = '.chat-only-inner, .settings-inner, .welcome-inner';
+document.addEventListener('mousedown', function(e) {
+  if (!e.target.closest(_DRAG_CONTAINERS)) return;
+  if (e.target.closest(_NO_DRAG_SELECTORS)) return;
+  var tag = e.target.tagName.toLowerCase();
+  if (tag === 'button' || tag === 'input' || tag === 'textarea' || tag === 'a' || tag === 'select') return;
+  window.webkit.messageHandlers.glimpse.postMessage({ command: '_start_drag' });
+}, true);
 
 window.electronAPI = {
   // ── Thread management ──

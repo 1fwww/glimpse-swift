@@ -110,28 +110,12 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
 
         case "request_screen_permission":
             // Triggers system permission prompt if not yet determined; returns current status
-            // Briefly lower welcome window so system dialog appears above it
-            let granted = await MainActor.run {
-                NotificationCenter.default.post(name: .lowerWelcome, object: nil)
-                let result = CGRequestScreenCaptureAccess()
-                // Restore after a short delay to let the system dialog appear
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    NotificationCenter.default.post(name: .restoreWelcome, object: nil)
-                }
-                return result
-            }
+            let granted = await MainActor.run { CGRequestScreenCaptureAccess() }
             return ["granted": granted]
 
         case "request_accessibility_permission":
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            let trusted = await MainActor.run {
-                NotificationCenter.default.post(name: .lowerWelcome, object: nil)
-                let result = AXIsProcessTrustedWithOptions(options)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    NotificationCenter.default.post(name: .restoreWelcome, object: nil)
-                }
-                return result
-            }
+            let trusted = await MainActor.run { AXIsProcessTrustedWithOptions(options) }
             // If just granted, install the event tap now
             if trusted {
                 await MainActor.run { ShortcutManager.shared?.installEventTap() }
@@ -141,12 +125,19 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
         case "select_folder":
             return await MainActor.run {
                 NotificationCenter.default.post(name: .lowerOverlay, object: nil)
+                // Temporarily lower settings window so NSOpenPanel appears above it
+                let settingsWindow = self.webView?.window
+                let savedLevel = settingsWindow?.level
+                settingsWindow?.level = .normal
                 let panel = NSOpenPanel()
                 panel.canChooseDirectories = true
                 panel.canChooseFiles = false
                 panel.allowsMultipleSelection = false
                 panel.prompt = "Select"
                 let response = panel.runModal()
+                // Restore settings window level
+                if let saved = savedLevel { settingsWindow?.level = saved }
+                settingsWindow?.makeKeyAndOrderFront(nil)
                 NotificationCenter.default.post(name: .restoreOverlay, object: nil)
                 if response == .OK, let url = panel.url {
                     return url.path as Any
@@ -495,6 +486,4 @@ extension Notification.Name {
     static let providersChanged = Notification.Name("providersChanged")
     static let newThreadCreated = Notification.Name("newThreadCreated")
     static let chatConversationStarted = Notification.Name("chatConversationStarted")
-    static let lowerWelcome = Notification.Name("lowerWelcome")
-    static let restoreWelcome = Notification.Name("restoreWelcome")
 }

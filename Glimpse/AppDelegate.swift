@@ -123,8 +123,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleRefreshTrayMenu), name: .refreshTrayMenu, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseWelcome), name: .closeWelcome, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleWelcomeDone), name: .welcomeDone, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(handleLowerWelcome), name: .lowerWelcome, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(handleRestoreWelcome), name: .restoreWelcome, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleToggleSettings), name: .toggleSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseSettings), name: .closeSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleProvidersChanged), name: .providersChanged, object: nil)
@@ -186,9 +184,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.welcomePanel = panel
         self.welcomeWebView = webView
 
+        // Show at alpha=0, reveal after WebView loads (prevents blank first frame)
+        panel.alphaValue = 0
         panel.showAndFocus()
         updateVisibleWindowFlag()
-        NSLog("[App] Welcome window shown")
+        NSLog("[App] Welcome window shown (waiting for load)")
     }
 
     func hideWelcome() {
@@ -205,15 +205,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Next shortcut will reopen welcome at the saved step (React localStorage).
         hideWelcome()
         NSLog("[App] Welcome dismissed mid-flow — onboarding continues")
-    }
-
-    @objc func handleLowerWelcome() {
-        welcomePanel?.level = .init(rawValue: NSWindow.Level.normal.rawValue - 1)
-    }
-
-    @objc func handleRestoreWelcome() {
-        welcomePanel?.level = .normal
-        welcomePanel?.makeKeyAndOrderFront(nil)
     }
 
     @objc func handleWelcomeDone() {
@@ -1493,6 +1484,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         NSLog("[App] WebView loaded: \(webView.url?.absoluteString ?? "nil")")
+        // Welcome WebView loaded — reveal window
+        if webView === welcomeWebView {
+            DispatchQueue.main.async { [weak self] in
+                self?.welcomePanel?.alphaValue = 1
+                NSLog("[App] Welcome revealed")
+            }
+        }
         // Overlay WebView ready — React renders on next frame
         if webView === overlayWebView {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in

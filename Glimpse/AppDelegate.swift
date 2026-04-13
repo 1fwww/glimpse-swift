@@ -992,6 +992,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Welcome ready (React rendered)")
         panel.alphaValue = 0
         panel.showAndFocus()
+        // Force Intel compositor to compute shadow: nudge frame by 1px and back.
+        // Intel's window server only computes shadow after a geometry change.
+        // Chat works because showChat() calls setFrame before showing.
+        let f = panel.frame
+        panel.setFrame(NSRect(origin: f.origin, size: NSSize(width: f.width, height: f.height + 1)), display: true)
+        panel.setFrame(f, display: true)
         updateVisibleWindowFlag()
         DispatchQueue.main.async {
             panel.alphaValue = 1
@@ -1011,6 +1017,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             panel.showAndFocus()
         }
+        // Force Intel compositor to compute shadow (same as welcome — see comment there)
+        let f = panel.frame
+        panel.setFrame(NSRect(origin: f.origin, size: NSSize(width: f.width, height: f.height + 1)), display: true)
+        panel.setFrame(f, display: true)
         updateVisibleWindowFlag()
         DispatchQueue.main.async {
             panel.alphaValue = 1

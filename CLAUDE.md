@@ -313,9 +313,15 @@ These properties are intended for the chat panel only. Apply them in `prewarmCha
 #### Screenshot Performance
 **JPEG + file URL** instead of PNG + base64:
 - JPEG 85% quality: 10-20x faster encoding than PNG
-- Write to `/tmp/glimpse-capture.jpg`, pass `file://` URL to WebView
+- Write to unique `/tmp/glimpse-capture-{timestamp}.jpg` per capture, pass `file://` URL to WebView
+- Unique filenames prevent WKWebView `file://` caching (query string cache-busters don't work for file URLs)
+- Previous capture file auto-cleaned on next capture
 - WKWebView needs `allowingReadAccessTo: URL(fileURLWithPath: "/")` for temp file access
-- Cache-bust with `?t=Date.now()` query param in swift-shim.js
+
+**CRITICAL — WKWebView `file://` Image decode race (hard-won)**:
+`new Image(); img.src = fileUrl; img.onload = () => ctx.drawImage(img, ...)` is **BROKEN** in WKWebView for `file://` URLs. `onload` fires after metadata (dimensions) is parsed but BEFORE pixel data is fully decoded. `img.decode()` also does NOT reliably wait. Result: `drawImage` reads black pixels intermittently, producing black screenshots.
+
+**Fix**: Use `fetch(url)` → `resp.blob()` → `createImageBitmap(blob)` which guarantees full pixel decode. Applied to all three image processing paths: `cropSelection`, `getCompositeImage`, `getHiResComposite`. **Never use `new Image()` for canvas operations with `file://` URLs in WKWebView.**
 
 **Frozen screen** (for non-native-selection fallback on fullscreen):
 - `CGDisplayCreateImage` reads framebuffer in ~5ms (vs CGWindowListCreateImage ~20ms)

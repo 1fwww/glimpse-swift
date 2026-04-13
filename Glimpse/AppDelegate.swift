@@ -172,24 +172,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let webView = createWebView(in: panel, bridge: welcomeIPC, route: "#welcome")
         welcomeIPC.webView = webView
 
-        // Same prewarm pattern as chat: create hidden (orderOut), let WebView render,
-        // show only after didFinish. This ensures the window server computes shadow
-        // from rendered content on first show — works on Intel + Apple Silicon.
-        panel.hasShadow = true
-        webView.layer?.cornerRadius = 16  // Match CSS --radius-lg (16px)
-
         // Center on main screen
         let screen = NSScreen.main ?? NSScreen.screens.first!
         let sf = screen.frame
         panel.setFrameOrigin(NSPoint(x: sf.midX - 220, y: sf.midY - 290))
-        panel.level = .normal
         panel.isMovableByWindowBackground = true
 
         self.welcomePanel = panel
         self.welcomeWebView = webView
 
-        // Keep hidden until WebView finishes loading (didFinish → showAndFocus)
+        // CRITICAL: orderOut FIRST, then set shadow + cornerRadius.
+        // This matches prewarmChat() exactly. Setting these AFTER orderOut
+        // ensures the window server gets the configuration for a hidden window,
+        // which it correctly applies on first show. Reversed order breaks
+        // shadow computation on Intel Macs.
         panel.orderOut(nil)
+        panel.hasShadow = true
+        panel.level = .normal
+        webView.layer?.cornerRadius = 16
         updateVisibleWindowFlag()
         NSLog("[App] Welcome panel created (waiting for WebView load)")
     }
@@ -240,25 +240,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let settingsSize = NSSize(width: 480, height: 540)
         let panel = GlimpsePanel(size: settingsSize)
-        panel.hasShadow = true
         let webView = createWebView(in: panel, bridge: settingsIPC, route: "#settings")
         settingsIPC.webView = webView
-        webView.layer?.cornerRadius = 16  // Match CSS --radius-lg
 
-        // If overlay is open, settings must float above it (screensaverLevel + 1)
         let fromOverlay = overlayPanel?.isVisible == true
-        panel.level = fromOverlay
-            ? NSWindow.Level(rawValue: Self.screensaverLevel.rawValue + 1)
-            : .floating
-
         panel.setFrameOrigin(settingsOrigin(size: settingsSize, panelBounds: panelBounds, fromOverlay: fromOverlay))
 
         self.settingsPanel = panel
         self.settingsWebView = webView
         self.settingsFromOverlay = fromOverlay
 
-        // Same prewarm pattern: hidden until WebView loads (didFinish → show)
+        // CRITICAL: orderOut FIRST, then set shadow/level/cornerRadius (matches prewarmChat)
         panel.orderOut(nil)
+        panel.hasShadow = true
+        panel.level = fromOverlay
+            ? NSWindow.Level(rawValue: Self.screensaverLevel.rawValue + 1)
+            : .floating
+        webView.layer?.cornerRadius = 16
         NSLog("[App] Settings created (fromOverlay=\(fromOverlay), waiting for load)")
     }
 

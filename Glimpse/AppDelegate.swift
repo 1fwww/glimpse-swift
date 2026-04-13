@@ -992,17 +992,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[App] Welcome ready (React rendered)")
         panel.alphaValue = 0
         panel.showAndFocus()
-        // Force Intel compositor to compute shadow: nudge frame by 1px and back.
-        // Intel's window server only computes shadow after a geometry change.
-        // Chat works because showChat() calls setFrame before showing.
-        let f = panel.frame
-        panel.setFrame(NSRect(origin: f.origin, size: NSSize(width: f.width, height: f.height + 1)), display: true)
-        panel.setFrame(f, display: true)
         updateVisibleWindowFlag()
         DispatchQueue.main.async {
             panel.alphaValue = 1
             panel.invalidateShadow()
             NSLog("[App] Welcome revealed")
+            // Intel shadow fix: force window server to rebuild shadow layer.
+            // On Intel, borderless+clear windows don't compute shadow until a
+            // geometry change or shadow toggle. Try multiple approaches:
+            self.forceIntelShadow(panel)
         }
     }
 
@@ -1017,15 +1015,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             panel.showAndFocus()
         }
-        // Force Intel compositor to compute shadow (same as welcome — see comment there)
-        let f = panel.frame
-        panel.setFrame(NSRect(origin: f.origin, size: NSSize(width: f.width, height: f.height + 1)), display: true)
-        panel.setFrame(f, display: true)
         updateVisibleWindowFlag()
         DispatchQueue.main.async {
             panel.alphaValue = 1
             panel.invalidateShadow()
             NSLog("[App] Settings revealed")
+            self.forceIntelShadow(panel)
+        }
+    }
+
+    /// Force Intel's window server to compute shadow on borderless+clear windows.
+    /// Intel doesn't compute shadow until a geometry change occurs. We try three
+    /// approaches at staggered delays so at least one triggers the recompute.
+    /// The 1px nudge is invisible in practice (single frame at most).
+    private func forceIntelShadow(_ panel: NSPanel) {
+        // Approach 1 (50ms): toggle hasShadow off/on — forces shadow layer rebuild
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak panel] in
+            guard let panel, panel.isVisible else { return }
+            panel.hasShadow = false
+            panel.hasShadow = true
+            panel.invalidateShadow()
+            NSLog("[App] Intel shadow fix: toggled hasShadow")
+        }
+        // Approach 2 (150ms): frame nudge +1px then back, across separate run loops
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak panel] in
+            guard let panel, panel.isVisible else { return }
+            let f = panel.frame
+            panel.setFrame(NSRect(origin: f.origin, size: NSSize(width: f.width, height: f.height + 1)), display: true)
+            panel.invalidateShadow()
+            DispatchQueue.main.async { [weak panel] in
+                guard let panel, panel.isVisible else { return }
+                panel.setFrame(f, display: true)
+                panel.invalidateShadow()
+                NSLog("[App] Intel shadow fix: frame nudge complete")
+            }
         }
     }
 

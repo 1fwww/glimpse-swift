@@ -73,7 +73,7 @@ function listen(event, callback) {
 var _NO_DRAG_SELECTORS = 'button, input, textarea, select, a, [data-no-drag], ' +
   '.chat-msg, .chat-messages, .chat-input-box, .model-menu, ' +
   '.overlay, .selection-move-handle, .sel-handle, .drawing-canvas, ' +
-  '.edit-toolbar, .panel-resize-edge, .thread-list';
+  '.edit-toolbar, .panel-resize-edge, .thread-list, .board-grid-area, .viewer-image-area, .viewer-context';
 var _DRAG_CONTAINERS = '.chat-only-inner, .settings-inner, .welcome-inner';
 document.addEventListener('mousedown', function(e) {
   if (!e.target.closest(_DRAG_CONTAINERS)) return;
@@ -90,6 +90,7 @@ window.electronAPI = {
   deleteThread: (id) => invoke('delete_thread', { id }),
   saveThreadImage: (threadId, messageIndex, base64Data, mediaType) =>
     invoke('save_thread_image', { threadId, messageIndex, base64Data, mediaType }),
+  getAllImages: () => invoke('get_all_images'),
   showImageViewer: (path, dataUrl, allImages, currentIndex) => invoke('show_image_viewer', {
     path: path || null, dataUrl: dataUrl || null,
     allImages: allImages || [], currentIndex: currentIndex || 0

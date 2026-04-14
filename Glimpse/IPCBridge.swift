@@ -256,6 +256,9 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
         case "get_threads":
             return threadStore.getThreads()
 
+        case "get_all_images":
+            return threadStore.getAllImages()
+
         case "save_thread":
             if let thread = args["thread"] as? [String: Any] {
                 return threadStore.saveThread(thread)

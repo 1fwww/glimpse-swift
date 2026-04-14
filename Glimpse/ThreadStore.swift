@@ -95,6 +95,77 @@ class ThreadStore {
         return ["success": true]
     }
 
+    /// Return all images across all threads, sorted by timestamp descending.
+    /// Each entry: { path, threadId, threadTitle, messageIndex, timestamp, question, answer }
+    func getAllImages() -> [[String: Any]] {
+        let fm = FileManager.default
+        let threads = getThreads()
+        var result: [[String: Any]] = []
+
+        for thread in threads {
+            guard let threadId = thread["id"] as? String,
+                  let messages = thread["messages"] as? [[String: Any]] else { continue }
+            let threadTitle = thread["title"] as? String ?? "Untitled"
+            let timestamp = (thread["updatedAt"] as? NSNumber)?.doubleValue ?? 0
+
+            for (i, msg) in messages.enumerated() {
+                guard (msg["role"] as? String) == "user",
+                      let content = msg["content"] as? [[String: Any]] else { continue }
+
+                // Find image block with file reference
+                guard let imageBlock = content.first(where: { ($0["type"] as? String) == "image" }),
+                      let source = imageBlock["source"] as? [String: Any],
+                      (source["type"] as? String) == "file",
+                      let path = source["path"] as? String else { continue }
+
+                // Verify file exists on disk
+                let fileURL = imagesDir.deletingLastPathComponent().appendingPathComponent(path)
+                guard fm.fileExists(atPath: fileURL.path) else { continue }
+
+                // Extract question text from this message
+                let question = content
+                    .filter { ($0["type"] as? String) == "text" }
+                    .compactMap { $0["text"] as? String }
+                    .joined(separator: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Extract answer from next assistant message
+                var answer = ""
+                if i + 1 < messages.count,
+                   (messages[i + 1]["role"] as? String) == "assistant",
+                   let nextContent = messages[i + 1]["content"] as? [[String: Any]] {
+                    answer = nextContent
+                        .filter { ($0["type"] as? String) == "text" }
+                        .compactMap { $0["text"] as? String }
+                        .joined(separator: " ")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if answer.count > 200 {
+                        answer = String(answer.prefix(200)) + "…"
+                    }
+                }
+
+                result.append([
+                    "path": path,
+                    "threadId": threadId,
+                    "threadTitle": threadTitle,
+                    "messageIndex": i,
+                    "timestamp": timestamp,
+                    "question": question,
+                    "answer": answer
+                ])
+            }
+        }
+
+        // Sort by timestamp descending (most recent first)
+        result.sort { a, b in
+            let aTime = (a["timestamp"] as? Double) ?? 0
+            let bTime = (b["timestamp"] as? Double) ?? 0
+            return aTime > bTime
+        }
+
+        return result
+    }
+
     /// Remove threads beyond maxThreads limit
     private func pruneOldThreads() {
         let fm = FileManager.default

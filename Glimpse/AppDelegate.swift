@@ -1461,14 +1461,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func handleResizeChatWindow(_ notification: Notification) {
-        // Skip programmatic resize if user has manually set a size this session
-        if userDidResizeChat { return }
-
         guard let panel = chatPanel,
               let size = notification.userInfo,
               let width = size["width"] as? CGFloat ?? (size["width"] as? Int).map({ CGFloat($0) }),
               let height = size["height"] as? CGFloat ?? (size["height"] as? Int).map({ CGFloat($0) })
         else { return }
+
+        // Skip programmatic resize if user has manually set a size this session
+        // (unless force flag is set — used by board transition)
+        let force: Bool = {
+            if let b = size["force"] as? Bool { return b }
+            if let n = size["force"] as? NSNumber { return n.boolValue }
+            return false
+        }()
+        if userDidResizeChat && !force { return }
 
         let currentFrame = panel.frame
 
@@ -1514,8 +1520,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Horizontal anchoring: "center" keeps midpoint stable, default is left-anchored
+        let anchorX: String = (size["anchorX"] as? String) ?? "left"
+        var targetX = currentFrame.origin.x
+        if anchorX == "center" {
+            targetX = currentFrame.midX - clampedWidth / 2
+            // Clamp to screen bounds
+            if let screen = panel.screen {
+                let visible = screen.visibleFrame
+                targetX = max(visible.minX, min(targetX, visible.maxX - clampedWidth))
+            }
+        }
+
         let targetFrame = NSRect(
-            x: currentFrame.origin.x,
+            x: targetX,
             y: targetY,
             width: clampedWidth,
             height: clampedHeight

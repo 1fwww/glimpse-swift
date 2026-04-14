@@ -108,6 +108,8 @@ export default function ChatPanel({
   isWindowBlurred,
   onExitViewMode,
   skipNextScrollRef,
+  onToggleBoard,
+  boardActive,
   onTogglePin,
   provider,
   setProvider,
@@ -648,6 +650,8 @@ export default function ChatPanel({
     })
   }, [whenLayoutStable])
 
+  // (scroll-to-message is handled directly by ChatOnlyApp via DOM query)
+
   const saveCurrentThread = useCallback(async (thread) => {
     setCurrentThread(thread)
 
@@ -1007,9 +1011,13 @@ export default function ChatPanel({
       {/* Header — drag handle */}
       <div ref={headerRef} className="chat-header" onMouseDown={handleHeaderMouseDown} {...(chatFullSize ? {'data-tauri-drag-region': ''} : {})}>
         <span
-            className={`glimpse-icon-fixed chat-header-eye ${eyeAnim === 'draw' ? 'logo-draw-only' : eyebrowWiggle ? 'logo-single-blink' : ''}`}
+            className={`glimpse-icon-fixed chat-header-eye ${boardActive ? 'board-active' : ''} ${eyeAnim === 'draw' ? 'logo-draw-only' : eyebrowWiggle ? 'logo-single-blink' : ''}`}
             onClick={(e) => {
               e.stopPropagation()
+              if (chatFullSize && onToggleBoard) {
+                onToggleBoard()
+                return
+              }
               if (!isLoading && !eyeAnim) {
                 setEyebrowWiggle(false)
                 void e.currentTarget.offsetWidth
@@ -1165,6 +1173,7 @@ export default function ChatPanel({
                   <div
                     key={i}
                     className={`chat-msg ${msg.role}`}
+                    data-msg-index={i}
                     ref={isLastAssistant ? lastAssistantRef : null}
                   >
                     {msg.role === 'assistant' ? (

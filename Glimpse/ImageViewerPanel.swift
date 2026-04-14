@@ -181,10 +181,21 @@ class ImageViewerPanel: GlimpsePanel {
 
     private var imageContentView: ImageContentView!
     private let closeButton = NSButton()
+    private let counterLabel = NSTextField(labelWithString: "")
+    private var counterContainer: NSView?
+    private let ctaBar = NSView()
+    private var scrollToButton = NSButton()
+    private var viewInBoardButton = NSButton()
+
+    /// Callbacks for CTA actions (wired by AppDelegate)
+    var onScrollToImage: ((Int) -> Void)?
+    var onViewInBoard: ((String?) -> Void)?
 
     /// All images in the current thread for arrow-key navigation
     private var imageList: [ImageRef] = []
     private var currentImageIndex: Int = 0
+    /// Message indices parallel to imageList — maps image index → message index in thread
+    var messageIndices: [Int] = []
 
     private let closeButtonSize: CGFloat = 24
     private let closeButtonInset: CGFloat = 8
@@ -214,7 +225,10 @@ class ImageViewerPanel: GlimpsePanel {
         imageContentView.autoresizingMask = [.width, .height]
         imageContentView.onZoomingChanged = { [weak self] zooming in
             guard let self else { return }
-            self.closeButton.alphaValue = zooming ? 0 : (self.isMouseInside ? 1 : 0)
+            let visible: CGFloat = self.isMouseInside ? 1 : 0
+            self.closeButton.alphaValue = zooming ? 0 : visible
+            self.counterContainer?.alphaValue = zooming ? 0 : (self.imageList.count > 1 ? visible : 0)
+            self.ctaBar.alphaValue = zooming ? 0 : visible
         }
         contentView = imageContentView
 
@@ -223,11 +237,11 @@ class ImageViewerPanel: GlimpsePanel {
         closeButton.isBordered = false
         closeButton.wantsLayer = true
         closeButton.layer?.cornerRadius = 6
-        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.45).cgColor
+        closeButton.layer?.backgroundColor = NSColor(red: 0.18, green: 0.17, blue: 0.22, alpha: 0.65).cgColor
         closeButton.attributedTitle = NSAttributedString(
             string: "✕",
             attributes: [
-                .foregroundColor: NSColor(white: 1, alpha: 0.9),
+                .foregroundColor: NSColor(red: 0.95, green: 0.94, blue: 1.0, alpha: 0.92),
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium),
             ]
         )
@@ -243,6 +257,86 @@ class ImageViewerPanel: GlimpsePanel {
         closeTrailingConstraint = closeButton.trailingAnchor.constraint(equalTo: imageContentView.trailingAnchor, constant: -closeButtonInset)
         NSLayoutConstraint.activate([closeWidthConstraint, closeHeightConstraint, closeTopConstraint, closeTrailingConstraint])
 
+        // Brand-tinted overlay colors
+        // Brand-tinted grey — warm enough to feel intentional, light enough to not feel like a black slab
+        let overlayBg = NSColor(red: 0.18, green: 0.17, blue: 0.22, alpha: 0.65)
+        let overlayText = NSColor(red: 0.95, green: 0.94, blue: 1.0, alpha: 0.92)
+
+        // Counter — "1 of 5", bottom-right (container for vertical centering)
+        let counterBg = NSView()
+        counterBg.translatesAutoresizingMaskIntoConstraints = false
+        counterBg.wantsLayer = true
+        counterBg.layer?.cornerRadius = 6
+        counterBg.layer?.backgroundColor = overlayBg.cgColor
+        counterBg.alphaValue = 0
+        imageContentView.addSubview(counterBg)
+        self.counterContainer = counterBg
+
+        counterLabel.translatesAutoresizingMaskIntoConstraints = false
+        counterLabel.isBezeled = false
+        counterLabel.isEditable = false
+        counterLabel.drawsBackground = false
+        counterLabel.alignment = .center
+        counterLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        counterLabel.textColor = overlayText
+        counterBg.addSubview(counterLabel)
+
+        NSLayoutConstraint.activate([
+            counterBg.trailingAnchor.constraint(equalTo: imageContentView.trailingAnchor, constant: -8),
+            counterBg.bottomAnchor.constraint(equalTo: imageContentView.bottomAnchor, constant: -8),
+            counterBg.heightAnchor.constraint(equalToConstant: 22),
+            counterBg.widthAnchor.constraint(greaterThanOrEqualToConstant: 50),
+            counterLabel.centerXAnchor.constraint(equalTo: counterBg.centerXAnchor),
+            counterLabel.centerYAnchor.constraint(equalTo: counterBg.centerYAnchor),
+            counterLabel.leadingAnchor.constraint(greaterThanOrEqualTo: counterBg.leadingAnchor, constant: 8),
+            counterLabel.trailingAnchor.constraint(lessThanOrEqualTo: counterBg.trailingAnchor, constant: -8),
+        ])
+
+        // CTA bar — bottom-left
+        ctaBar.translatesAutoresizingMaskIntoConstraints = false
+        ctaBar.wantsLayer = true
+        ctaBar.alphaValue = 0
+        imageContentView.addSubview(ctaBar)
+        NSLayoutConstraint.activate([
+            ctaBar.leadingAnchor.constraint(equalTo: imageContentView.leadingAnchor, constant: 8),
+            ctaBar.bottomAnchor.constraint(equalTo: imageContentView.bottomAnchor, constant: -8),
+            ctaBar.heightAnchor.constraint(equalToConstant: 24),
+        ])
+
+        func configureCtaButton(_ btn: NSButton, title: String, accessibilityLabel: String, action: Selector) {
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            btn.isBordered = false
+            btn.wantsLayer = true
+            btn.layer?.cornerRadius = 6
+            btn.layer?.backgroundColor = overlayBg.cgColor
+            btn.attributedTitle = NSAttributedString(
+                string: title,
+                attributes: [
+                    .foregroundColor: overlayText,
+                    .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                ]
+            )
+            btn.target = self
+            btn.action = action
+            btn.setAccessibilityLabel(accessibilityLabel)
+            btn.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        }
+
+        configureCtaButton(scrollToButton, title: " Find in chat ", accessibilityLabel: "Find this image in chat", action: #selector(handleScrollTo))
+        configureCtaButton(viewInBoardButton, title: " All images ", accessibilityLabel: "View in image gallery", action: #selector(handleViewInBoard))
+
+        let ctaStack = NSStackView(views: [scrollToButton, viewInBoardButton])
+        ctaStack.translatesAutoresizingMaskIntoConstraints = false
+        ctaStack.orientation = .horizontal
+        ctaStack.spacing = 6
+        ctaBar.addSubview(ctaStack)
+        NSLayoutConstraint.activate([
+            ctaStack.leadingAnchor.constraint(equalTo: ctaBar.leadingAnchor),
+            ctaStack.trailingAnchor.constraint(equalTo: ctaBar.trailingAnchor),
+            ctaStack.topAnchor.constraint(equalTo: ctaBar.topAnchor),
+            ctaStack.bottomAnchor.constraint(equalTo: ctaBar.bottomAnchor),
+        ])
+
         let trackingArea = NSTrackingArea(
             rect: .zero,
             options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
@@ -252,13 +346,46 @@ class ImageViewerPanel: GlimpsePanel {
         imageContentView.addTrackingArea(trackingArea)
     }
 
+    @objc private func handleScrollTo() {
+        let msgIndex = currentImageIndex < messageIndices.count ? messageIndices[currentImageIndex] : currentImageIndex
+        onScrollToImage?(msgIndex)
+        closePanel()
+    }
+
+    @objc private func handleViewInBoard() {
+        if !imageList.isEmpty, case .file(let path) = imageList[currentImageIndex] {
+            onViewInBoard?(path)
+        } else {
+            onViewInBoard?(nil)
+        }
+        closePanel()
+    }
+
+    private func updateOverlayState() {
+        let hasMultiple = imageList.count > 1
+        if hasMultiple {
+            counterLabel.stringValue = "\(currentImageIndex + 1) of \(imageList.count)"
+            counterContainer?.isHidden = false
+        } else {
+            counterContainer?.isHidden = true
+        }
+        // Hide "All images" for unsaved data URL images
+        if !imageList.isEmpty, case .dataUrl = imageList[currentImageIndex] {
+            viewInBoardButton.isHidden = true
+        } else {
+            viewInBoardButton.isHidden = false
+        }
+    }
+
     override func mouseEntered(with event: NSEvent) {
         isMouseInside = true
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             closeButton.animator().alphaValue = 1
+            if imageList.count > 1 { counterContainer?.animator().alphaValue = 1 }
+            ctaBar.animator().alphaValue = 1
         }
-        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.6).cgColor
+        closeButton.layer?.backgroundColor = NSColor(red: 0.18, green: 0.17, blue: 0.22, alpha: 0.78).cgColor
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -266,18 +393,24 @@ class ImageViewerPanel: GlimpsePanel {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             closeButton.animator().alphaValue = 0
+            counterContainer?.animator().alphaValue = 0
+            ctaBar.animator().alphaValue = 0
         }
-        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.45).cgColor
+        closeButton.layer?.backgroundColor = NSColor(red: 0.18, green: 0.17, blue: 0.22, alpha: 0.65).cgColor
     }
 
-    /// Flash the close button briefly so users know it's there, then fade out
+    /// Flash overlays briefly so users know controls exist, then fade out
     private func flashCloseButton() {
         closeButton.alphaValue = 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+        if imageList.count > 1 { counterContainer?.alphaValue = 1 }
+        ctaBar.alphaValue = 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self, !self.isMouseInside else { return }
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.3
                 self.closeButton.animator().alphaValue = 0
+                self.counterContainer?.animator().alphaValue = 0
+                self.ctaBar.animator().alphaValue = 0
             }
         }
     }
@@ -288,15 +421,16 @@ class ImageViewerPanel: GlimpsePanel {
     }
 
     @discardableResult
-    func showImage(at path: String) -> Bool {
+    func showImage(at path: String, animate: Bool = false) -> Bool {
         guard let image = NSImage(contentsOfFile: path) else {
             NSLog("[ImageViewer] Failed to load image: \(path)")
             return false
         }
         imageContentView.image = image
         imageContentView.resetZoom()
-        resizeToFitImage(image)
+        resizeToFitImage(image, animate: animate)
         imageContentView.needsDisplay = true
+        updateOverlayState()
         flashCloseButton()
         return true
     }
@@ -307,17 +441,18 @@ class ImageViewerPanel: GlimpsePanel {
         let newIndex = max(0, min(index, imageList.count - 1))
         guard newIndex != currentImageIndex else { return }
         currentImageIndex = newIndex
+        imageContentView.resetZoom()
 
         switch imageList[newIndex] {
         case .file(let path):
-            showImage(at: path)
+            showImage(at: path, animate: true)
         case .dataUrl(let dataUrl):
-            showImageFromDataUrl(dataUrl)
+            showImageFromDataUrl(dataUrl, animate: true)
         }
     }
 
     /// Load image from data URL (for navigation — no temp file needed, just decode to NSImage)
-    private func showImageFromDataUrl(_ dataUrl: String) {
+    private func showImageFromDataUrl(_ dataUrl: String, animate: Bool = false) {
         guard let commaIndex = dataUrl.firstIndex(of: ",") else { return }
         let base64 = String(dataUrl[dataUrl.index(after: commaIndex)...])
         guard let data = Data(base64Encoded: base64),
@@ -327,12 +462,13 @@ class ImageViewerPanel: GlimpsePanel {
         }
         imageContentView.image = image
         imageContentView.resetZoom()
-        resizeToFitImage(image)
+        resizeToFitImage(image, animate: animate)
         imageContentView.needsDisplay = true
+        updateOverlayState()
         flashCloseButton()
     }
 
-    private func resizeToFitImage(_ image: NSImage) {
+    private func resizeToFitImage(_ image: NSImage, animate: Bool = false) {
         // Convert pixel dimensions to points using screen backing scale.
         // Default to 1.0 (non-Retina) so Intel Macs show images at natural size.
         let backingScale = NSScreen.main?.backingScaleFactor ?? 1.0
@@ -370,7 +506,17 @@ class ImageViewerPanel: GlimpsePanel {
             newY = max(sf.minY + 8, min(newY, sf.maxY - h - 8))
         }
 
-        setFrame(NSRect(x: newX, y: newY, width: w, height: h), display: true)
+        let targetFrame = NSRect(x: newX, y: newY, width: w, height: h)
+
+        if animate && abs(frame.width - w) + abs(frame.height - h) > 2 {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.2
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                self.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            setFrame(targetFrame, display: true)
+        }
 
         // Lock resize to this image's aspect ratio
         contentAspectRatio = NSSize(width: w, height: h)

@@ -314,6 +314,7 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             if let dataUrl = args["dataUrl"] as? String { userInfo["dataUrl"] = dataUrl }
             if let allImages = args["allImages"] as? [[String: Any]] { userInfo["allImages"] = allImages }
             if let idx = args["currentIndex"] as? NSNumber { userInfo["currentIndex"] = idx.intValue }
+            if let msgIndices = args["messageIndices"] as? [NSNumber] { userInfo["messageIndices"] = msgIndices.map { $0.intValue } }
             NotificationCenter.default.post(name: .showImageViewer, object: nil, userInfo: userInfo)
             return true
 

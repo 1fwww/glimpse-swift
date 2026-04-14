@@ -16,6 +16,7 @@ export default function ChatOnlyApp() {
   const [viewMode, setViewMode] = useState('chat') // 'chat' | 'board' | 'viewer'
   const [boardImages, setBoardImages] = useState([])
   const [viewerImageIndex, setViewerImageIndex] = useState(0)
+  const [highlightImagePath, setHighlightImagePath] = useState(null)
   const chatSizeBeforeBoard = useRef(null)
   const viewModeRef = useRef('chat')
   const tm = useThreadManager()
@@ -70,6 +71,18 @@ export default function ChatOnlyApp() {
       }
     })
     window.electronAPI?.onAutoSend?.(() => { setAutoSendPending(true) })
+    // Listen for "View in board" from native image viewer
+    const handleOpenBoardToImage = async (e) => {
+      const imagePath = e.detail
+      const images = await window.electronAPI?.getAllImages?.() || []
+      setBoardImages(images)
+      chatSizeBeforeBoard.current = window.innerHeight
+      setHighlightImagePath(imagePath)
+      setViewMode('board')
+      viewModeRef.current = 'board'
+      window.electronAPI?.resizeChatWindow?.({ width: 560, height: window.innerHeight, force: true, anchorX: 'center' })
+    }
+    window.addEventListener('glimpse:open-board-to-image', handleOpenBoardToImage)
     // Listen to window blur — focus does NOT reset blur state.
     // Only expand button or unpin resets it (via onExitViewMode).
     const handleBlur = () => { if (isPinnedRef.current) setIsWindowBlurred(true) }
@@ -225,6 +238,8 @@ export default function ChatOnlyApp() {
           images={boardImages}
           viewMode={viewMode}
           viewerImageIndex={viewerImageIndex}
+          highlightImagePath={highlightImagePath}
+          onHighlightConsumed={() => setHighlightImagePath(null)}
           onImageClick={handleViewImage}
           onBack={viewMode === 'viewer' ? handleBackToBoard : handleToggleBoard}
           onClose={handleClose}

@@ -4574,6 +4574,21 @@ button.board-image-card {
   transform: scale(0.98);
 }
 
+.board-image-card.card-highlight {
+  animation: cardHighlight 1.5s ease-out forwards;
+}
+
+@keyframes cardHighlight {
+  0%, 35% {
+    border-color: var(--brand-border);
+    box-shadow: 0 0 0 3px var(--brand-dim), 0 0 12px 4px rgba(108, 99, 255, 0.15);
+  }
+  100% {
+    border-color: var(--border-dim);
+    box-shadow: none;
+  }
+}
+
 .board-image-thumb {
   width: 100%;
   height: 100%;

@@ -91,9 +91,10 @@ window.electronAPI = {
   saveThreadImage: (threadId, messageIndex, base64Data, mediaType) =>
     invoke('save_thread_image', { threadId, messageIndex, base64Data, mediaType }),
   getAllImages: () => invoke('get_all_images'),
-  showImageViewer: (path, dataUrl, allImages, currentIndex) => invoke('show_image_viewer', {
+  showImageViewer: (path, dataUrl, allImages, currentIndex, messageIndices) => invoke('show_image_viewer', {
     path: path || null, dataUrl: dataUrl || null,
-    allImages: allImages || [], currentIndex: currentIndex || 0
+    allImages: allImages || [], currentIndex: currentIndex || 0,
+    messageIndices: messageIndices || []
   }),
   showImageViewerData: (dataUrl) => invoke('show_image_viewer', { dataUrl }),
 

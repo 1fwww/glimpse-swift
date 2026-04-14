@@ -6,7 +6,7 @@ import Foundation
 class ThreadStore {
     let threadsDir: URL
     let imagesDir: URL
-    private let maxThreads = 10
+    private let maxThreads = 100
 
     init(appSupportDir: URL) {
         threadsDir = appSupportDir.appendingPathComponent("threads")
@@ -99,7 +99,17 @@ class ThreadStore {
     /// Each entry: { path, threadId, threadTitle, messageIndex, timestamp, question, answer }
     func getAllImages() -> [[String: Any]] {
         let fm = FileManager.default
-        let threads = getThreads()
+        // Read ALL thread files (not getThreads() which caps at maxThreads)
+        guard let files = try? fm.contentsOfDirectory(at: threadsDir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        var threads: [[String: Any]] = []
+        for file in files where file.pathExtension == "json" {
+            if let data = try? Data(contentsOf: file),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                threads.append(dict)
+            }
+        }
         var result: [[String: Any]] = []
 
         for thread in threads {

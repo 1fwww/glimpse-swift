@@ -301,7 +301,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Image Viewer
 
-    func showImageViewer(imagePath: String, imageList: [ImageViewerPanel.ImageRef] = [], currentIndex: Int = 0) {
+    func showImageViewer(imagePath: String, imageList: [ImageViewerPanel.ImageRef] = [], currentIndex: Int = 0, messageIndices: [Int] = []) {
         let panel: ImageViewerPanel
         if let existing = imageViewerPanel {
             panel = existing
@@ -312,6 +312,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !imageList.isEmpty {
             panel.setImageList(imageList, currentIndex: currentIndex)
+        }
+        panel.messageIndices = messageIndices
+
+        // Wire CTA callbacks
+        panel.onScrollToImage = { [weak self] (msgIndex: Int) in
+            guard let self else { return }
+            self.hideImageViewer()
+            // Bring chat forward and scroll to the message
+            if let chatPanel = self.chatPanel {
+                chatPanel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                let js = "(() => { const el = document.querySelector('.chat-messages'); const t = el?.querySelector('[data-msg-index=\"\(msgIndex)\"]'); if (t) { t.scrollIntoView({behavior:'smooth',block:'center'}); t.classList.remove('msg-highlight'); void t.offsetWidth; t.classList.add('msg-highlight'); } })()"
+                self?.chatWebView?.evaluateJavaScript(js)
+            }
+        }
+
+        panel.onViewInBoard = { [weak self] (path: String?) in
+            guard let self, let path else { return }
+            self.hideImageViewer()
+            // Convert absolute path to relative (board uses relative paths like "images/abc_0.png")
+            let appSupportPath = self.settingsStore.appSupportDir.path
+            let relativePath = path.hasPrefix(appSupportPath)
+                ? String(path.dropFirst(appSupportPath.count + 1))  // +1 for trailing /
+                : path
+            let escaped = relativePath.replacingOccurrences(of: "'", with: "\\'")
+            let js = "window.dispatchEvent(new CustomEvent('glimpse:open-board-to-image', {detail: '\(escaped)' }))"
+            self.chatWebView?.evaluateJavaScript(js)
         }
 
         guard panel.showImage(at: imagePath) else { return }
@@ -344,7 +373,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var viewerTempFile: URL?
 
-    func showImageViewerFromDataUrl(_ dataUrl: String, imageList: [ImageViewerPanel.ImageRef] = [], currentIndex: Int = 0) {
+    func showImageViewerFromDataUrl(_ dataUrl: String, imageList: [ImageViewerPanel.ImageRef] = [], currentIndex: Int = 0, messageIndices: [Int] = []) {
         // Decode data URL → NSImage → write to temp file → show viewer
         guard let commaIndex = dataUrl.firstIndex(of: ",") else { return }
         let base64 = String(dataUrl[dataUrl.index(after: commaIndex)...])
@@ -362,7 +391,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               let pngData = rep.representation(using: .png, properties: [:]) else { return }
         try? pngData.write(to: tempURL)
         viewerTempFile = tempURL
-        showImageViewer(imagePath: tempURL.path, imageList: imageList, currentIndex: currentIndex)
+        showImageViewer(imagePath: tempURL.path, imageList: imageList, currentIndex: currentIndex, messageIndices: messageIndices)
     }
 
     func hideImageViewer() {
@@ -417,11 +446,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             currentIndex = (notification.userInfo?["currentIndex"] as? Int) ?? 0
         }
 
+        let messageIndices = (notification.userInfo?["messageIndices"] as? [Int]) ?? []
+
         if let relativePath = notification.userInfo?["path"] as? String {
             let fullPath = settingsStore.appSupportDir.appendingPathComponent(relativePath).path
-            showImageViewer(imagePath: fullPath, imageList: imageList, currentIndex: currentIndex)
+            showImageViewer(imagePath: fullPath, imageList: imageList, currentIndex: currentIndex, messageIndices: messageIndices)
         } else if let dataUrl = notification.userInfo?["dataUrl"] as? String {
-            showImageViewerFromDataUrl(dataUrl, imageList: imageList, currentIndex: currentIndex)
+            showImageViewerFromDataUrl(dataUrl, imageList: imageList, currentIndex: currentIndex, messageIndices: messageIndices)
         }
     }
 

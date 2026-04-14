@@ -52,6 +52,8 @@ export default function ImageBoard({
   images,
   viewMode,
   viewerImageIndex,
+  highlightImagePath,
+  onHighlightConsumed,
   onImageClick,
   onBack,
   onClose,
@@ -59,6 +61,27 @@ export default function ImageBoard({
   onQuoteInNewChat,
   onToggleBoard,
 }) {
+  // Highlight a specific image card when navigating from chat viewer "All images"
+  useEffect(() => {
+    if (viewMode !== 'board' || !highlightImagePath) return
+    onHighlightConsumed?.()
+    // Poll for the card to appear, then scroll + highlight
+    let attempts = 0
+    const tryHighlight = () => {
+      const card = document.querySelector(`[data-image-path="${CSS.escape(highlightImagePath)}"]`)
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        card.classList.remove('card-highlight')
+        void card.offsetWidth
+        card.classList.add('card-highlight')
+      } else if (attempts < 15) {
+        attempts++
+        setTimeout(tryHighlight, 100)
+      }
+    }
+    setTimeout(tryHighlight, 200)
+  }, [viewMode, highlightImagePath])
+
   // Arrow key navigation in viewer
   useEffect(() => {
     if (viewMode !== 'viewer') return
@@ -189,6 +212,7 @@ export default function ImageBoard({
                     <button
                       className="board-image-card"
                       key={img.path}
+                      data-image-path={img.path}
                       onClick={() => onImageClick(globalIndex)}
                       role="listitem"
                       aria-label={`Screenshot from ${formatTime(img.timestamp)}`}

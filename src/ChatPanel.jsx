@@ -1276,16 +1276,19 @@ export default function ChatPanel({
                             className="msg-image msg-image-clickable"
                             onClick={() => {
                               // Collect all images in thread for arrow-key navigation
-                              const allImages = messages.filter(m => m.image).map(m => ({
+                              const imageMessages = messages.map((m, idx) => ({ m, idx })).filter(({ m }) => m.image)
+                              const allImages = imageMessages.map(({ m }) => ({
                                 path: m.imagePath || null,
                                 dataUrl: (!m.imagePath && m.image) ? m.image : null
                               }))
-                              const currentIndex = messages.filter(m => m.image).findIndex(m => m === msg)
+                              const messageIndices = imageMessages.map(({ idx }) => idx)
+                              const currentIndex = imageMessages.findIndex(({ m }) => m === msg)
                               window.electronAPI?.showImageViewer?.(
                                 msg.imagePath || null,
                                 (!msg.imagePath && msg.image) ? msg.image : null,
                                 allImages,
-                                currentIndex
+                                currentIndex,
+                                messageIndices
                               )
                             }}
                           />

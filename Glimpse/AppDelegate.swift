@@ -316,10 +316,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard panel.showImage(at: imagePath) else { return }
 
-        // Position next to chat window
+        // Position next to chat window, on the same screen as the chat
         if let chatFrame = chatPanel?.frame {
             let viewerSize = panel.frame.size
-            let screen = NSScreen.main ?? NSScreen.screens.first!
+            let screen = chatPanel?.screen ?? NSScreen.main ?? NSScreen.screens.first!
             let sf = screen.frame
 
             // Prefer left side of chat; fall back to right; then center

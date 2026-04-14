@@ -12,6 +12,9 @@ private class ImageContentView: NSView {
     /// Edge inset (points) that counts as a resize zone instead of drag
     private let resizeEdge: CGFloat = 6
 
+    /// Called when pinch gesture starts/ends to hide/show chrome
+    var onZoomingChanged: ((Bool) -> Void)?
+
     // Zoom + pan state
     private(set) var zoomScale: CGFloat = 1.0
     private var panOffset: CGPoint = .zero       // offset in image-space points
@@ -72,6 +75,10 @@ private class ImageContentView: NSView {
     // MARK: - Pinch to zoom
 
     override func magnify(with event: NSEvent) {
+        if event.phase == .began {
+            onZoomingChanged?(true)
+        }
+
         let oldScale = zoomScale
         zoomScale = min(max(zoomScale * (1 + event.magnification), minZoom), maxZoom)
 
@@ -91,6 +98,10 @@ private class ImageContentView: NSView {
 
         clampPan()
         needsDisplay = true
+
+        if event.phase == .ended || event.phase == .cancelled {
+            onZoomingChanged?(false)
+        }
     }
 
     // MARK: - Mouse handling
@@ -201,19 +212,23 @@ class ImageViewerPanel: GlimpsePanel {
     private func setupViews() {
         imageContentView = ImageContentView(frame: NSRect(origin: .zero, size: frame.size))
         imageContentView.autoresizingMask = [.width, .height]
+        imageContentView.onZoomingChanged = { [weak self] zooming in
+            guard let self else { return }
+            self.closeButton.alphaValue = zooming ? 0 : (self.isMouseInside ? 1 : 0)
+        }
         contentView = imageContentView
 
-        // Close button — semi-transparent dark circle with white ×
+        // Close button — frosted pill with white X, visible over any image content
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         closeButton.isBordered = false
         closeButton.wantsLayer = true
-        closeButton.layer?.cornerRadius = closeButtonSize / 2
-        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.5).cgColor
+        closeButton.layer?.cornerRadius = 6
+        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.45).cgColor
         closeButton.attributedTitle = NSAttributedString(
             string: "✕",
             attributes: [
-                .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                .foregroundColor: NSColor(white: 1, alpha: 0.9),
+                .font: NSFont.systemFont(ofSize: 12, weight: .medium),
             ]
         )
         closeButton.target = self
@@ -243,6 +258,7 @@ class ImageViewerPanel: GlimpsePanel {
             context.duration = 0.15
             closeButton.animator().alphaValue = 1
         }
+        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.6).cgColor
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -251,6 +267,7 @@ class ImageViewerPanel: GlimpsePanel {
             context.duration = 0.15
             closeButton.animator().alphaValue = 0
         }
+        closeButton.layer?.backgroundColor = NSColor(white: 0, alpha: 0.45).cgColor
     }
 
     /// Flash the close button briefly so users know it's there, then fade out
@@ -342,8 +359,18 @@ class ImageViewerPanel: GlimpsePanel {
         // Set image.size to match window so draw(in: bounds) has zero distortion
         image.size = NSSize(width: w, height: h)
 
-        let origin = frame.origin
-        setFrame(NSRect(origin: origin, size: NSSize(width: w, height: h)), display: true)
+        // Preserve center point so window doesn't jump when navigating between images
+        let oldCenter = NSPoint(x: frame.midX, y: frame.midY)
+        var newX = oldCenter.x - w / 2
+        var newY = oldCenter.y - h / 2
+
+        // Clamp to screen bounds
+        if let sf = screen?.frame ?? NSScreen.main?.frame {
+            newX = max(sf.minX + 8, min(newX, sf.maxX - w - 8))
+            newY = max(sf.minY + 8, min(newY, sf.maxY - h - 8))
+        }
+
+        setFrame(NSRect(x: newX, y: newY, width: w, height: h), display: true)
 
         // Lock resize to this image's aspect ratio
         contentAspectRatio = NSSize(width: w, height: h)
@@ -365,14 +392,14 @@ class ImageViewerPanel: GlimpsePanel {
         closeHeightConstraint.constant = size
         closeTopConstraint.constant = inset
         closeTrailingConstraint.constant = -inset
-        closeButton.layer?.cornerRadius = size / 2
+        closeButton.layer?.cornerRadius = max(6 * scaleFactor, 3)
 
-        let fontSize = max(11 * scaleFactor, 6)
+        let fontSize = max(12 * scaleFactor, 7)
         closeButton.attributedTitle = NSAttributedString(
             string: "✕",
             attributes: [
-                .foregroundColor: NSColor.white,
-                .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+                .foregroundColor: NSColor(white: 1, alpha: 0.9),
+                .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
             ]
         )
     }

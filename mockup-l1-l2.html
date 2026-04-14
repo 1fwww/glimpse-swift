@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glimpse L1↔L2 Transition Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* Dark theme (default) */
+    --surface-base: #151517;
+    --surface-panel: rgba(23, 23, 27, 0.96);
+    --surface-elevated: rgba(34, 34, 40, 0.92);
+    --surface-input: rgba(28, 28, 34, 0.96);
+    --surface-hover: rgba(255, 255, 255, 0.04);
+    --border-dim: rgba(255, 255, 255, 0.07);
+    --border-active: rgba(255, 255, 255, 0.12);
+    --brand: #8580FF;
+    --brand-muted: rgba(108, 99, 255, 0.12);
+    --brand-dim: rgba(108, 99, 255, 0.08);
+    --brand-border: rgba(108, 99, 255, 0.40);
+    --text-primary: rgba(242, 242, 250, 0.93);
+    --text-secondary: rgba(180, 180, 200, 0.70);
+    --text-dim: rgba(130, 130, 155, 0.50);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.15);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+  }
+
+  body {
+    font-family: 'Outfit', -apple-system, system-ui, sans-serif;
+    background: #0a0a0c;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Window chrome ── */
+  .window {
+    width: 380px;
+    height: 680px;
+    background: var(--surface-panel);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-dim);
+    position: relative;
+  }
+
+  /* ── Viewport for L1/L2 sliding ── */
+  .viewport {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .slide-container {
+    display: flex;
+    width: 200%;
+    height: 100%;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .slide-container.at-l2 {
+    transform: translateX(-50%);
+  }
+
+  .level {
+    width: 50%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  /* ── Shared header style ── */
+  .header {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-dim);
+    flex-shrink: 0;
+    min-height: 50px;
+    gap: 10px;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-shrink: 0;
+  }
+
+  .glimpse-icon {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .header-spacer { flex: 1; }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .icon-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .icon-btn.brand { color: var(--brand); }
+  .icon-btn.brand:hover { background: var(--brand-dim); }
+
+  .icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* ── L1 Messages ── */
+  .l1-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .l1-messages-inner {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Time divider */
+  .time-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 0 14px;
+  }
+
+  .time-divider:first-child { padding-top: 10px; }
+
+  .time-divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border-dim);
+  }
+
+  .time-divider-label {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+  }
+
+  /* Thread entry */
+  .thread-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 2px 0;
+  }
+
+  .thread-entry + .thread-entry { margin-top: 18px; }
+  .time-divider + .thread-entry { margin-top: 0; }
+
+  .bubble {
+    background: var(--brand-muted);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 14px 14px 4px 14px;
+    max-width: 82%;
+    word-wrap: break-word;
+    text-align: left;
+  }
+
+  .thread-meta {
+    display: flex;
+    align-items: center;
+    margin-top: 5px;
+    padding: 5px 2px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: opacity 0.15s ease;
+  }
+
+  .thread-meta:hover .thread-replies {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .thread-meta:active {
+    opacity: 0.7;
+  }
+
+  .thread-title {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  .thread-sep {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0 5px;
+    flex-shrink: 0;
+  }
+
+  .thread-replies {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--brand);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .thread-replies-arrow {
+    font-size: 11px;
+    margin-left: 1px;
+    opacity: 0.7;
+  }
+
+  /* ── L2 Header ── */
+  .l2-header {
+    gap: 6px;
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 6px 4px 2px;
+    border-radius: 6px;
+    transition: color 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+    font-family: inherit;
+    font-size: 13px;
+  }
+
+  .back-btn:hover {
+    color: var(--text-primary);
+    background: var(--surface-hover);
+  }
+
+  .back-btn:active {
+    opacity: 0.7;
+  }
+
+  .back-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .l2-thread-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── L2 Messages ── */
+  .l2-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 88%;
+  }
+
+  .msg.user {
+    align-self: flex-end;
+    align-items: flex-end;
+  }
+
+  .msg.assistant {
+    align-self: flex-start;
+    align-items: flex-start;
+  }
+
+  .msg-bubble {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.55;
+    padding: 10px 14px;
+    word-wrap: break-word;
+  }
+
+  .msg.user .msg-bubble {
+    background: var(--brand-muted);
+    color: var(--text-primary);
+    border-radius: 14px 14px 4px 14px;
+  }
+
+  .msg.assistant .msg-bubble {
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-dim);
+    border-radius: 14px 14px 14px 4px;
+  }
+
+  .msg-bubble code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11.5px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .msg-bubble pre {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 6px 0 2px;
+    overflow-x: auto;
+  }
+
+  .msg-bubble pre code {
+    background: none;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(242, 242, 250, 0.8);
+  }
+
+  /* ── Shared input area ── */
+  .input-area {
+    padding: 10px 14px 14px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-dim);
+  }
+
+  .input-box {
+    display: flex;
+    align-items: flex-end;
+    background: var(--surface-input);
+    border: 1px solid var(--border-dim);
+    border-radius: var(--radius-md);
+    position: relative;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .input-box:focus-within {
+    border-color: var(--brand-border);
+    box-shadow: 0 0 0 2px var(--brand-dim);
+  }
+
+  .input-box textarea {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: 'Outfit', -apple-system, system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-primary);
+    line-height: 1.45;
+    padding: 10px 42px 10px 14px;
+    resize: none;
+    outline: none;
+    min-height: 40px;
+    max-height: 40px;
+  }
+
+  .input-box textarea::placeholder {
+    color: var(--text-dim);
+  }
+
+  .send-btn {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: var(--surface-hover);
+    color: var(--text-dim);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: all 0.15s ease;
+  }
+
+  .send-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* ── Scrollbar ── */
+  .l1-messages::-webkit-scrollbar,
+  .l2-messages::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .l1-messages::-webkit-scrollbar-track,
+  .l2-messages::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .l1-messages::-webkit-scrollbar-thumb,
+  .l2-messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+  }
+
+  .l1-messages::-webkit-scrollbar-thumb:hover,
+  .l2-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  /* ── Label ── */
+  .mockup-label {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    color: rgba(255,255,255,0.15);
+    letter-spacing: 0.04em;
+  }
+
+  /* Pin btn special */
+  .pin-btn {
+    border: 1.5px solid var(--border-active);
+    border-radius: var(--radius-sm);
+  }
+</style>
+</head>
+<body>
+
+<div class="window">
+  <div class="viewport">
+    <div class="slide-container" id="slideContainer">
+
+      <!-- ════════ L1 ════════ -->
+      <div class="level" id="l1">
+        <div class="header">
+          <div class="header-left">
+            <svg class="glimpse-icon" viewBox="0 0 32 32" fill="none">
+              <rect x="4" y="8" width="24" height="16" rx="8" stroke="#8580FF" stroke-width="2.2" fill="none"/>
+              <circle cx="16" cy="16" r="4.5" stroke="#8580FF" stroke-width="2" fill="none"/>
+              <circle cx="16" cy="16" r="1.8" fill="#8580FF"/>
+              <path d="M8.5 9.5 C10 7, 14 5.5, 16 5.5 C18 5.5, 22 7, 23.5 9.5" stroke="#8580FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="header-title">Glimpse</span>
+          </div>
+          <div class="header-spacer"></div>
+          <button class="icon-btn brand" title="New chat">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M4 10h12M10 4v12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="l1-messages">
+          <div class="l1-messages-inner">
+
+            <div class="time-divider">
+              <div class="time-divider-line"></div>
+              <span class="time-divider-label">Tuesday</span>
+              <div class="time-divider-line"></div>
+            </div>
+
+            <div class="thread-entry">
+              <div class="bubble">Can you help me figure out why this grid layout is breaking on smaller viewports?</div>
+              <div class="thread-meta" onclick="goToL2('grid')">
+                <span class="thread-title">Grid layout 调试</span>
+                <span class="thread-sep">&middot;</span>
+                <span class="thread-replies">6 replies<span class="thread-replies-arrow"> ›</span></span>
+              </div>
+            </div>
+
+            <div class="thread-entry">
+              <div class="bubble">这段 useEffect 里面的 cleanup function 好像没有正确执行，组件卸载后还在 fetch...</div>
+              <div class="thread-meta" onclick="goToL2('useeffect')">
+                <span class="thread-title">useEffect cleanup 问题</span>
+                <span class="thread-sep">&middot;</span>
+                <span class="thread-replies">12 replies<span class="thread-replies-arrow"> ›</span></span>
+              </div>
+            </div>
+
+            <div class="time-divider">
+              <div class="time-divider-line"></div>
+              <span class="time-divider-label">Yesterday</span>
+              <div class="time-divider-line"></div>
+            </div>
+
+            <div class="thread-entry">
+              <div class="bubble">Compare these two approaches for state management and tell me which scales better</div>
+              <div class="thread-meta" onclick="goToL2('state')">
+                <span class="thread-title">State management 对比</span>
+                <span class="thread-sep">&middot;</span>
+                <span class="thread-replies">8 replies<span class="thread-replies-arrow"> ›</span></span>
+              </div>
+            </div>
+
+            <div class="thread-entry">
+              <div class="bubble">帮我写一个 debounce hook</div>
+              <div class="thread-meta" onclick="goToL2('debounce')">
+                <span class="thread-title">Debounce hook 实现</span>
+                <span class="thread-sep">&middot;</span>
+                <span class="thread-replies">4 replies<span class="thread-replies-arrow"> ›</span></span>
+              </div>
+            </div>
+
+            <div class="time-divider">
+              <div class="time-divider-line"></div>
+              <span class="time-divider-label">Today</span>
+              <div class="time-divider-line"></div>
+            </div>
+
+            <div class="thread-entry">
+              <div class="bubble">What's the best way to handle dark mode with CSS variables? I want to avoid the flash on initial page load</div>
+              <div class="thread-meta" onclick="goToL2('darkmode')">
+                <span class="thread-title">Dark mode CSS 变量方案</span>
+                <span class="thread-sep">&middot;</span>
+                <span class="thread-replies">15 replies<span class="thread-replies-arrow"> ›</span></span>
+              </div>
+            </div>
+
+            <div class="thread-entry">
+              <div class="bubble">Review this PR description and make it more concise</div>
+              <div class="thread-meta" onclick="goToL2('pr')">
+                <span class="thread-title">PR 描述精简</span>
+                <span class="thread-sep">&middot;</span>
+                <span class="thread-replies">3 replies<span class="thread-replies-arrow"> ›</span></span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-box">
+            <textarea rows="1" placeholder="Ask anything..."></textarea>
+            <button class="send-btn" title="Send">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 10l5-5 5 5M10 5v10"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ L2 ════════ -->
+      <div class="level" id="l2">
+        <div class="header l2-header">
+          <button class="back-btn" onclick="goToL1()">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 4l-6 6 6 6"/>
+            </svg>
+          </button>
+          <span class="l2-thread-title" id="l2Title">PR 描述精简</span>
+          <div class="header-spacer"></div>
+          <button class="icon-btn pin-btn" title="Pin">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <path d="M10 3v10M7 6l3-3 3 3M6 17h8M10 13v4"/>
+            </svg>
+          </button>
+          <button class="icon-btn brand" title="New chat">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M4 10h12M10 4v12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="l2-messages" id="l2Messages">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="input-area">
+          <div class="input-box">
+            <textarea rows="1" placeholder="Reply..."></textarea>
+            <button class="send-btn" title="Send">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 10l5-5 5 5M10 5v10"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<span class="mockup-label">Click "replies ›" to enter L2 · Click "‹" to return</span>
+
+<script>
+const threads = {
+  pr: {
+    title: 'PR 描述精简',
+    messages: [
+      { role: 'user', text: 'Review this PR description and make it more concise' },
+      { role: 'assistant', text: 'Here\'s a tightened version:\n\n<b>Before</b> (42 words):\n"This PR implements the new user authentication flow including login, signup, and password reset functionality with proper error handling and validation across all form fields..."\n\n<b>After</b> (18 words):\n"Add auth flow (login, signup, password reset) with form validation and error handling."' },
+      { role: 'user', text: 'Can you keep the mention of which specific forms were changed?' },
+      { role: 'assistant', text: '"Add auth flow: login, signup, and password reset forms with field validation and error handling."\n\n21 words. Specifies the three forms without the filler.' },
+    ]
+  },
+  darkmode: {
+    title: 'Dark mode CSS 变量方案',
+    messages: [
+      { role: 'user', text: 'What\'s the best way to handle dark mode with CSS variables? I want to avoid the flash on initial page load' },
+      { role: 'assistant', text: 'The flash happens because JS-based theme detection runs after the first paint. Two approaches:\n\n<b>1. Blocking script in <code>&lt;head&gt;</code></b>\n<pre><code>&lt;script&gt;\nconst t = localStorage.theme || \n  (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light");\ndocument.documentElement.dataset.theme = t;\n&lt;/script&gt;</code></pre>\n\nThis runs synchronously before first paint — no flash.\n\n<b>2. CSS-only with <code>color-scheme</code></b>\nUse <code>@media (prefers-color-scheme)</code> to define both palettes in CSS. No JS needed, but no manual toggle either.' },
+      { role: 'user', text: 'I need manual toggle. Option 1 looks good — any gotchas?' },
+      { role: 'assistant', text: 'Two things to watch:\n\n1. The script must be <b>inline</b>, not an external file. External scripts aren\'t guaranteed to block render.\n\n2. If you\'re using SSR, the server doesn\'t know the user\'s preference. Render without a theme class, let the inline script add it. The CSS should default to one theme (usually light) when no class is present.' },
+      { role: 'user', text: '如果用 Next.js 的话呢？' },
+      { role: 'assistant', text: 'Next.js 可以用 <code>next-themes</code> 库，它内部就是用 blocking script 方案：\n\n<pre><code>import { ThemeProvider } from "next-themes"\n\nexport default function Layout({ children }) {\n  return (\n    &lt;ThemeProvider attribute="data-theme"&gt;\n      {children}\n    &lt;/ThemeProvider&gt;\n  )\n}</code></pre>\n\n它会自动在 <code>&lt;head&gt;</code> 注入 blocking script，处理 localStorage + system preference + SSR hydration mismatch。不用自己写。' },
+    ]
+  },
+  debounce: {
+    title: 'Debounce hook 实现',
+    messages: [
+      { role: 'user', text: '帮我写一个 debounce hook' },
+      { role: 'assistant', text: '<pre><code>function useDebounce(value, delay = 300) {\n  const [debounced, setDebounced] = useState(value);\n\n  useEffect(() =&gt; {\n    const id = setTimeout(() =&gt; setDebounced(value), delay);\n    return () =&gt; clearTimeout(id);\n  }, [value, delay]);\n\n  return debounced;\n}</code></pre>\n\n用法：\n<pre><code>const [search, setSearch] = useState("");\nconst debouncedSearch = useDebounce(search, 300);\n\nuseEffect(() =&gt; {\n  fetchResults(debouncedSearch);\n}, [debouncedSearch]);</code></pre>' },
+      { role: 'user', text: '如果我想要一个 debounced callback 而不是 debounced value 呢？' },
+      { role: 'assistant', text: '<pre><code>function useDebouncedCallback(fn, delay = 300) {\n  const timeout = useRef();\n\n  return useCallback((...args) =&gt; {\n    clearTimeout(timeout.current);\n    timeout.current = setTimeout(() =&gt; fn(...args), delay);\n  }, [fn, delay]);\n}</code></pre>\n\n这个更适合事件处理场景，比如 <code>onChange</code> 时触发搜索。' },
+    ]
+  },
+  state: {
+    title: 'State management 对比',
+    messages: [
+      { role: 'user', text: 'Compare these two approaches for state management and tell me which scales better' },
+      { role: 'assistant', text: 'Without seeing the specific approaches, here are the two most common patterns and when each scales:\n\n<b>Context + useReducer</b>\n- Good for: medium apps, 3-5 shared state slices\n- Breaks at: frequent updates to large state objects (every consumer re-renders)\n\n<b>Zustand / Jotai</b>\n- Good for: any size, granular subscriptions\n- Tradeoff: another dependency\n\nWhat are the two approaches you\'re comparing?' },
+      { role: 'user', text: 'Context vs Zustand, for a dashboard with ~20 widgets that each pull from shared filters' },
+      { role: 'assistant', text: 'Zustand, clearly. 20 widgets subscribing to Context means every filter change re-renders all 20. Zustand\'s selectors let each widget subscribe to only the slice it needs:\n\n<pre><code>// Widget only re-renders when "dateRange" changes\nconst dateRange = useStore(s =&gt; s.filters.dateRange);</code></pre>\n\nWith Context you\'d need to split into 20 separate contexts or use <code>useMemo</code> everywhere — more complexity for worse performance.' },
+    ]
+  },
+  useeffect: {
+    title: 'useEffect cleanup 问题',
+    messages: [
+      { role: 'user', text: '这段 useEffect 里面的 cleanup function 好像没有正确执行，组件卸载后还在 fetch...' },
+      { role: 'assistant', text: '最常见的原因：cleanup 里 abort 了请求，但 <code>.then()</code> 的 callback 没有检查组件是否还在。\n\n<pre><code>useEffect(() =&gt; {\n  const controller = new AbortController();\n\n  fetch(url, { signal: controller.signal })\n    .then(r =&gt; r.json())\n    .then(data =&gt; setData(data)) // 这里可能在卸载后执行\n    .catch(e =&gt; {\n      if (e.name !== "AbortError") throw e;\n    });\n\n  return () =&gt; controller.abort();\n}, [url]);</code></pre>\n\n关键是 <code>AbortController</code> — 让 fetch 本身被取消，而不只是忽略结果。' },
+    ]
+  },
+  grid: {
+    title: 'Grid layout 调试',
+    messages: [
+      { role: 'user', text: 'Can you help me figure out why this grid layout is breaking on smaller viewports?' },
+      { role: 'assistant', text: 'Most common causes:\n\n1. <b>Fixed column widths</b>: <code>grid-template-columns: 200px 200px 200px</code> overflows. Use <code>repeat(auto-fill, minmax(200px, 1fr))</code> instead.\n\n2. <b>Content forcing width</b>: Long words, <code>&lt;pre&gt;</code> blocks, or images without <code>max-width: 100%</code> push the grid wider.\n\n3. <b>Viewport units in grid gaps</b>: <code>gap: 2vw</code> can eat too much space on narrow screens.\n\nCan you share the CSS?' },
+    ]
+  }
+};
+
+function goToL2(threadId) {
+  const thread = threads[threadId];
+  if (!thread) return;
+
+  document.getElementById('l2Title').textContent = thread.title;
+
+  const container = document.getElementById('l2Messages');
+  container.innerHTML = '';
+
+  thread.messages.forEach(msg => {
+    const div = document.createElement('div');
+    div.className = `msg ${msg.role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = msg.text;
+    div.appendChild(bubble);
+    container.appendChild(div);
+  });
+
+  document.getElementById('slideContainer').classList.add('at-l2');
+
+  setTimeout(() => {
+    container.scrollTop = container.scrollHeight;
+  }, 50);
+}
+
+function goToL1() {
+  document.getElementById('slideContainer').classList.remove('at-l2');
+}
+
+// Scroll L1 to bottom on load
+window.addEventListener('load', () => {
+  const l1 = document.querySelector('.l1-messages');
+  l1.scrollTop = l1.scrollHeight;
+});
+</script>
+
+</body>
+</html>

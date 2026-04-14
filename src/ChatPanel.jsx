@@ -101,7 +101,13 @@ export default function ChatPanel({
   onClose,
   onMinimize,
   onPin,
+  onSentWithImage,
+  autoSendPending,
+  onAutoSendConsumed,
   isPinned,
+  isWindowBlurred,
+  onExitViewMode,
+  skipNextScrollRef,
   onTogglePin,
   provider,
   setProvider,
@@ -125,13 +131,32 @@ export default function ChatPanel({
     setTextContext(initialContext?.text || '')
   }, [initialContext?.seq])
 
+  // Strip file-referenced images for AI API calls — replace with text placeholder.
+  // apiMessages.current keeps file refs (for saving), this is only for the API.
+  const getApiSafeMessages = () => apiMessages.current.map(m => ({
+    ...m,
+    content: (m.content || []).map(c =>
+      (c.type === 'image' && c.source?.type === 'file')
+        ? { type: 'text', text: '[screenshot]' }
+        : c
+    ),
+  }))
+
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState([])
   const [screenshotAttached, setScreenshotAttached] = useState(true)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const bottomZoneRef = useRef(null)
+  // Scroll-driven view mode: chrome fades as user scrolls while pinned+blurred
+  const scrollAccum = useRef(0)
+  const lastScrollTop = useRef(0)
+  const headerRef = useRef(null)
+  const viewModeActiveRef = useRef(false)
+  const chromeHeights = useRef({ header: 0, bottom: 0 })
   const messagesEndRef = useRef(null)
   const lastAssistantRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const suppressScrollHandler = useRef(false)
   const inputRef = useRef(null)
   const modelSelectorRef = useRef(null)
   const apiMessages = useRef([])
@@ -152,17 +177,29 @@ export default function ChatPanel({
             return { role: 'assistant', text: (m.content || []).map(c => c.text || '').join(''), model: m.model }
           }
           const rawText = (m.content || []).map(c => c.type === 'text' ? c.text : '').join(' ').trim()
+          const imageBlock = (m.content || []).find(c => c.type === 'image')
+          let image = null
+          let imagePath = null  // relative path for image viewer IPC
+          if (imageBlock?.source?.type === 'file' && imageBlock.source.path) {
+            imagePath = imageBlock.source.path
+            const fullPath = `${window._glimpseAppSupportDir}/${imageBlock.source.path}`
+            image = 'file://' + fullPath.split('/').map(s => encodeURIComponent(s)).join('/')
+          } else if (imageBlock?.source?.data) {
+            image = `data:${imageBlock.source.media_type || 'image/jpeg'};base64,${imageBlock.source.data}`
+          }
           // Parse out [Referenced text: "..."] and annotation notes
           const refMatch = rawText.match(/^\[Referenced text: "(.+?)"\]\s*\n*(?:\[Note:.*?\]\s*\n*)?(.*)$/s)
           const annotMatch = rawText.match(/^\[Note:.*?\]\s*\n*(.*)$/s)
           if (refMatch) {
-            return { role: 'user', text: refMatch[2].trim(), snippet: refMatch[1] }
+            return { role: 'user', text: refMatch[2].trim(), snippet: refMatch[1], image, imagePath }
           }
           if (annotMatch) {
-            return { role: 'user', text: annotMatch[1].trim() }
+            return { role: 'user', text: annotMatch[1].trim(), image, imagePath }
           }
-          return { role: 'user', text: rawText }
+          return { role: 'user', text: rawText, image, imagePath }
         }))
+        // Keep file references in apiMessages — they're needed for saving back to disk.
+        // File images are stripped only at the point of sending to the AI API.
         apiMessages.current = [...(currentThread.messages || [])]
       } else {
         setMessages([])
@@ -175,11 +212,95 @@ export default function ChatPanel({
     }
     prevThreadIdRef.current = newId
 
-    setIsAtBottom(true)
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
-    }, 50)
-  }, [currentThread?.id])
+    // Scroll to bottom only when switching to a DIFFERENT thread (ID changed).
+    // Same-thread message additions (e.g., saveCurrentThread) should NOT scroll —
+    // scrollToLastAssistant handles positioning after AI responds.
+    const threadIdChanged = prevId !== newId
+
+    // Check for pending scroll restore from overlay pin-out (even if thread ID unchanged)
+    if (skipNextScrollRef?.current !== undefined && skipNextScrollRef?.current !== false) {
+      const savedScrollTop = skipNextScrollRef.current
+      skipNextScrollRef.current = false
+      if (typeof savedScrollTop === 'number') {
+        // Suppress flex-basis transition and scroll handler during restore
+        const wrapper = messagesContainerRef.current?.closest('.chat-messages-wrapper')
+        if (wrapper) wrapper.style.transition = 'none'
+        suppressScrollHandler.current = true
+        setTimeout(() => {
+          whenLayoutStable(() => {
+            const el = messagesContainerRef.current
+            if (el) el.scrollTop = savedScrollTop
+            requestAnimationFrame(() => {
+              if (el) el.scrollTop = savedScrollTop
+              suppressScrollHandler.current = false
+              if (wrapper) wrapper.style.transition = ''
+            })
+          })
+        }, 50)
+      }
+    } else if (!isNewThreadGettingId && threadIdChanged) {
+      setIsAtBottom(true)
+      setTimeout(() => {
+        whenLayoutStable(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+        })
+      }, 50)
+    }
+  }, [currentThread?.id, currentThread?.messages?.length])
+
+  // Auto-send: overlay pinned out with a pending API call.
+  // The thread data has the user message — just call chatWithAI.
+  // Delay 100ms to ensure thread-loading useEffect has populated apiMessages.
+  useEffect(() => {
+    if (!autoSendPending) return
+    const timer = setTimeout(async () => {
+      if (apiMessages.current.length === 0) { return }
+      onAutoSendConsumed?.()
+      setIsLoading(true)
+      setTimeout(() => scrollToRevealLoading(), 50)
+      const isFirstMessage = apiMessages.current.length === 1
+      try {
+        const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
+        setIsLoading(false)
+        if (result.success) {
+          const assistantText = result.content.map(c => c.text || '').join('')
+          const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
+          apiMessages.current.push({ role: 'assistant', content: result.content, model: currentModelName })
+          setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
+          if (!chatFullSize) setChatFullSize(true)
+          await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
+          scrollToLastAssistant()
+          const now = Date.now()
+          const thread = {
+            id: currentThread?.id || generateId(),
+            title: currentThread?.title || 'New Chat',
+            messages: [...apiMessages.current],
+            createdAt: currentThread?.createdAt || now,
+            updatedAt: now,
+          }
+          await saveCurrentThread(thread)
+          if (isFirstMessage) {
+            const titleMsgs = apiMessages.current.map(m => ({
+              ...m,
+              content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
+            }))
+            const title = await generateTitle(titleMsgs)
+            if (title) {
+              thread.title = title
+              await saveCurrentThread(thread)
+              setIsNewThread(false)
+            }
+          }
+        } else {
+          setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${result.error || 'Unknown error'}` }])
+        }
+      } catch (err) {
+        setIsLoading(false)
+        setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${err.message}` }])
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [autoSendPending, currentThread?.id])
 
   // Auto-focus input
   useEffect(() => {
@@ -189,7 +310,10 @@ export default function ChatPanel({
     const handleFocus = () => {
       setThreadMenuOpen(false)
       setModelMenuOpen(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      // Don't auto-focus input when view mode is active (chrome is hidden)
+      if (!viewModeActiveRef.current) {
+        setTimeout(() => inputRef.current?.focus(), 50)
+      }
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
@@ -247,7 +371,7 @@ export default function ChatPanel({
   useEffect(() => {
     if (showApiKeySetup) {
       if (!chatFullSize) setChatFullSize(true)
-      window.electronAPI?.resizeChatWindow?.({ width: 420, height: 550 })
+      window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
       window.electronAPI?.lowerOverlay?.()
     } else {
       window.electronAPI?.restoreOverlay?.()
@@ -256,7 +380,6 @@ export default function ChatPanel({
 
   // After welcome animation, auto-send pending question (skip re-adding user msg)
   useEffect(() => {
-    console.log('[PendingQ] showWelcome=', showWelcome, 'pending=', pendingQuestion.current, 'providers=', availableProviders.length, 'provider=', provider, 'modelId=', modelId)
     if (!showWelcome && pendingQuestion.current && availableProviders.length === 0) {
       // Keys saved but no providers available (e.g. dev mode without env vars)
       pendingQuestion.current = null
@@ -291,10 +414,10 @@ export default function ChatPanel({
 
       // Send to AI without re-adding user message to UI
       setIsLoading(true)
-      setTimeout(() => scrollToBottom(), 50)
+      setTimeout(() => scrollToRevealLoading(), 50)
       ;(async () => {
         try {
-          const result = await window.electronAPI.chatWithAI(apiMessages.current, provider, modelId)
+          const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
           setIsLoading(false)
           if (!result?.success) {
             if (result?.code === 'auth_error' || result?.error?.includes('No API key')) {
@@ -312,11 +435,11 @@ export default function ChatPanel({
             const assistantText = result.content.map(c => c.text || '').join('')
             const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
             apiMessages.current.push({ role: 'assistant', content: result.content, model: currentModelName })
-            // Expand panel for AI response
-            if (!chatFullSize) setChatFullSize(true)
-            window.electronAPI?.resizeChatWindow?.({ width: 420, height: 550 })
+            // Add message, expand panel, then scroll to top of assistant response
             setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
-            setTimeout(() => scrollToLastAssistant(), 350)
+            if (!chatFullSize) setChatFullSize(true)
+            await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
+            scrollToLastAssistant()
 
             // Save thread + generate title
             const now = Date.now()
@@ -371,8 +494,13 @@ export default function ChatPanel({
     }
   }, [showWelcome])
 
-  // Track scroll position
+  // Track scroll position (always active)
+  const expandBtnRef = useRef(null)
+  const headerIconsRef = useRef(null)
+  const scrollDownBtnRef = useRef(null)
+
   const handleScroll = useCallback(() => {
+    if (suppressScrollHandler.current) return
     const el = messagesContainerRef.current
     if (!el) return
     const threshold = 30
@@ -380,29 +508,175 @@ export default function ChatPanel({
     setIsAtBottom(atBottom)
   }, [])
 
+  // Scroll-driven view mode via wheel event (fires on non-key windows).
+  // Only when pinned + window blurred.
+  useEffect(() => {
+    if (!isPinned) return
+    const panel = panelRef.current
+    if (!panel) return
+
+    const handleWheel = (e) => {
+      if (!isWindowBlurred || viewModeActiveRef.current) return
+      const delta = Math.abs(e.deltaY)
+      if (delta < 1) return
+
+      // Measure heights once on first wheel
+      if (!chromeHeights.current.header && headerRef.current && bottomZoneRef.current) {
+        chromeHeights.current.header = headerRef.current.offsetHeight
+        chromeHeights.current.bottom = bottomZoneRef.current.offsetHeight
+      }
+
+      const hH = chromeHeights.current.header
+      const bH = chromeHeights.current.bottom
+      if (!hH || !bH) return
+
+      scrollAccum.current = Math.min(scrollAccum.current + delta, 80)
+      const progress = Math.min(scrollAccum.current / 80, 1)
+
+      // Hide scroll-to-bottom button during slide
+      if (scrollDownBtnRef.current) scrollDownBtnRef.current.style.display = 'none'
+
+      const hdr = headerRef.current
+      const btm = bottomZoneRef.current
+      if (hdr) {
+        const slide = progress * hH
+        hdr.style.transform = `translateY(${-slide}px)`
+        hdr.style.marginBottom = `${-slide}px`
+        hdr.style.opacity = String(1 - progress)
+        hdr.style.pointerEvents = 'none'
+      }
+      if (btm) {
+        const slide = progress * bH
+        btm.style.transform = `translateY(${slide}px)`
+        btm.style.marginTop = `${-slide}px`
+        btm.style.opacity = String(1 - progress)
+        btm.style.pointerEvents = 'none'
+      }
+
+      if (progress >= 1) {
+        viewModeActiveRef.current = true
+        if (expandBtnRef.current) expandBtnRef.current.style.display = ''
+        if (headerIconsRef.current) headerIconsRef.current.style.display = ''
+        // Extra padding so messages aren't hidden behind gradient edges
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.style.paddingTop = '48px'
+          messagesContainerRef.current.style.paddingBottom = '40px'
+        }
+      }
+    }
+
+    panel.addEventListener('wheel', handleWheel, { passive: true })
+    return () => panel.removeEventListener('wheel', handleWheel)
+  }, [isPinned, isWindowBlurred])
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  const scrollToLastAssistant = useCallback(() => {
-    if (lastAssistantRef.current) {
-      lastAssistantRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Reset on unpin or expand button click
+  const resetViewMode = useCallback(() => {
+    const wasActive = viewModeActiveRef.current
+    scrollAccum.current = 0
+    lastScrollTop.current = messagesContainerRef.current?.scrollTop || 0
+    viewModeActiveRef.current = false
+    chromeHeights.current = { header: 0, bottom: 0 }
+    if (headerRef.current) headerRef.current.style.cssText = ''
+    if (bottomZoneRef.current) bottomZoneRef.current.style.cssText = ''
+    if (expandBtnRef.current) expandBtnRef.current.style.display = 'none'
+    if (headerIconsRef.current) headerIconsRef.current.style.display = 'none'
+    if (scrollDownBtnRef.current) scrollDownBtnRef.current.style.display = ''
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.style.paddingTop = ''
+      messagesContainerRef.current.style.paddingBottom = ''
+    }
+    if (wasActive) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+        inputRef.current?.focus()
+      }, 100)
     }
   }, [])
 
+  useEffect(() => {
+    if (!isPinned) resetViewMode()
+  }, [isPinned])
+
+  const handleViewHintClick = useCallback(() => {
+    resetViewMode()
+    onExitViewMode?.()
+  }, [onExitViewMode, resetViewMode])
+
+  // Wait for all message images to load + layout to settle before measuring for scroll.
+  // Data URL images may report complete=true before layout; double rAF ensures paint.
+  const whenLayoutStable = useCallback((fn) => {
+    const el = messagesContainerRef.current
+    if (!el) { fn(); return }
+    const images = el.querySelectorAll('img.msg-image')
+    const unloaded = [...images].filter(img => !img.complete)
+    const afterLayout = () => requestAnimationFrame(() => requestAnimationFrame(fn))
+    if (unloaded.length) {
+      Promise.all(unloaded.map(img => new Promise(r => { img.onload = r; img.onerror = r })))
+        .then(afterLayout)
+    } else {
+      afterLayout()
+    }
+  }, [])
+
+  const scrollToLastAssistant = useCallback(() => {
+    if (!lastAssistantRef.current || !messagesContainerRef.current) return
+    const el = messagesContainerRef.current
+    el.scrollTop = 0
+    whenLayoutStable(() => {
+      if (!lastAssistantRef.current) return
+      const msgRect = lastAssistantRef.current.getBoundingClientRect()
+      const containerRect = el.getBoundingClientRect()
+      el.scrollTop = msgRect.top - containerRect.top
+    })
+  }, [whenLayoutStable])
+
+  // Scroll so the loading indicator ("Glimpsing...") is just visible at the bottom
+  const scrollToRevealLoading = useCallback(() => {
+    if (!lastAssistantRef.current || !messagesContainerRef.current) return
+    const el = messagesContainerRef.current
+    el.scrollTop = 0
+    whenLayoutStable(() => {
+      if (!lastAssistantRef.current) return
+      const msgRect = lastAssistantRef.current.getBoundingClientRect()
+      const containerRect = el.getBoundingClientRect()
+      const targetScroll = msgRect.top - containerRect.top - containerRect.height + msgRect.height + 40
+      el.scrollTop = Math.max(0, targetScroll)
+    })
+  }, [whenLayoutStable])
+
   const saveCurrentThread = useCallback(async (thread) => {
     setCurrentThread(thread)
-    await window.electronAPI?.saveThread({
-      ...thread,
-      messages: thread.messages.map(m => ({
-        ...m,
-        content: m.content.map(c =>
-          c.type === 'image' ? { type: 'text', text: '[screenshot]' } : c
-        ),
+
+    // Save images to disk and replace base64 blocks with file references
+    const savedMessages = await Promise.all(thread.messages.map(async (m, idx) => ({
+      ...m,
+      content: await Promise.all(m.content.map(async (c) => {
+        if (c.type === 'image' && c.source?.type === 'base64') {
+          const result = await window.electronAPI?.saveThreadImage(
+            thread.id, idx, c.source.data, c.source.media_type
+          )
+          if (result?.success) {
+            return { type: 'image', source: { type: 'file', path: result.path, media_type: c.source.media_type } }
+          }
+          return { type: 'text', text: '[screenshot]' } // fallback
+        }
+        return c // file references and text blocks pass through
       })),
-    })
+    })))
+
+    await window.electronAPI?.saveThread({ ...thread, messages: savedMessages })
+
+    // apiMessages.current keeps file refs intact (source of truth for saving + display).
+    // File images are only stripped to [screenshot] at the point of chatWithAI() calls
+    // via getApiSafeMessages(). saveImage() is idempotent (overwrites same file).
+
+    refreshThreads()
     window.electronAPI?.refreshTrayMenu?.()
-  }, [setCurrentThread])
+  }, [setCurrentThread, refreshThreads])
 
   const generateTitle = useCallback(async (msgs) => {
     if (!window.electronAPI?.generateTitle) return null
@@ -431,7 +705,7 @@ export default function ChatPanel({
         setTextContext('')
       }
       if (croppedImage) {
-        const composite = await getCompositeImage?.()
+        const composite = await getCompositeImage?.(croppedImage)
         msgEntry.image = composite || croppedImage
         pendingImageRef.current = msgEntry.image
         setScreenshotAttached(false)
@@ -454,8 +728,9 @@ export default function ChatPanel({
     const willAttachImage = croppedImage && (noMessagesSentYet || screenshotAttached)
     let imageForChat = croppedImage
     if (willAttachImage) {
-      // Use annotated composite if available
-      const composite = await getCompositeImage?.()
+      // Use annotated composite if available — pass croppedImage directly
+      // to avoid stale closure in getCompositeImage's useCallback
+      const composite = await getCompositeImage?.(croppedImage)
       if (composite) imageForChat = composite
       const mediaType = imageForChat.startsWith('data:image/jpeg') ? 'image/jpeg' : 'image/png'
       contentBlocks.push({
@@ -493,18 +768,32 @@ export default function ChatPanel({
     setMessages(prev => [...prev, uiMsg])
     setIsLoading(true)
 
-    // Scroll to bottom when user sends (only if expanded — compact mode shouldn't auto-scroll)
-    if (chatFullSize) setTimeout(() => scrollToBottom(), 50)
+    // Scroll to reveal "Glimpsing..." loading indicator
+    setTimeout(() => scrollToRevealLoading(), 50)
 
     if (willAttachImage) {
       lastSentImageRef.current = croppedImage
       setScreenshotAttached(false)
+      // Pin out to standalone chat — let IT make the API call.
+      // Send currentThread.messages (preserves file refs for UI thumbnails)
+      // plus the new user message.
+      if (onSentWithImage) {
+        const now = Date.now()
+        onSentWithImage({
+          id: currentThread?.id || generateId(),
+          title: currentThread?.title || 'New Chat',
+          messages: [...(currentThread?.messages || []), userApiMsg],
+          createdAt: currentThread?.createdAt || now,
+          updatedAt: now,
+        })
+        return // Don't call API from overlay — standalone will handle it
+      }
     }
 
     const isFirstMessage = apiMessages.current.length === 1
 
     try {
-      const result = await window.electronAPI.chatWithAI(apiMessages.current, provider, modelId)
+      const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
 
       // Hide loading dots before adding the response
       setIsLoading(false)
@@ -514,14 +803,11 @@ export default function ChatPanel({
         const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
         const assistantApiMsg = { role: 'assistant', content: result.content, model: currentModelName }
         apiMessages.current.push(assistantApiMsg)
-        // Expand panel BEFORE adding content so panel grows while content fades in
-        if (!chatFullSize) setChatFullSize(true)
-        window.electronAPI?.resizeChatWindow?.({ width: 420, height: 550 })
-        await new Promise(r => setTimeout(r, 50))
+        // Add message, expand panel, then scroll to top of assistant response
         setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
-
-        // Scroll to start of assistant message after expansion completes
-        setTimeout(() => scrollToLastAssistant(), 350)
+        if (!chatFullSize) setChatFullSize(true)
+        await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
+        scrollToLastAssistant()
 
         const now = Date.now()
         const thread = {
@@ -531,7 +817,6 @@ export default function ChatPanel({
           createdAt: currentThread?.createdAt || now,
           updatedAt: now,
         }
-
         await saveCurrentThread(thread)
 
         if (isFirstMessage) {
@@ -599,17 +884,20 @@ export default function ChatPanel({
   }
 
   const threadTitle = currentThread?.title || 'New Chat'
-  const showScrollDown = !isAtBottom && !isLoading
+  const showScrollDown = !isAtBottom && !isLoading && !viewModeActiveRef.current
   const [eyebrowWiggle, setEyebrowWiggle] = useState(false)
   const [eyeAnim, setEyeAnim] = useState('') // 'blink' | 'draw' | ''
   const [titleAnim, setTitleAnim] = useState(0)
   const triggerTitleAnim = () => setTitleAnim(k => k + 1)
 
 
-  // Draggable panel
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  // Draggable panel — use refs + direct DOM + rAF for smooth 60fps (no React re-render)
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
+  const panelRef = useRef(null)
   const isDragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0 })
+  const dragRaf = useRef(null)
+  const dragPending = useRef({ x: 0, y: 0 })
 
   // Resizable panel
   const [sizeOffset, setSizeOffset] = useState({ w: 0, h: 0 })
@@ -629,17 +917,34 @@ export default function ChatPanel({
       return
     }
     isDragging.current = true
-    dragStart.current = { x: e.clientX - dragOffset.x, y: e.clientY - dragOffset.y }
+    dragStart.current = { x: e.clientX - dragOffsetRef.current.x, y: e.clientY - dragOffsetRef.current.y }
+    // Promote to GPU layer + disable content interaction for smooth dragging
+    if (panelRef.current) {
+      panelRef.current.style.willChange = 'transform'
+      panelRef.current.classList.add('panel-dragging')
+    }
 
     const handleMouseMove = (ev) => {
       if (!isDragging.current) return
-      setDragOffset({
-        x: ev.clientX - dragStart.current.x,
-        y: ev.clientY - dragStart.current.y,
-      })
+      dragPending.current = { x: ev.clientX - dragStart.current.x, y: ev.clientY - dragStart.current.y }
+      if (!dragRaf.current) {
+        dragRaf.current = requestAnimationFrame(() => {
+          dragRaf.current = null
+          const { x, y } = dragPending.current
+          dragOffsetRef.current = { x, y }
+          if (panelRef.current) {
+            panelRef.current.style.transform = `translate(${x}px, ${y}px)`
+          }
+        })
+      }
     }
     const handleMouseUp = () => {
       isDragging.current = false
+      if (dragRaf.current) { cancelAnimationFrame(dragRaf.current); dragRaf.current = null }
+      if (panelRef.current) {
+        panelRef.current.style.willChange = ''
+        panelRef.current.classList.remove('panel-dragging')
+      }
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
@@ -683,11 +988,12 @@ export default function ChatPanel({
     ...style,
     width: 380 + sizeOffset.w,
     height: (style.height || 320) + sizeOffset.h,
-    transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+    transform: `translate(${dragOffsetRef.current.x}px, ${dragOffsetRef.current.y}px)`,
   }
 
   return (
     <div
+      ref={panelRef}
       className={`chat-panel ${isNewThread ? 'chat-panel-new' : ''} ${isPinned ? 'chat-panel-pinned pinned-panel' : ''}`}
       style={panelStyle}
       onMouseDown={(e) => e.stopPropagation()}
@@ -699,7 +1005,7 @@ export default function ChatPanel({
       <div className="panel-resize-edge bottom" onMouseDown={handleResizeMouseDown('bottom')} />
 
       {/* Header — drag handle */}
-      <div className="chat-header" onMouseDown={handleHeaderMouseDown} {...(chatFullSize ? {'data-tauri-drag-region': ''} : {})}>
+      <div ref={headerRef} className="chat-header" onMouseDown={handleHeaderMouseDown} {...(chatFullSize ? {'data-tauri-drag-region': ''} : {})}>
         <span
             className={`glimpse-icon-fixed chat-header-eye ${eyeAnim === 'draw' ? 'logo-draw-only' : eyebrowWiggle ? 'logo-single-blink' : ''}`}
             onClick={(e) => {
@@ -787,6 +1093,29 @@ export default function ChatPanel({
           </>
         )}
       </div>
+
+      {/* Floating eye + pin in view mode (header slides away) */}
+      {isPinned && (
+        <div ref={headerIconsRef} className="view-mode-header-icons" style={{ display: 'none' }}>
+          <span className="glimpse-icon-fixed chat-header-eye">
+            <GlimpseIcon size={24} focused={true} />
+          </span>
+          {(onTogglePin || onPin) && (
+            <button
+              className={`chat-header-pin pinned`}
+              onClick={() => {
+                const handler = onTogglePin || (() => onPin({ screenshotAttached }))
+                handler()
+              }}
+              aria-label="Unpin"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 17v5" /><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div className="chat-messages-wrapper">
@@ -932,7 +1261,25 @@ export default function ChatPanel({
                     ) : (
                       <>
                         {msg.image && (
-                          <img src={msg.image} alt="screenshot" className="msg-image" />
+                          <img
+                            src={msg.image}
+                            alt="screenshot"
+                            className="msg-image msg-image-clickable"
+                            onClick={() => {
+                              // Collect all images in thread for arrow-key navigation
+                              const allImages = messages.filter(m => m.image).map(m => ({
+                                path: m.imagePath || null,
+                                dataUrl: (!m.imagePath && m.image) ? m.image : null
+                              }))
+                              const currentIndex = messages.filter(m => m.image).findIndex(m => m === msg)
+                              window.electronAPI?.showImageViewer?.(
+                                msg.imagePath || null,
+                                (!msg.imagePath && msg.image) ? msg.image : null,
+                                allImages,
+                                currentIndex
+                              )
+                            }}
+                          />
                         )}
                         {msg.snippet && (
                           <ExpandableSnippet text={msg.snippet} />
@@ -967,6 +1314,7 @@ export default function ChatPanel({
             {/* Scroll to bottom arrow */}
             {showScrollDown && (
               <button
+                ref={scrollDownBtnRef}
                 className="scroll-to-bottom"
                 onClick={scrollToBottom}
               >
@@ -979,6 +1327,11 @@ export default function ChatPanel({
         )}
         </div>
 
+      {/* Bottom zone: input + actions — collapses in view mode */}
+      <div
+        ref={bottomZoneRef}
+        className="chat-bottom-zone"
+      >
       {/* Input */}
       <div className="chat-input-area">
         <div className="chat-input-box">
@@ -990,7 +1343,10 @@ export default function ChatPanel({
               </svg>
               <span>Screenshot attached</span>
               {onDismissScreenshot && (
-                <button className="attachment-dismiss" onClick={() => { onDismissScreenshot(); setTimeout(() => inputRef.current?.focus(), 50) }} aria-label="Remove screenshot">×</button>
+                <button className="attachment-dismiss" onClick={() => {
+                  onDismissScreenshot()
+                  setTimeout(() => inputRef.current?.focus(), 50)
+                }} aria-label="Remove screenshot">×</button>
               )}
             </div>
           )}
@@ -1100,6 +1456,20 @@ export default function ChatPanel({
           return <span className="thread-action-model">{displayName}</span>
         })()}
       </div>
+      </div>{/* end .chat-bottom-zone */}
+
+      {/* Bottom frosted bar with pill — visible in view mode */}
+      {isPinned && (
+        <div ref={expandBtnRef} className="view-mode-bottom" style={{ display: 'none' }}>
+          <button
+            className="view-mode-pill"
+            onClick={handleViewHintClick}
+            aria-label="Show input"
+          >
+            Continue discussion...
+          </button>
+        </div>
+      )}
     </div>
   )
 }

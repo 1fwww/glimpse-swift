@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 
 // Eye icon using currentColor (inherits CSS color, works in both themes)
 const EyeIcon = ({ size = 24 }) => (
@@ -87,14 +87,122 @@ export default function ImageBoard({
     if (viewMode !== 'viewer') return
     const handleKey = (e) => {
       if (e.key === 'ArrowLeft' && viewerImageIndex > 0) {
+        e.preventDefault()
         onImageClick(viewerImageIndex - 1)
       } else if (e.key === 'ArrowRight' && viewerImageIndex < images.length - 1) {
+        e.preventDefault()
         onImageClick(viewerImageIndex + 1)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [viewMode, viewerImageIndex, images.length, onImageClick])
+
+  // Zoom/pan state — option 2: resize <img> element for sharp rendering
+  const [zoom, setZoom] = useState(1)
+  const isPanning = useRef(false)
+  const lastMouse = useRef({ x: 0, y: 0 })
+  const imageAreaRef = useRef(null)
+  const imgRef = useRef(null)
+  const naturalSize = useRef({ w: 0, h: 0 })
+
+  const isZoomed = zoom > 1.01
+
+  // Reset zoom when switching images
+  useEffect(() => {
+    setZoom(1)
+    const el = imageAreaRef.current
+    if (el) { el.scrollLeft = 0; el.scrollTop = 0 }
+  }, [viewerImageIndex])
+
+  // Capture natural image size on load
+  const handleImageLoad = useCallback((e) => {
+    naturalSize.current = { w: e.target.naturalWidth, h: e.target.naturalHeight }
+  }, [])
+
+  // Wheel/pinch zoom handler — resizes <img> element directly
+  const handleWheel = useCallback((e) => {
+    if (!e.ctrlKey && !isZoomed) return  // only intercept pinch or scroll-when-zoomed
+    e.preventDefault()
+    if (!e.ctrlKey && isZoomed) {
+      // Two-finger scroll to pan when zoomed
+      const container = imageAreaRef.current
+      if (container) {
+        container.scrollLeft += e.deltaX
+        container.scrollTop += e.deltaY
+      }
+      return
+    }
+    if (e.ctrlKey) {
+      // Pinch gesture
+      const container = imageAreaRef.current
+      const img = imgRef.current
+      if (!container || !img) return
+
+      // Cursor position relative to container
+      const rect = container.getBoundingClientRect()
+      const cursorX = e.clientX - rect.left + container.scrollLeft
+      const cursorY = e.clientY - rect.top + container.scrollTop
+
+      // Fraction of image under cursor (before zoom)
+      const fracX = cursorX / img.offsetWidth
+      const fracY = cursorY / img.offsetHeight
+
+      const prev = zoom
+      const next = Math.min(Math.max(prev * (1 - e.deltaY * 0.01), 1), 4)
+
+      setZoom(next)
+
+      // After zoom, adjust scroll so the point under cursor stays put
+      requestAnimationFrame(() => {
+        if (!container || !img) return
+        const newCursorX = fracX * img.offsetWidth
+        const newCursorY = fracY * img.offsetHeight
+        container.scrollLeft = newCursorX - (e.clientX - rect.left)
+        container.scrollTop = newCursorY - (e.clientY - rect.top)
+      })
+    }
+    // When zoomed, normal scroll events just scroll the container natively (overflow: auto)
+  }, [zoom, isZoomed])
+
+  // Attach wheel handler (need passive: false for preventDefault on pinch)
+  useEffect(() => {
+    const el = imageAreaRef.current
+    if (!el || viewMode !== 'viewer') return
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [viewMode, handleWheel])
+
+  // Drag to pan when zoomed
+  const handleMouseDown = useCallback((e) => {
+    if (!isZoomed) return
+    isPanning.current = true
+    lastMouse.current = { x: e.clientX, y: e.clientY }
+    e.preventDefault()
+  }, [isZoomed])
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isPanning.current) return
+    const dx = e.clientX - lastMouse.current.x
+    const dy = e.clientY - lastMouse.current.y
+    lastMouse.current = { x: e.clientX, y: e.clientY }
+    const el = imageAreaRef.current
+    if (el) {
+      el.scrollLeft -= dx
+      el.scrollTop -= dy
+    }
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    isPanning.current = false
+  }, [])
+
+  // Double-click to reset zoom
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1)
+    const el = imageAreaRef.current
+    if (el) { el.scrollLeft = 0; el.scrollTop = 0 }
+  }, [])
 
   const groups = useMemo(() => groupByDate(images), [images])
   const currentImage = images[viewerImageIndex]
@@ -115,13 +223,31 @@ export default function ImageBoard({
 
         {/* Image viewer */}
         <div className="viewer-content">
-          <div className="viewer-image-area">
-            <img
-              className="viewer-image"
-              src={buildImageUrl(currentImage.path)}
-              alt={`Screenshot${currentImage.question ? ': ' + currentImage.question.slice(0, 80) : ''}`}
-              draggable={false}
-            />
+          <div className="viewer-image-wrapper">
+            <div
+              className={`viewer-image-area ${isZoomed ? 'zoomed' : ''}`}
+              ref={imageAreaRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onDoubleClick={handleDoubleClick}
+            >
+              <img
+                className="viewer-image"
+                ref={imgRef}
+                src={buildImageUrl(currentImage.path)}
+                alt={`Screenshot${currentImage.question ? ': ' + currentImage.question.slice(0, 80) : ''}`}
+                draggable={false}
+                onLoad={handleImageLoad}
+                style={isZoomed ? {
+                  width: `${zoom * 100}%`,
+                  height: 'auto',
+                  maxWidth: 'none',
+                  maxHeight: 'none',
+                } : undefined}
+              />
+            </div>
             {viewerImageIndex > 0 && (
               <button className="viewer-nav prev" onClick={() => onImageClick(viewerImageIndex - 1)} aria-label="Previous image">
                 <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

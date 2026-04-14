@@ -192,4 +192,5 @@ window.electronAPI = {
   onResetOverlayKeepThread: (cb) => listen('reset-overlay-keep-thread', cb),
   onProvidersChanged: (cb) => listen('providers-changed', cb),
   onAutoSend: (cb) => listen('auto-send', cb),
+  onViewMode: (cb) => listen('view-mode', cb),
 };

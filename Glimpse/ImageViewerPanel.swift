@@ -149,7 +149,8 @@ class ImageViewerPanel: GlimpsePanel {
 
     private func resizeToFitImage(_ image: NSImage) {
         // Convert pixel dimensions to points using screen backing scale.
-        let backingScale = NSScreen.main?.backingScaleFactor ?? 2.0
+        // Default to 1.0 (non-Retina) so Intel Macs show images at natural size.
+        let backingScale = NSScreen.main?.backingScaleFactor ?? 1.0
         let pointW: CGFloat
         let pointH: CGFloat
         if let rep = image.representations.first, rep.pixelsWide > 0 {
@@ -216,14 +217,36 @@ class ImageViewerPanel: GlimpsePanel {
     func showWithFade() {
         alphaValue = 0
         makeKeyAndOrderFront(nil)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            self.animator().alphaValue = 1
+
+        // Intel shadow fix: toggle hasShadow + invalidate + frame nudge at alpha=0,
+        // then reveal after 200ms so Intel's compositor processes the shadow.
+        // On Apple Silicon this is a no-op (shadow renders immediately).
+        hasShadow = false
+        hasShadow = true
+        invalidateShadow()
+        display()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self else { return }
+            let f = self.frame
+            self.setFrame(NSRect(origin: f.origin, size: NSSize(width: f.width, height: f.height + 1)), display: true)
+            self.invalidateShadow()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.setFrame(f, display: true)
+                self.invalidateShadow()
+            }
         }
+
+        // Reveal after 200ms (Intel shadow needs time; Apple Silicon is instant)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            self.alphaValue = 1
+            self.invalidateShadow()
+        }
+
         // Flash close button briefly so users discover it
         closeButton.alphaValue = 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
             guard let self, !self.isMouseInside else { return }
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.3

@@ -29,6 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var chatReady = false
     var isPinned = false
     var isChatShowing = false
+    var suppressViewMode = false  // suppress during pin transitions
     var pendingTextContext: String?
     var lastDismissTime: Date = .distantPast
     var lastChatSize: NSSize?
@@ -463,6 +464,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleUserResizedChat),
             name: NSWindow.didEndLiveResizeNotification, object: panel
+        )
+
+        // View mode: emit events when pinned chat gains/loses key window status
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(chatDidResignKey(_:)),
+            name: NSWindow.didResignKeyNotification, object: panel
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(chatDidBecomeKey(_:)),
+            name: NSWindow.didBecomeKeyNotification, object: panel
         )
 
         NSLog("[App] Chat panel pre-warmed (hidden)")
@@ -1195,6 +1206,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         isPinned = wantsPinned
+        suppressViewMode = true  // suppress view-mode events during pin transition
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
@@ -1272,10 +1284,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
 
-                // Lock to current Space after transition
-                DispatchQueue.main.asyncAfter(deadline: .now() + Self.pinAnimationDuration) { [weak panel] in
+                // Lock to current Space after transition + re-enable view mode
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.pinAnimationDuration) { [weak self, weak panel] in
                     guard let panel, panel.isVisible else { return }
                     panel.collectionBehavior = [.fullScreenAuxiliary]
+                    self?.suppressViewMode = false
                 }
             }
         }
@@ -1378,7 +1391,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func handleInputFocus() {
-        overlayPanel?.makeKey()
+        if let overlay = overlayPanel, overlay.isVisible {
+            overlay.makeKey()
+        } else if let chat = chatPanel, chat.isVisible, isPinned {
+            chat.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    @objc func chatDidResignKey(_ notification: Notification) {
+        guard isPinned, isChatShowing, !suppressViewMode,
+              let panel = notification.object as? NSPanel,
+              panel == chatPanel, panel.isVisible else { return }
+        ipcBridge.emit("view-mode", data: true)
+        NSLog("[App] Chat resigned key → view mode")
+    }
+
+    @objc func chatDidBecomeKey(_ notification: Notification) {
+        guard isPinned, isChatShowing, !suppressViewMode,
+              let panel = notification.object as? NSPanel,
+              panel == chatPanel, panel.isVisible else { return }
+        ipcBridge.emit("view-mode", data: false)
+        NSLog("[App] Chat became key → full mode")
     }
 
     private var resizeTimer: Timer?

@@ -236,7 +236,7 @@ class ImageViewerPanel: GlimpsePanel {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         closeButton.isBordered = false
         closeButton.wantsLayer = true
-        closeButton.layer?.cornerRadius = 6
+        closeButton.layer?.cornerRadius = 8
         closeButton.layer?.backgroundColor = NSColor(red: 0.18, green: 0.17, blue: 0.22, alpha: 0.65).cgColor
         closeButton.attributedTitle = NSAttributedString(
             string: "✕",
@@ -266,7 +266,7 @@ class ImageViewerPanel: GlimpsePanel {
         let counterBg = NSView()
         counterBg.translatesAutoresizingMaskIntoConstraints = false
         counterBg.wantsLayer = true
-        counterBg.layer?.cornerRadius = 6
+        counterBg.layer?.cornerRadius = 8
         counterBg.layer?.backgroundColor = overlayBg.cgColor
         counterBg.alphaValue = 0
         imageContentView.addSubview(counterBg)
@@ -307,7 +307,7 @@ class ImageViewerPanel: GlimpsePanel {
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.isBordered = false
             btn.wantsLayer = true
-            btn.layer?.cornerRadius = 6
+            btn.layer?.cornerRadius = 8
             btn.layer?.backgroundColor = overlayBg.cgColor
             btn.attributedTitle = NSAttributedString(
                 string: title,
@@ -538,7 +538,7 @@ class ImageViewerPanel: GlimpsePanel {
         closeHeightConstraint.constant = size
         closeTopConstraint.constant = inset
         closeTrailingConstraint.constant = -inset
-        closeButton.layer?.cornerRadius = max(6 * scaleFactor, 3)
+        closeButton.layer?.cornerRadius = max(8 * scaleFactor, 3)
 
         let fontSize = max(12 * scaleFactor, 7)
         closeButton.attributedTitle = NSAttributedString(

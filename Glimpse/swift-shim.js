@@ -90,7 +90,10 @@ window.electronAPI = {
   deleteThread: (id) => invoke('delete_thread', { id }),
   saveThreadImage: (threadId, messageIndex, base64Data, mediaType) =>
     invoke('save_thread_image', { threadId, messageIndex, base64Data, mediaType }),
-  showImageViewer: (path) => invoke('show_image_viewer', { path }),
+  showImageViewer: (path, dataUrl, allImages, currentIndex) => invoke('show_image_viewer', {
+    path: path || null, dataUrl: dataUrl || null,
+    allImages: allImages || [], currentIndex: currentIndex || 0
+  }),
   showImageViewerData: (dataUrl) => invoke('show_image_viewer', { dataUrl }),
 
   // ── AI ──
@@ -126,6 +129,7 @@ window.electronAPI = {
   showToast: (message) => invoke('show_toast', { message }),
   notifyProvidersChanged: () => invoke('notify_providers_changed'),
   notifyNewThread: () => invoke('notify_new_thread'),
+  notifyThreadLoaded: () => invoke('notify_thread_loaded'),
   refreshTrayMenu: () => invoke('refresh_tray_menu'),
   resizeChatWindow: (size) => {
     invoke('resize_chat_window', { size });

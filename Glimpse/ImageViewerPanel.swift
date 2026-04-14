@@ -4,6 +4,7 @@ import AppKit
 
 /// Draws an image directly into a rounded-rect clip path via draw().
 /// No NSImageView, no CALayer.contents — the image IS the view.
+/// Supports pinch-to-zoom and drag-to-pan when zoomed.
 private class ImageContentView: NSView {
     var image: NSImage?
     let cornerRadius: CGFloat = 12
@@ -11,17 +12,45 @@ private class ImageContentView: NSView {
     /// Edge inset (points) that counts as a resize zone instead of drag
     private let resizeEdge: CGFloat = 6
 
+    // Zoom + pan state
+    private(set) var zoomScale: CGFloat = 1.0
+    private var panOffset: CGPoint = .zero       // offset in image-space points
+    private var isPanning = false
+    private var lastDragPoint: NSPoint = .zero
+    private let minZoom: CGFloat = 1.0
+    private let maxZoom: CGFloat = 10.0
+
     override var isFlipped: Bool { false }
+
+    var isZoomed: Bool { zoomScale > 1.001 }
+
+    func resetZoom() {
+        zoomScale = 1.0
+        panOffset = .zero
+        needsDisplay = true
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let image else { return }
 
         let path = NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius)
 
-        // Clip to rounded rect — image pixels get rounded corners
         NSGraphicsContext.saveGraphicsState()
         path.addClip()
-        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1.0)
+
+        if isZoomed {
+            // Draw zoomed: scale from center, offset by pan
+            let scaledW = bounds.width * zoomScale
+            let scaledH = bounds.height * zoomScale
+            // Center the scaled image, then apply pan offset
+            let x = (bounds.width - scaledW) / 2 + panOffset.x
+            let y = (bounds.height - scaledH) / 2 + panOffset.y
+            let drawRect = NSRect(x: x, y: y, width: scaledW, height: scaledH)
+            image.draw(in: drawRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        } else {
+            image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+
         NSGraphicsContext.restoreGraphicsState()
 
         // Hairline border matching chat panel
@@ -29,6 +58,42 @@ private class ImageContentView: NSView {
         path.lineWidth = 0.5
         path.stroke()
     }
+
+    /// Clamp pan offset so image edges don't pull away from window edges
+    private func clampPan() {
+        let scaledW = bounds.width * zoomScale
+        let scaledH = bounds.height * zoomScale
+        let maxPanX = max((scaledW - bounds.width) / 2, 0)
+        let maxPanY = max((scaledH - bounds.height) / 2, 0)
+        panOffset.x = min(max(panOffset.x, -maxPanX), maxPanX)
+        panOffset.y = min(max(panOffset.y, -maxPanY), maxPanY)
+    }
+
+    // MARK: - Pinch to zoom
+
+    override func magnify(with event: NSEvent) {
+        let oldScale = zoomScale
+        zoomScale = min(max(zoomScale * (1 + event.magnification), minZoom), maxZoom)
+
+        if zoomScale > minZoom {
+            // Adjust pan so zoom centers on cursor position
+            let loc = convert(event.locationInWindow, from: nil)
+            let centerX = bounds.midX
+            let centerY = bounds.midY
+            let dx = loc.x - centerX
+            let dy = loc.y - centerY
+            let ratio = zoomScale / oldScale
+            panOffset.x = panOffset.x * ratio + dx * (1 - ratio)
+            panOffset.y = panOffset.y * ratio + dy * (1 - ratio)
+        } else {
+            panOffset = .zero
+        }
+
+        clampPan()
+        needsDisplay = true
+    }
+
+    // MARK: - Mouse handling
 
     /// Returns true if the point is near the window edge (resize zone)
     private func isInResizeZone(_ point: NSPoint) -> Bool {
@@ -38,12 +103,54 @@ private class ImageContentView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        // Double-click resets zoom
+        if event.clickCount == 2 {
+            resetZoom()
+            return
+        }
+
         let point = convert(event.locationInWindow, from: nil)
         if isInResizeZone(point) {
-            // Let the system handle resize
             super.mouseDown(with: event)
+        } else if isZoomed {
+            // Start panning
+            isPanning = true
+            lastDragPoint = event.locationInWindow
         } else {
             window?.performDrag(with: event)
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        if isPanning {
+            let current = event.locationInWindow
+            let dx = current.x - lastDragPoint.x
+            let dy = current.y - lastDragPoint.y
+            panOffset.x += dx
+            panOffset.y += dy
+            lastDragPoint = current
+            clampPan()
+            needsDisplay = true
+        } else {
+            super.mouseDragged(with: event)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        isPanning = false
+        super.mouseUp(with: event)
+    }
+
+    // MARK: - Scroll to pan when zoomed
+
+    override func scrollWheel(with event: NSEvent) {
+        if isZoomed {
+            panOffset.x += event.scrollingDeltaX
+            panOffset.y -= event.scrollingDeltaY  // Cocoa Y is flipped vs scroll direction
+            clampPan()
+            needsDisplay = true
+        } else {
+            super.scrollWheel(with: event)
         }
     }
 }
@@ -53,9 +160,20 @@ private class ImageContentView: NSView {
 /// The image IS the window. Rounded corners clip the image pixels directly.
 /// System shadow + hairline border for native feel. Close button on hover.
 /// Resizable with aspect ratio locked. Draggable from interior.
+/// Pinch-to-zoom + drag-to-pan when zoomed. Arrow keys navigate between images.
 class ImageViewerPanel: GlimpsePanel {
+    /// Reference to an image — either a file path or a data URL to decode
+    enum ImageRef {
+        case file(String)
+        case dataUrl(String)
+    }
+
     private var imageContentView: ImageContentView!
     private let closeButton = NSButton()
+
+    /// All images in the current thread for arrow-key navigation
+    private var imageList: [ImageRef] = []
+    private var currentImageIndex: Int = 0
 
     private let closeButtonSize: CGFloat = 24
     private let closeButtonInset: CGFloat = 8
@@ -135,6 +253,23 @@ class ImageViewerPanel: GlimpsePanel {
         }
     }
 
+    /// Flash the close button briefly so users know it's there, then fade out
+    private func flashCloseButton() {
+        closeButton.alphaValue = 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+            guard let self, !self.isMouseInside else { return }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                self.closeButton.animator().alphaValue = 0
+            }
+        }
+    }
+
+    func setImageList(_ list: [ImageRef], currentIndex: Int) {
+        imageList = list
+        currentImageIndex = max(0, min(currentIndex, list.count - 1))
+    }
+
     @discardableResult
     func showImage(at path: String) -> Bool {
         guard let image = NSImage(contentsOfFile: path) else {
@@ -142,9 +277,42 @@ class ImageViewerPanel: GlimpsePanel {
             return false
         }
         imageContentView.image = image
+        imageContentView.resetZoom()
         resizeToFitImage(image)
         imageContentView.needsDisplay = true
+        flashCloseButton()
         return true
+    }
+
+    /// Navigate to an image by index in the image list
+    private func navigateToImage(at index: Int) {
+        guard !imageList.isEmpty else { return }
+        let newIndex = max(0, min(index, imageList.count - 1))
+        guard newIndex != currentImageIndex else { return }
+        currentImageIndex = newIndex
+
+        switch imageList[newIndex] {
+        case .file(let path):
+            showImage(at: path)
+        case .dataUrl(let dataUrl):
+            showImageFromDataUrl(dataUrl)
+        }
+    }
+
+    /// Load image from data URL (for navigation — no temp file needed, just decode to NSImage)
+    private func showImageFromDataUrl(_ dataUrl: String) {
+        guard let commaIndex = dataUrl.firstIndex(of: ",") else { return }
+        let base64 = String(dataUrl[dataUrl.index(after: commaIndex)...])
+        guard let data = Data(base64Encoded: base64),
+              let image = NSImage(data: data) else {
+            NSLog("[ImageViewer] Failed to decode data URL")
+            return
+        }
+        imageContentView.image = image
+        imageContentView.resetZoom()
+        resizeToFitImage(image)
+        imageContentView.needsDisplay = true
+        flashCloseButton()
     }
 
     private func resizeToFitImage(_ image: NSImage) {
@@ -244,15 +412,7 @@ class ImageViewerPanel: GlimpsePanel {
             self.invalidateShadow()
         }
 
-        // Flash close button briefly so users discover it
-        closeButton.alphaValue = 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-            guard let self, !self.isMouseInside else { return }
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                self.closeButton.animator().alphaValue = 0
-            }
-        }
+        flashCloseButton()
     }
 
     /// Track whether mouse is inside to avoid fading out during hover
@@ -263,9 +423,14 @@ class ImageViewerPanel: GlimpsePanel {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
+        switch event.keyCode {
+        case 53: // ESC
             closePanel()
-        } else {
+        case 123: // Left arrow
+            navigateToImage(at: currentImageIndex - 1)
+        case 124: // Right arrow
+            navigateToImage(at: currentImageIndex + 1)
+        default:
             super.keyDown(with: event)
         }
     }

@@ -31,7 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var isChatShowing = false
     var suppressViewMode = false  // suppress during pin transitions
     var pendingTextContext: String?
-    var lastDismissTime: Date = .distantPast
+    var lastDismissTime: Date = Date()  // Not .distantPast — first launch should not be "stale"
     var lastChatSize: NSSize?
     var wasNewThread = true
     var userDidResizeChat = false
@@ -301,13 +301,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Image Viewer
 
-    func showImageViewer(imagePath: String) {
+    func showImageViewer(imagePath: String, imageList: [ImageViewerPanel.ImageRef] = [], currentIndex: Int = 0) {
         let panel: ImageViewerPanel
         if let existing = imageViewerPanel {
             panel = existing
         } else {
             panel = ImageViewerPanel()
             imageViewerPanel = panel
+        }
+
+        if !imageList.isEmpty {
+            panel.setImageList(imageList, currentIndex: currentIndex)
         }
 
         guard panel.showImage(at: imagePath) else { return }
@@ -340,7 +344,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var viewerTempFile: URL?
 
-    func showImageViewerFromDataUrl(_ dataUrl: String) {
+    func showImageViewerFromDataUrl(_ dataUrl: String, imageList: [ImageViewerPanel.ImageRef] = [], currentIndex: Int = 0) {
         // Decode data URL → NSImage → write to temp file → show viewer
         guard let commaIndex = dataUrl.firstIndex(of: ",") else { return }
         let base64 = String(dataUrl[dataUrl.index(after: commaIndex)...])
@@ -358,7 +362,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               let pngData = rep.representation(using: .png, properties: [:]) else { return }
         try? pngData.write(to: tempURL)
         viewerTempFile = tempURL
-        showImageViewer(imagePath: tempURL.path)
+        showImageViewer(imagePath: tempURL.path, imageList: imageList, currentIndex: currentIndex)
     }
 
     func hideImageViewer() {
@@ -398,11 +402,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func handleShowImageViewer(_ notification: Notification) {
+        // Build image list for arrow-key navigation
+        var imageList: [ImageViewerPanel.ImageRef] = []
+        var currentIndex = 0
+        if let allImages = notification.userInfo?["allImages"] as? [[String: Any]], !allImages.isEmpty {
+            for item in allImages {
+                if let path = item["path"] as? String {
+                    let fullPath = settingsStore.appSupportDir.appendingPathComponent(path).path
+                    imageList.append(.file(fullPath))
+                } else if let dataUrl = item["dataUrl"] as? String {
+                    imageList.append(.dataUrl(dataUrl))
+                }
+            }
+            currentIndex = (notification.userInfo?["currentIndex"] as? Int) ?? 0
+        }
+
         if let relativePath = notification.userInfo?["path"] as? String {
             let fullPath = settingsStore.appSupportDir.appendingPathComponent(relativePath).path
-            showImageViewer(imagePath: fullPath)
+            showImageViewer(imagePath: fullPath, imageList: imageList, currentIndex: currentIndex)
         } else if let dataUrl = notification.userInfo?["dataUrl"] as? String {
-            showImageViewerFromDataUrl(dataUrl)
+            showImageViewerFromDataUrl(dataUrl, imageList: imageList, currentIndex: currentIndex)
         }
     }
 
@@ -423,8 +442,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Uses unified lastDismissTime + wasNewThread (no separate overlay/standalone tracking).
     func decideChatState() -> ChatInitState {
         let isStale = Date().timeIntervalSince(lastDismissTime) >= Self.chatStaleThreshold
-        if isStale || wasNewThread {
+        // Check disk for existing threads — wasNewThread may be stale on first launch
+        // due to race between WebView mount and showChat().
+        let hasThreadsOnDisk = !threadStore.getThreads().isEmpty
+        if (isStale || wasNewThread) && !hasThreadsOnDisk {
             return ChatInitState(startNewThread: true, compact: true)
+        }
+        if isStale && hasThreadsOnDisk {
+            // Stale but has threads — start compact with most recent thread (not new)
+            return ChatInitState(startNewThread: false, compact: true)
+        }
+        if wasNewThread && hasThreadsOnDisk {
+            // wasNewThread flag but threads exist — the WebView loaded one, don't override
+            wasNewThread = false
+            return ChatInitState(startNewThread: false, compact: false)
         }
         return ChatInitState(startNewThread: false, compact: false)
     }
@@ -543,7 +574,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if chatState.compact {
             panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
             ipcBridge.emit("start-new-thread")
-            wasNewThread = true
+            // Don't set wasNewThread = true here — it may have been cleared by
+            // notifyThreadLoaded (WebView loaded an existing thread on mount).
+            // The compact decision was already based on wasNewThread's current value.
             userDidResizeChat = false
         } else if let savedSize = lastChatSize {
             // Recent with conversation — restore saved size
@@ -864,6 +897,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if chatWasVisible {
             chatPanel?.orderOut(nil)
             isPinned = false
+            // Update dismiss time so decideChatState() treats this as a recent dismiss,
+            // not stale from the previous close. Without this, screenshot >5min after
+            // last close creates a new thread instead of continuing the current one.
+            lastDismissTime = Date()
         }
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()

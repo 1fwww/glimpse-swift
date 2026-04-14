@@ -12,7 +12,7 @@ export default function HomeApp() {
 
   useEffect(() => {
     window.electronAPI?.getThreads?.().then(threads => {
-      setRecentThreads((threads || []).slice(0, 5))
+      setRecentThreads((threads || []).slice(0, 10))
     })
   }, [])
 

@@ -306,11 +306,12 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
 
         // ── Window management ──
         case "show_image_viewer":
-            if let imagePath = args["path"] as? String {
-                NotificationCenter.default.post(name: .showImageViewer, object: nil, userInfo: ["path": imagePath])
-            } else if let dataUrl = args["dataUrl"] as? String {
-                NotificationCenter.default.post(name: .showImageViewer, object: nil, userInfo: ["dataUrl": dataUrl])
-            }
+            var userInfo: [String: Any] = [:]
+            if let imagePath = args["path"] as? String { userInfo["path"] = imagePath }
+            if let dataUrl = args["dataUrl"] as? String { userInfo["dataUrl"] = dataUrl }
+            if let allImages = args["allImages"] as? [[String: Any]] { userInfo["allImages"] = allImages }
+            if let idx = args["currentIndex"] as? NSNumber { userInfo["currentIndex"] = idx.intValue }
+            NotificationCenter.default.post(name: .showImageViewer, object: nil, userInfo: userInfo)
             return true
 
         case "close_chat_window":
@@ -407,6 +408,10 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
 
         case "notify_new_thread":
             NotificationCenter.default.post(name: .newThreadCreated, object: nil)
+            return true
+
+        case "notify_thread_loaded":
+            NotificationCenter.default.post(name: .chatConversationStarted, object: nil)
             return true
 
         // ── Welcome / Settings windows ──

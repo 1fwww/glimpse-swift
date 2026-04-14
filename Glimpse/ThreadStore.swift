@@ -2,11 +2,11 @@ import Foundation
 
 /// Persists chat threads as JSON files.
 /// Directory: ~/Library/Application Support/glimpse/threads/
-/// Keeps only the 5 most recent threads.
+/// Keeps only the 10 most recent threads.
 class ThreadStore {
     let threadsDir: URL
     let imagesDir: URL
-    private let maxThreads = 5
+    private let maxThreads = 10
 
     init(appSupportDir: URL) {
         threadsDir = appSupportDir.appendingPathComponent("threads")

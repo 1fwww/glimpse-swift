@@ -176,12 +176,15 @@ export default function ChatPanel({
   // Always reflects the LATEST thread ID — survives async awaits unlike closure values
   const currentThreadIdRef = useRef(currentThread?.id || null)
   currentThreadIdRef.current = currentThread?.id || null
+  // Set by thread-switch response handler to force reload on navigate-back
+  const forceReloadRef = useRef(false)
 
   // Load messages from current thread
   useEffect(() => {
     const prevId = prevThreadIdRef.current
     const newId = currentThread?.id
-    const isNewThreadGettingId = prevId === null && newId && apiMessages.current.length > 0
+    const isNewThreadGettingId = prevId === null && newId && apiMessages.current.length > 0 && !forceReloadRef.current
+    forceReloadRef.current = false
 
     // Always clear loading when switching to a different thread —
     // "Glimpsing..." must never follow across threads.
@@ -271,82 +274,24 @@ export default function ChatPanel({
   // Auto-send: overlay pinned out with a pending API call.
   // The thread data has the user message — just call chatWithAI.
   // Delay 100ms to ensure thread-loading useEffect has populated apiMessages.
+  // Auto-send: overlay pinned out with a pending API call.
+  // Delay 100ms to ensure thread-loading useEffect has populated apiMessages.
   useEffect(() => {
     if (!autoSendPending) return
     const timer = setTimeout(async () => {
-      if (apiMessages.current.length === 0) { return }
+      if (apiMessages.current.length === 0) return
       onAutoSendConsumed?.()
       setIsLoading(true)
       setTimeout(() => scrollToRevealLoading(), 50)
-      const isFirstMessage = apiMessages.current.length === 1
-      // Snapshot for thread-switch safety (same pattern as sendMessage)
-      const sendThreadId = currentThread?.id || generateId()
-      const snapshotMessages = apiMessages.current.map(m => ({
-        ...m,
-        content: (m.content || []).map(c =>
-          c.source ? { ...c, source: { ...c.source } } : { ...c }
-        ),
-      }))
-      const snapshotTitle = currentThread?.title || 'New Chat'
-      const snapshotCreatedAt = currentThread?.createdAt || Date.now()
+      const snapshot = createSendSnapshot()
       try {
         const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
-
-        // Thread switched while waiting — use ref (not stale closure)
-        if (currentThreadIdRef.current !== sendThreadId) {
+        if (!result.success) {
           setIsLoading(false)
-          if (result.success) {
-            const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
-            snapshotMessages.push({ role: 'assistant', content: result.content, model: currentModelName })
-            await saveCurrentThread({
-              id: sendThreadId, title: snapshotTitle, messages: snapshotMessages,
-              createdAt: snapshotCreatedAt, updatedAt: Date.now(),
-            })
-            if (isFirstMessage) {
-              const title = await generateTitle(snapshotMessages.map(m => ({
-                ...m, content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
-              })))
-              if (title) await saveCurrentThread({ id: sendThreadId, title, messages: snapshotMessages, createdAt: snapshotCreatedAt, updatedAt: Date.now() })
-            }
-            setIsNewThread(false)
-          }
+          setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${result.error || 'Unknown error'}` }])
           return
         }
-
-        // Same thread — normal flow
-        setIsLoading(false)
-        if (result.success) {
-          const assistantText = result.content.map(c => c.text || '').join('')
-          const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
-          apiMessages.current.push({ role: 'assistant', content: result.content, model: currentModelName })
-          setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
-          if (!chatFullSize) setChatFullSize(true)
-          await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
-          scrollToLastAssistant()
-          const now = Date.now()
-          const thread = {
-            id: sendThreadId,
-            title: snapshotTitle,
-            messages: [...apiMessages.current],
-            createdAt: snapshotCreatedAt,
-            updatedAt: now,
-          }
-          await saveCurrentThread(thread)
-          if (isFirstMessage) {
-            const titleMsgs = apiMessages.current.map(m => ({
-              ...m,
-              content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
-            }))
-            const title = await generateTitle(titleMsgs)
-            if (title) {
-              thread.title = title
-              await saveCurrentThread(thread)
-              setIsNewThread(false)
-            }
-          }
-        } else {
-          setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${result.error || 'Unknown error'}` }])
-        }
+        await handleAIResponse(result, snapshot)
       } catch (err) {
         setIsLoading(false)
         setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${err.message}` }])
@@ -354,9 +299,6 @@ export default function ChatPanel({
     }, 100)
     return () => clearTimeout(timer)
   }, [autoSendPending]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Intentionally exclude currentThread?.id — auto-send must NOT re-fire on thread switch.
-  // sendThreadId/snapshotTitle/snapshotCreatedAt capture values at fire time;
-  // currentThreadIdRef.current detects switches after await.
 
   // Auto-focus input
   useEffect(() => {
@@ -471,13 +413,13 @@ export default function ChatPanel({
       // Send to AI without re-adding user message to UI
       setIsLoading(true)
       setTimeout(() => scrollToRevealLoading(), 50)
+      const snapshot = createSendSnapshot()
       ;(async () => {
         try {
           const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
-          setIsLoading(false)
           if (!result?.success) {
+            setIsLoading(false)
             if (result?.code === 'auth_error' || result?.error?.includes('No API key')) {
-              // Re-save pending state so it retries after key setup
               pendingQuestion.current = q
               pendingImageRef.current = pendingImage
               pendingSnippetRef.current = pendingSnippet
@@ -488,38 +430,7 @@ export default function ChatPanel({
               setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${result?.error || 'Something went wrong'}` }])
             }
           } else {
-            const assistantText = result.content.map(c => c.text || '').join('')
-            const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
-            apiMessages.current.push({ role: 'assistant', content: result.content, model: currentModelName })
-            // Add message, expand panel, then scroll to top of assistant response
-            setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
-            if (!chatFullSize) setChatFullSize(true)
-            await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
-            scrollToLastAssistant()
-
-            // Save thread + generate title
-            const now = Date.now()
-            const thread = {
-              id: currentThread?.id || generateId(),
-              title: currentThread?.title || 'New Chat',
-              messages: [...apiMessages.current],
-              createdAt: currentThread?.createdAt || now,
-              updatedAt: now,
-            }
-            await saveCurrentThread(thread)
-
-            const titleMsgs = apiMessages.current.map(m => ({
-              ...m,
-              content: Array.isArray(m.content)
-                ? m.content.filter(c => c.type !== 'image')
-                : m.content,
-            }))
-            const title = await generateTitle(titleMsgs)
-            if (title) {
-              thread.title = title
-              await saveCurrentThread(thread)
-              setIsNewThread(false)
-            }
+            await handleAIResponse(result, snapshot)
           }
         } catch (err) {
           setIsLoading(false)
@@ -746,6 +657,84 @@ export default function ChatPanel({
     return null
   }, [provider, modelId])
 
+  // ── Shared helpers for all AI response paths ──
+
+  // Capture thread state before an await chatWithAI call.
+  // Returns an immutable snapshot that survives thread switches.
+  const createSendSnapshot = () => ({
+    sendThreadId: currentThread?.id || generateId(),
+    snapshotMessages: apiMessages.current.map(m => ({
+      ...m,
+      content: (m.content || []).map(c =>
+        c.source ? { ...c, source: { ...c.source } } : { ...c }
+      ),
+    })),
+    snapshotTitle: currentThread?.title || 'New Chat',
+    snapshotCreatedAt: currentThread?.createdAt || Date.now(),
+    isFirstMessage: apiMessages.current.length === 1,
+  })
+
+  // Handle AI response after chatWithAI returns. Used by sendMessage,
+  // auto-send, and welcome-resend. Handles thread-switch detection,
+  // message persistence, title generation, and UI updates.
+  // Returns { switched: true } if thread changed during the await.
+  const handleAIResponse = async (result, snapshot) => {
+    const { sendThreadId, snapshotMessages, snapshotTitle, snapshotCreatedAt, isFirstMessage } = snapshot
+    const switched = currentThreadIdRef.current !== sendThreadId
+
+    setIsLoading(false)
+
+    if (!result.success) return { switched, saved: false }
+
+    const assistantText = result.content.map(c => c.text || '').join('')
+    const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
+    const assistantApiMsg = { role: 'assistant', content: result.content, model: currentModelName }
+
+    if (switched) {
+      // Thread changed — save snapshot + response, navigate back
+      snapshotMessages.push(assistantApiMsg)
+      forceReloadRef.current = true
+      const thread = {
+        id: sendThreadId, title: snapshotTitle,
+        messages: snapshotMessages,
+        createdAt: snapshotCreatedAt, updatedAt: Date.now(),
+      }
+      await saveCurrentThread(thread)
+      if (isFirstMessage) {
+        const title = await generateTitle(snapshotMessages.map(m => ({
+          ...m, content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
+        })))
+        if (title) { thread.title = title; await saveCurrentThread(thread) }
+      }
+      setIsNewThread(false)
+    } else {
+      // Same thread — update UI and save
+      apiMessages.current.push(assistantApiMsg)
+      setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
+      if (!chatFullSize) setChatFullSize(true)
+      await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
+      scrollToLastAssistant()
+      const thread = {
+        id: sendThreadId, title: snapshotTitle,
+        messages: [...apiMessages.current],
+        createdAt: snapshotCreatedAt, updatedAt: Date.now(),
+      }
+      await saveCurrentThread(thread)
+      if (isFirstMessage) {
+        const titleMsgs = apiMessages.current.map(m => ({
+          ...m, content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
+        }))
+        const title = await generateTitle(titleMsgs)
+        if (title) {
+          thread.title = title
+          await saveCurrentThread(thread)
+          setIsNewThread(false)
+        }
+      }
+    }
+    return { switched, saved: true }
+  }
+
   const sendMessage = async (overrideText) => {
     const text = (overrideText || input).trim()
     const hasAttachment = textContext || (screenshotAttached && croppedImage)
@@ -849,93 +838,16 @@ export default function ChatPanel({
       }
     }
 
-    const isFirstMessage = apiMessages.current.length === 1
-    const sendThreadId = currentThread?.id || generateId()
-    // Deep-clone messages before the await. If user switches threads,
-    // apiMessages.current gets overwritten but this snapshot survives intact
-    // with original base64 image data.
-    const snapshotMessages = apiMessages.current.map(m => ({
-      ...m,
-      content: (m.content || []).map(c =>
-        c.source ? { ...c, source: { ...c.source } } : { ...c }
-      ),
-    }))
-    const snapshotTitle = currentThread?.title || 'New Chat'
-    const snapshotCreatedAt = currentThread?.createdAt || Date.now()
+    const snapshot = createSendSnapshot()
 
     try {
       const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
 
-      // Thread changed while waiting — use snapshot to save the complete
-      // conversation (user message + image + AI response) via saveCurrentThread,
-      // which persists images and navigates back via setCurrentThread.
-      // Thread switched while waiting — use ref (not stale closure)
-      if (currentThreadIdRef.current !== sendThreadId) {
-        setIsLoading(false)
-        if (result.success) {
-          const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
-          snapshotMessages.push({ role: 'assistant', content: result.content, model: currentModelName })
-          const thread = {
-            id: sendThreadId,
-            title: snapshotTitle,
-            messages: snapshotMessages,
-            createdAt: snapshotCreatedAt,
-            updatedAt: Date.now(),
-          }
-          await saveCurrentThread(thread)
-          if (isFirstMessage) {
-            const title = await generateTitle(snapshotMessages.map(m => ({
-              ...m, content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
-            })))
-            if (title) { thread.title = title; await saveCurrentThread(thread) }
-          }
-          setIsNewThread(false)
-        }
-        return
-      }
-
-      // Still on same thread — normal flow
-      setIsLoading(false)
-
       if (result.success) {
-        const assistantText = result.content.map(c => c.text || '').join('')
-        const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
-        const assistantApiMsg = { role: 'assistant', content: result.content, model: currentModelName }
-        apiMessages.current.push(assistantApiMsg)
-        // Add message, expand panel, then scroll to top of assistant response
-        setMessages(prev => [...prev, { role: 'assistant', text: assistantText, model: currentModelName }])
-        if (!chatFullSize) setChatFullSize(true)
-        await window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
-        scrollToLastAssistant()
-
-        const now = Date.now()
-        const thread = {
-          id: sendThreadId,
-          title: snapshotTitle,
-          messages: [...apiMessages.current],
-          createdAt: snapshotCreatedAt,
-          updatedAt: now,
-        }
-        await saveCurrentThread(thread)
-
-        if (isFirstMessage) {
-          // Strip images to save tokens for title generation
-          const titleMsgs = apiMessages.current.map(m => ({
-            ...m,
-            content: Array.isArray(m.content)
-              ? m.content.filter(c => c.type !== 'image')
-              : m.content,
-          }))
-          const title = await generateTitle(titleMsgs)
-          if (title) {
-            thread.title = title
-            await saveCurrentThread(thread)
-            setIsNewThread(false)
-          }
-        }
+        await handleAIResponse(result, snapshot)
       } else {
+        setIsLoading(false)
         if (result.code === 'auth_error' || result.error?.includes('No API key')) {
-          // Save pending state so message auto-sends after key setup
           const lastUserMsg = apiMessages.current[apiMessages.current.length - 1]
           if (lastUserMsg?.role === 'user') {
             const textBlock = (lastUserMsg.content || []).find(c => c.type === 'text')
@@ -951,9 +863,9 @@ export default function ChatPanel({
         }
       }
     } catch (err) {
+      setIsLoading(false)
       const msg = typeof err === 'string' ? err : (err.message || 'Something went wrong')
       if (msg.includes('API key') || msg.includes('api key') || msg.includes('not found')) {
-        // Save pending state so message auto-sends after key setup
         const lastUserMsg = apiMessages.current[apiMessages.current.length - 1]
         if (lastUserMsg?.role === 'user') {
           const textBlock = (lastUserMsg.content || []).find(c => c.type === 'text')

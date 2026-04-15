@@ -97,7 +97,7 @@ Glimpse/
 ├── ShortcutManager.swift       # CGEventTap — shortcuts + window drag
 ├── SpaceDetector.swift         # CGSSpaceGetType private API — fullscreen detection
 ├── SettingsStore.swift         # API keys + preferences + embedded keys for invite
-├── ThreadStore.swift           # Thread JSON persistence, 5 max, auto-prune
+├── ThreadStore.swift           # Thread JSON persistence, 100 max, auto-prune
 ├── TrayManager.swift           # NSStatusItem — tray icon + dynamic menu
 ├── ToastManager.swift          # Native toast notifications (Outfit font, cyan border)
 ├── TextGrabber.swift           # CGEvent Cmd+C simulation (~10ms)
@@ -121,7 +121,7 @@ JS calls `window.electronAPI.someMethod()` → `swift-shim.js` converts to `wind
 `~/Library/Application Support/glimpse/` — same path as Tauri for migration compatibility.
 - `api-keys.json` — API keys (masked in UI, validated before save)
 - `preferences.json` — user preferences
-- `threads/` — chat thread JSON files (max 5, auto-pruned)
+- `threads/` — chat thread JSON files (max 100, auto-pruned)
 
 ## Hard-Won Lessons (Swift + WKWebView)
 

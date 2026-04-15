@@ -7,6 +7,15 @@ import ApiKeySetup from './ApiKeySetup'
 const BROW_RESTING = "M98 212C152 174 365 158 420 248"
 const BROW_FOCUSED = "M98 192C200 192 350 204 420 234"
 
+const BoardIcon = ({ size = 24 }) => (
+  <svg viewBox="0 0 100 100" width={size} height={size}>
+    <rect x="8" y="8" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+    <rect x="54" y="8" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+    <rect x="8" y="54" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+    <rect x="54" y="54" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+  </svg>
+)
+
 const GlimpseIcon = ({ size = 20, focused = false }) => (
   <svg viewBox="60 140 420 280" width={size} height={Math.round(size * 280 / 420)}>
     {/* Eyebrow — crossfade between resting and focused */}
@@ -164,12 +173,21 @@ export default function ChatPanel({
   const apiMessages = useRef([])
   const lastSentImageRef = useRef(null)
   const prevThreadIdRef = useRef(null)
+  // Always reflects the LATEST thread ID — survives async awaits unlike closure values
+  const currentThreadIdRef = useRef(currentThread?.id || null)
+  currentThreadIdRef.current = currentThread?.id || null
 
   // Load messages from current thread
   useEffect(() => {
     const prevId = prevThreadIdRef.current
     const newId = currentThread?.id
     const isNewThreadGettingId = prevId === null && newId && apiMessages.current.length > 0
+
+    // Always clear loading when switching to a different thread —
+    // "Glimpsing..." must never follow across threads.
+    if (!isNewThreadGettingId && prevId !== newId) {
+      setIsLoading(false)
+    }
 
     // Skip reload when a new thread just gets its first ID (preserve in-session images)
     if (!isNewThreadGettingId) {
@@ -261,8 +279,41 @@ export default function ChatPanel({
       setIsLoading(true)
       setTimeout(() => scrollToRevealLoading(), 50)
       const isFirstMessage = apiMessages.current.length === 1
+      // Snapshot for thread-switch safety (same pattern as sendMessage)
+      const sendThreadId = currentThread?.id || generateId()
+      const snapshotMessages = apiMessages.current.map(m => ({
+        ...m,
+        content: (m.content || []).map(c =>
+          c.source ? { ...c, source: { ...c.source } } : { ...c }
+        ),
+      }))
+      const snapshotTitle = currentThread?.title || 'New Chat'
+      const snapshotCreatedAt = currentThread?.createdAt || Date.now()
       try {
         const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
+
+        // Thread switched while waiting — use ref (not stale closure)
+        if (currentThreadIdRef.current !== sendThreadId) {
+          setIsLoading(false)
+          if (result.success) {
+            const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
+            snapshotMessages.push({ role: 'assistant', content: result.content, model: currentModelName })
+            await saveCurrentThread({
+              id: sendThreadId, title: snapshotTitle, messages: snapshotMessages,
+              createdAt: snapshotCreatedAt, updatedAt: Date.now(),
+            })
+            if (isFirstMessage) {
+              const title = await generateTitle(snapshotMessages.map(m => ({
+                ...m, content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
+              })))
+              if (title) await saveCurrentThread({ id: sendThreadId, title, messages: snapshotMessages, createdAt: snapshotCreatedAt, updatedAt: Date.now() })
+            }
+            setIsNewThread(false)
+          }
+          return
+        }
+
+        // Same thread — normal flow
         setIsLoading(false)
         if (result.success) {
           const assistantText = result.content.map(c => c.text || '').join('')
@@ -274,10 +325,10 @@ export default function ChatPanel({
           scrollToLastAssistant()
           const now = Date.now()
           const thread = {
-            id: currentThread?.id || generateId(),
-            title: currentThread?.title || 'New Chat',
+            id: sendThreadId,
+            title: snapshotTitle,
             messages: [...apiMessages.current],
-            createdAt: currentThread?.createdAt || now,
+            createdAt: snapshotCreatedAt,
             updatedAt: now,
           }
           await saveCurrentThread(thread)
@@ -302,7 +353,10 @@ export default function ChatPanel({
       }
     }, 100)
     return () => clearTimeout(timer)
-  }, [autoSendPending, currentThread?.id])
+  }, [autoSendPending]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Intentionally exclude currentThread?.id — auto-send must NOT re-fire on thread switch.
+  // sendThreadId/snapshotTitle/snapshotCreatedAt capture values at fire time;
+  // currentThreadIdRef.current detects switches after await.
 
   // Auto-focus input
   useEffect(() => {
@@ -653,8 +707,6 @@ export default function ChatPanel({
   // (scroll-to-message is handled directly by ChatOnlyApp via DOM query)
 
   const saveCurrentThread = useCallback(async (thread) => {
-    setCurrentThread(thread)
-
     // Save images to disk and replace base64 blocks with file references
     const savedMessages = await Promise.all(thread.messages.map(async (m, idx) => ({
       ...m,
@@ -672,11 +724,14 @@ export default function ChatPanel({
       })),
     })))
 
-    await window.electronAPI?.saveThread({ ...thread, messages: savedMessages })
+    const savedThread = { ...thread, messages: savedMessages }
+    await window.electronAPI?.saveThread(savedThread)
 
-    // apiMessages.current keeps file refs intact (source of truth for saving + display).
-    // File images are only stripped to [screenshot] at the point of chatWithAI() calls
-    // via getApiSafeMessages(). saveImage() is idempotent (overwrites same file).
+    // Update both currentThread and apiMessages with file refs so base64
+    // images are only saved to disk once. File images are stripped to
+    // [screenshot] only at the chatWithAI() call site via getApiSafeMessages().
+    setCurrentThread(savedThread)
+    apiMessages.current = savedMessages
 
     refreshThreads()
     window.electronAPI?.refreshTrayMenu?.()
@@ -795,11 +850,51 @@ export default function ChatPanel({
     }
 
     const isFirstMessage = apiMessages.current.length === 1
+    const sendThreadId = currentThread?.id || generateId()
+    // Deep-clone messages before the await. If user switches threads,
+    // apiMessages.current gets overwritten but this snapshot survives intact
+    // with original base64 image data.
+    const snapshotMessages = apiMessages.current.map(m => ({
+      ...m,
+      content: (m.content || []).map(c =>
+        c.source ? { ...c, source: { ...c.source } } : { ...c }
+      ),
+    }))
+    const snapshotTitle = currentThread?.title || 'New Chat'
+    const snapshotCreatedAt = currentThread?.createdAt || Date.now()
 
     try {
       const result = await window.electronAPI.chatWithAI(getApiSafeMessages(), provider, modelId)
 
-      // Hide loading dots before adding the response
+      // Thread changed while waiting — use snapshot to save the complete
+      // conversation (user message + image + AI response) via saveCurrentThread,
+      // which persists images and navigates back via setCurrentThread.
+      // Thread switched while waiting — use ref (not stale closure)
+      if (currentThreadIdRef.current !== sendThreadId) {
+        setIsLoading(false)
+        if (result.success) {
+          const currentModelName = availableProviders.flatMap(p => p.models || []).find(m => m.id === modelId)?.name || ''
+          snapshotMessages.push({ role: 'assistant', content: result.content, model: currentModelName })
+          const thread = {
+            id: sendThreadId,
+            title: snapshotTitle,
+            messages: snapshotMessages,
+            createdAt: snapshotCreatedAt,
+            updatedAt: Date.now(),
+          }
+          await saveCurrentThread(thread)
+          if (isFirstMessage) {
+            const title = await generateTitle(snapshotMessages.map(m => ({
+              ...m, content: Array.isArray(m.content) ? m.content.filter(c => c.type !== 'image') : m.content,
+            })))
+            if (title) { thread.title = title; await saveCurrentThread(thread) }
+          }
+          setIsNewThread(false)
+        }
+        return
+      }
+
+      // Still on same thread — normal flow
       setIsLoading(false)
 
       if (result.success) {
@@ -815,10 +910,10 @@ export default function ChatPanel({
 
         const now = Date.now()
         const thread = {
-          id: currentThread?.id || generateId(),
-          title: currentThread?.title || 'New Chat',
+          id: sendThreadId,
+          title: snapshotTitle,
           messages: [...apiMessages.current],
-          createdAt: currentThread?.createdAt || now,
+          createdAt: snapshotCreatedAt,
           updatedAt: now,
         }
         await saveCurrentThread(thread)
@@ -1011,14 +1106,14 @@ export default function ChatPanel({
       {/* Header — drag handle */}
       <div ref={headerRef} className="chat-header" onMouseDown={handleHeaderMouseDown} {...(chatFullSize ? {'data-tauri-drag-region': ''} : {})}>
         <span
-            className={`glimpse-icon-fixed chat-header-eye ${boardActive ? 'board-active' : ''} ${eyeAnim === 'draw' ? 'logo-draw-only' : eyebrowWiggle ? 'logo-single-blink' : ''}`}
+            className={`glimpse-icon-fixed ${boardActive ? '' : `chat-header-eye ${eyeAnim === 'draw' ? 'logo-draw-only' : eyebrowWiggle ? 'logo-single-blink' : ''}`}`}
             onClick={(e) => {
               e.stopPropagation()
               if (chatFullSize && onToggleBoard) {
                 onToggleBoard()
                 return
               }
-              if (!isLoading && !eyeAnim) {
+              if (!boardActive && !isLoading && !eyeAnim) {
                 setEyebrowWiggle(false)
                 void e.currentTarget.offsetWidth
                 setEyebrowWiggle(true)
@@ -1027,7 +1122,7 @@ export default function ChatPanel({
             }}
             style={{ cursor: 'pointer' }}
           >
-            <GlimpseIcon size={24} focused={isPinned} />
+            {boardActive ? <BoardIcon size={24} /> : <GlimpseIcon size={26} focused={isPinned} />}
           </span>
         <div className="chat-header-info" style={{ position: 'relative' }}>
           <button
@@ -1106,7 +1201,7 @@ export default function ChatPanel({
       {isPinned && (
         <div ref={headerIconsRef} className="view-mode-header-icons" style={{ display: 'none' }}>
           <span className="glimpse-icon-fixed chat-header-eye">
-            <GlimpseIcon size={24} focused={true} />
+            <GlimpseIcon size={26} focused={true} />
           </span>
           {(onTogglePin || onPin) && (
             <button

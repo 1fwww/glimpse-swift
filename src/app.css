@@ -1245,14 +1245,15 @@
   justify-content: center;
 }
 
+.chat-header-eye.glimpse-icon-fixed {
+  position: relative;
+  top: -1px;
+}
+
 .glimpse-icon-fixed svg {
   overflow: visible;
 }
 
-.chat-header-eye.board-active {
-  background: var(--brand-dim);
-  border-radius: var(--radius-sm);
-}
 
 .chat-msg.msg-highlight {
   animation: msgHighlight 0.8s ease-out forwards;
@@ -2048,6 +2049,8 @@
   z-index: 9999;
   position: absolute;
   width: 220px;
+  max-height: 300px;
+  overflow-y: auto;
   background: var(--surface-deep);
   border: 1px solid var(--border-active);
   border-radius: var(--radius-md);
@@ -4062,6 +4065,39 @@
   font-size: var(--text-xs);
   color: var(--text-dim);
   margin-top: -4px;
+}
+
+/* Shortcut dropdown */
+.settings-select {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--brand);
+  background: var(--brand-muted);
+  border: 1px solid var(--brand-border);
+  border-radius: 6px;
+  padding: 6px 28px 6px 10px;
+  width: 160px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236C63FF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: all 0.15s;
+}
+.settings-select:hover {
+  border-color: var(--brand);
+}
+.settings-select:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.settings-select option {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+.settings-select option:disabled {
+  color: var(--text-dim);
 }
 
 .settings-invite-row {

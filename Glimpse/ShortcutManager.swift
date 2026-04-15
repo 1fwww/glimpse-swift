@@ -13,6 +13,10 @@ class ShortcutManager {
     /// Set to true when Glimpse has visible windows — ESC will be consumed to prevent beep
     var hasVisibleWindow = false
 
+    // Configurable shortcut keyCodes (defaults: X=7, Z=6)
+    var chatKeyCode: Int64 = Int64(kVK_ANSI_X)
+    var screenshotKeyCode: Int64 = Int64(kVK_ANSI_Z)
+
     private(set) var eventTap: CFMachPort?
 
     // Window drag state
@@ -22,6 +26,18 @@ class ShortcutManager {
     weak var dragWindow: NSWindow?
 
     private var retryTimer: Timer?
+
+    /// Load shortcut keyCodes from SettingsStore
+    func loadShortcuts(from store: SettingsStore) {
+        let shortcuts = store.getShortcuts()
+        if let chatOpt = store.shortcutOption(for: shortcuts["chat"] ?? "") {
+            chatKeyCode = Int64(chatOpt.keyCode)
+        }
+        if let ssOpt = store.shortcutOption(for: shortcuts["screenshot"] ?? "") {
+            screenshotKeyCode = Int64(ssOpt.keyCode)
+        }
+        NSLog("[Shortcut] Loaded keyCodes — chat=%d, screenshot=%d", chatKeyCode, screenshotKeyCode)
+    }
 
     func start() {
         ShortcutManager.shared = self
@@ -138,12 +154,12 @@ private func eventTapCallback(
         // doesn't receive it. Prevents: system alert beep, Terminal consuming
         // Cmd+Shift+Z as "Redo", etc.
         if hasCmd && hasShift {
-            if keyCode == Int64(kVK_ANSI_X) {
-                NSLog("[Shortcut] Cmd+Shift+X")
+            if keyCode == ShortcutManager.shared?.chatKeyCode {
+                NSLog("[Shortcut] Chat shortcut (keyCode=%d)", keyCode)
                 DispatchQueue.main.async { ShortcutManager.shared?.onChatShortcut?() }
                 return nil  // consume — don't pass to focused app
-            } else if keyCode == Int64(kVK_ANSI_Z) {
-                NSLog("[Shortcut] Cmd+Shift+Z")
+            } else if keyCode == ShortcutManager.shared?.screenshotKeyCode {
+                NSLog("[Shortcut] Screenshot shortcut (keyCode=%d)", keyCode)
                 DispatchQueue.main.async { ShortcutManager.shared?.onScreenshotShortcut?() }
                 return nil  // consume
             }

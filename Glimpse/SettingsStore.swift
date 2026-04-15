@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Manages API keys and user preferences.
 /// Files stored in ~/Library/Application Support/glimpse/
@@ -151,6 +152,39 @@ class SettingsStore {
         case "gemini":    return keys["GEMINI_API_KEY"]
         default: return nil
         }
+    }
+
+    // MARK: - Shortcuts
+
+    /// Shortcut definitions: id → (keyCode for CGEventTap, display label, key equivalent for NSMenuItem)
+    static let shortcutOptions: [(id: String, keyCode: Int, modifiers: String, label: String, keyEquiv: String, modMask: NSEvent.ModifierFlags)] = [
+        ("cmd+shift+x", 7,  "cmd+shift", "Cmd+Shift+X", "x", [.command, .shift]),
+        ("cmd+shift+z", 6,  "cmd+shift", "Cmd+Shift+Z", "z", [.command, .shift]),
+        ("cmd+shift+a", 0,  "cmd+shift", "Cmd+Shift+A", "a", [.command, .shift]),
+        ("cmd+shift+c", 8,  "cmd+shift", "Cmd+Shift+C", "c", [.command, .shift]),
+        ("cmd+shift+g", 5,  "cmd+shift", "Cmd+Shift+G", "g", [.command, .shift]),
+        ("cmd+shift+l", 37, "cmd+shift", "Cmd+Shift+L", "l", [.command, .shift]),
+        ("cmd+shift+s", 1,  "cmd+shift", "Cmd+Shift+S", "s", [.command, .shift]),
+        ("cmd+shift+2", 19, "cmd+shift", "Cmd+Shift+2", "2", [.command, .shift]),
+    ]
+
+    func getShortcuts() -> [String: String] {
+        let prefs = getPreferences()
+        let chat = prefs["shortcutChat"] as? String ?? "cmd+shift+x"
+        let screenshot = prefs["shortcutScreenshot"] as? String ?? "cmd+shift+z"
+        return ["chat": chat, "screenshot": screenshot]
+    }
+
+    func setShortcut(action: String, shortcutId: String) {
+        // Validate shortcutId exists
+        guard SettingsStore.shortcutOptions.contains(where: { $0.id == shortcutId }) else { return }
+        let key = action == "chat" ? "shortcutChat" : "shortcutScreenshot"
+        setPreference(key: key, value: shortcutId)
+    }
+
+    func shortcutOption(for id: String) -> (keyCode: Int, modifiers: String, label: String, keyEquiv: String, modMask: NSEvent.ModifierFlags)? {
+        guard let opt = SettingsStore.shortcutOptions.first(where: { $0.id == id }) else { return nil }
+        return (opt.keyCode, opt.modifiers, opt.label, opt.keyEquiv, opt.modMask)
     }
 
     // MARK: - Preferences

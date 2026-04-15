@@ -28,17 +28,37 @@ export default function ChatOnlyApp() {
       setIsPinned(state)
       isPinnedRef.current = state
       if (!state) setIsWindowBlurred(false)
+      // pin-state fires on every showChat() — reset board view so we don't reopen into it
+      if (viewModeRef.current !== 'chat') {
+        setViewMode('chat')
+        viewModeRef.current = 'chat'
+      }
     })
     window.electronAPI?.onViewMode?.((entering) => {
       if (entering && isPinnedRef.current) setIsWindowBlurred(true)
     })
     window.electronAPI?.onSetCroppedImage?.((img) => setCroppedImage(img))
-    window.electronAPI?.onClearScreenshot?.(() => setCroppedImage(null))
+    window.electronAPI?.onClearScreenshot?.(() => {
+      setCroppedImage(null)
+      // Reset to chat view when window is hidden (hideChat emits clear-screenshot).
+      // If on board/viewer, snap back to chat so next open doesn't land on board.
+      if (viewModeRef.current !== 'chat') {
+        setViewMode('chat')
+        viewModeRef.current = 'chat'
+        const h = chatSizeBeforeBoard.current || window.innerHeight
+        window.electronAPI?.resizeChatWindow?.({ width: 380, height: h, force: true, anchorX: 'center' })
+      }
+    })
     // Swift decides thread state via decideChatState() — emits start-new-thread if needed
     window.electronAPI?.onStartNewThread?.(() => tm.handleNewThread())
     // Receive full thread data from pin (no disk read needed)
     window.electronAPI?.onLoadThreadData?.((data) => {
       if (data) {
+        // Always reset to chat view — pin/thread-load should never land on board
+        if (viewModeRef.current !== 'chat') {
+          setViewMode('chat')
+          viewModeRef.current = 'chat'
+        }
         // Pin sends { thread, croppedImage, scrollTop }, open-thread sends thread directly
         // Use setCurrentThread (not handleThreadChange) to avoid resizeChatWindow —
         // in chat-only mode the panel fills the window, Swift controls the size.

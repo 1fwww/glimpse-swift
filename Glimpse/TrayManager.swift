@@ -5,14 +5,16 @@ import AppKit
 class TrayManager {
     private var statusItem: NSStatusItem?
     private var threadStore: ThreadStore?
+    var settingsStore: SettingsStore?
 
     var onScreenshot: (() -> Void)?
     var onChat: (() -> Void)?
     var onSettings: (() -> Void)?
     var onOpenThread: ((String) -> Void)?
 
-    func setup(threadStore: ThreadStore) {
+    func setup(threadStore: ThreadStore, settingsStore: SettingsStore) {
         self.threadStore = threadStore
+        self.settingsStore = settingsStore
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
@@ -35,8 +37,12 @@ class TrayManager {
     func refreshMenu() {
         let menu = NSMenu()
 
-        menu.addItem(makeItem("Screenshot", shortcut: "Z", action: #selector(screenshotAction)))
-        menu.addItem(makeItem("Chat", shortcut: "X", action: #selector(chatAction)))
+        let shortcuts = settingsStore?.getShortcuts() ?? ["chat": "cmd+shift+x", "screenshot": "cmd+shift+z"]
+        let ssOpt = settingsStore?.shortcutOption(for: shortcuts["screenshot"] ?? "cmd+shift+z")
+        let chatOpt = settingsStore?.shortcutOption(for: shortcuts["chat"] ?? "cmd+shift+x")
+
+        menu.addItem(makeItem("Screenshot", shortcut: ssOpt?.keyEquiv ?? "z", modMask: ssOpt?.modMask ?? [.command, .shift], action: #selector(screenshotAction)))
+        menu.addItem(makeItem("Chat", shortcut: chatOpt?.keyEquiv ?? "x", modMask: chatOpt?.modMask ?? [.command, .shift], action: #selector(chatAction)))
 
         // Recent threads
         if let threads = threadStore?.getThreads(), !threads.isEmpty {
@@ -74,11 +80,11 @@ class TrayManager {
 
     // MARK: - Helpers
 
-    private func makeItem(_ title: String, shortcut: String, action: Selector) -> NSMenuItem {
+    private func makeItem(_ title: String, shortcut: String, modMask: NSEvent.ModifierFlags = [], action: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: shortcut)
         item.target = self
-        if shortcut == "Z" || shortcut == "X" {
-            item.keyEquivalentModifierMask = [.command, .shift]
+        if !modMask.isEmpty {
+            item.keyEquivalentModifierMask = modMask
         }
         return item
     }

@@ -113,6 +113,10 @@ window.electronAPI = {
   getPreferences: () => invoke('get_preferences'),
   setPreference: (key, value) => invoke('set_preference', { key, value }),
 
+  // ── Shortcuts ──
+  getShortcuts: () => invoke('get_shortcuts'),
+  setShortcut: (action, shortcutId) => invoke('set_shortcut', { action, shortcutId }),
+
   // ── Window management ──
   closeHome: () => invoke('close_home'),
   closeWelcome: () => invoke('close_welcome'),

@@ -11,6 +11,7 @@ export default function SettingsApp() {
   const [keyError, setKeyError] = useState('')
   const [deletingKey, setDeletingKey] = useState(null)
   const [theme, setTheme] = useState(() => localStorage.getItem('glimpse-theme') || 'system')
+  const [shortcuts, setShortcuts] = useState({ chat: 'cmd+shift+x', screenshot: 'cmd+shift+z' })
   const [showInvite, setShowInvite] = useState(false)
   const [inviteCode, setInviteCode] = useState('')
   const [inviteError, setInviteError] = useState('')
@@ -18,6 +19,7 @@ export default function SettingsApp() {
 
   useEffect(() => {
     loadData()
+    window.electronAPI?.settingsReady?.()
   }, [])
 
   const loadData = async () => {
@@ -25,6 +27,8 @@ export default function SettingsApp() {
     if (keys) setApiKeys(keys)
     const p = await window.electronAPI?.getPreferences()
     if (p) setPrefs(p)
+    const sc = await window.electronAPI?.getShortcuts()
+    if (sc) setShortcuts(sc)
   }
 
   const handleDeleteKey = async (provider) => {
@@ -83,6 +87,33 @@ export default function SettingsApp() {
     } else {
       setInviteError(result?.error || 'Invalid code')
     }
+  }
+
+  const chatOptions = [
+    { id: 'cmd+shift+x', label: 'Cmd+Shift+X', isDefault: true },
+    { id: 'cmd+shift+z', label: 'Cmd+Shift+Z' },
+    { id: 'cmd+shift+a', label: 'Cmd+Shift+A' },
+    { id: 'cmd+shift+c', label: 'Cmd+Shift+C' },
+    { id: 'cmd+shift+g', label: 'Cmd+Shift+G' },
+    { id: 'cmd+shift+l', label: 'Cmd+Shift+L' },
+    { id: 'cmd+shift+s', label: 'Cmd+Shift+S' },
+    { id: 'cmd+shift+2', label: 'Cmd+Shift+2' },
+  ]
+
+  const screenshotOptions = [
+    { id: 'cmd+shift+z', label: 'Cmd+Shift+Z', isDefault: true },
+    { id: 'cmd+shift+x', label: 'Cmd+Shift+X' },
+    { id: 'cmd+shift+a', label: 'Cmd+Shift+A' },
+    { id: 'cmd+shift+c', label: 'Cmd+Shift+C' },
+    { id: 'cmd+shift+g', label: 'Cmd+Shift+G' },
+    { id: 'cmd+shift+l', label: 'Cmd+Shift+L' },
+    { id: 'cmd+shift+s', label: 'Cmd+Shift+S' },
+    { id: 'cmd+shift+2', label: 'Cmd+Shift+2' },
+  ]
+
+  const handleShortcutChange = async (action, shortcutId) => {
+    await window.electronAPI?.setShortcut(action, shortcutId)
+    setShortcuts(prev => ({ ...prev, [action]: shortcutId }))
   }
 
   const handleToggleLaunchAtLogin = async () => {
@@ -287,16 +318,35 @@ export default function SettingsApp() {
           <h2 className="settings-section-title">Shortcuts</h2>
           <div className="settings-shortcut-row">
             <span className="settings-pref-label">Screenshot</span>
-            <span className="settings-shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd></span>
+            <select
+              className="settings-select"
+              value={shortcuts.screenshot}
+              onChange={(e) => handleShortcutChange('screenshot', e.target.value)}
+            >
+              {screenshotOptions.map(opt => (
+                <option key={opt.id} value={opt.id} disabled={opt.id === shortcuts.chat}>
+                  {opt.label}{opt.isDefault ? ' (default)' : ''}{opt.id === shortcuts.chat ? ' (used by Chat)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="settings-shortcut-row">
             <div className="settings-shortcut-info">
               <span className="settings-pref-label">Text chat</span>
               <span className="settings-shortcut-hint">Select text first, then press</span>
             </div>
-            <span className="settings-shortcut-keys"><kbd>Cmd</kbd><kbd>Shift</kbd><kbd>X</kbd></span>
+            <select
+              className="settings-select"
+              value={shortcuts.chat}
+              onChange={(e) => handleShortcutChange('chat', e.target.value)}
+            >
+              {chatOptions.map(opt => (
+                <option key={opt.id} value={opt.id} disabled={opt.id === shortcuts.screenshot}>
+                  {opt.label}{opt.isDefault ? ' (default)' : ''}{opt.id === shortcuts.screenshot ? ' (used by Screenshot)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
-          <span className="settings-shortcuts-note">Customizable shortcuts coming soon</span>
         </div>
       </div>
       <div className="settings-footer">

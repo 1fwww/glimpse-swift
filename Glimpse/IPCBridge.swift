@@ -307,6 +307,19 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             }
             return true
 
+        // ── Shortcuts ──
+        case "get_shortcuts":
+            return settingsStore.getShortcuts()
+
+        case "set_shortcut":
+            if let action = args["action"] as? String,
+               let shortcutId = args["shortcutId"] as? String {
+                settingsStore.setShortcut(action: action, shortcutId: shortcutId)
+                // Notify AppDelegate to reload shortcuts into ShortcutManager + menus
+                NotificationCenter.default.post(name: .shortcutsChanged, object: nil)
+            }
+            return true
+
         // ── Window management ──
         case "show_image_viewer":
             var userInfo: [String: Any] = [:]
@@ -533,4 +546,5 @@ extension Notification.Name {
     static let chatConversationStarted = Notification.Name("chatConversationStarted")
     static let welcomeReady = Notification.Name("welcomeReady")
     static let settingsReady = Notification.Name("settingsReady")
+    static let shortcutsChanged = Notification.Name("shortcutsChanged")
 }

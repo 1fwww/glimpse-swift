@@ -112,15 +112,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(handleLowerOverlay), name: .lowerOverlay, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleRestoreOverlay), name: .restoreOverlay, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleInputFocus), name: .inputFocus, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleShortcutsChanged), name: .shortcutsChanged, object: nil)
 
         // Global shortcuts
+        shortcutManager.loadShortcuts(from: settingsStore)
         shortcutManager.onChatShortcut = { [weak self] in self?.handleChatShortcut() }
         shortcutManager.onScreenshotShortcut = { [weak self] in self?.handleScreenshotShortcut() }
         shortcutManager.onEscape = { [weak self] in self?.handleEscape() }
         shortcutManager.start()
 
         // Tray icon
-        trayManager.setup(threadStore: threadStore)
+        trayManager.setup(threadStore: threadStore, settingsStore: settingsStore)
         trayManager.onScreenshot = { [weak self] in self?.handleScreenshotShortcut() }
         trayManager.onChat = { [weak self] in self?.handleChatShortcut() }
         trayManager.onSettings = { [weak self] in self?.showSettings() }
@@ -884,6 +886,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             pendingTextContext = nil
             showChat()
         }
+    }
+
+    @objc func handleShortcutsChanged() {
+        shortcutManager.loadShortcuts(from: settingsStore)
+        trayManager.refreshMenu()
+        rebuildMenuBar()
+        NSLog("[App] Shortcuts updated — chat=%d, screenshot=%d", shortcutManager.chatKeyCode, shortcutManager.screenshotKeyCode)
     }
 
     func handleScreenshotShortcut() {
@@ -1655,17 +1664,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Shortcut menu — hidden menu items that serve as fallback when CGEventTap
         // isn't available (no accessibility permission). Prevents system beep.
         let shortcutMenu = NSMenu(title: "Shortcuts")
-        let chatItem = NSMenuItem(title: "Chat", action: #selector(menuChatShortcut), keyEquivalent: "x")
-        chatItem.keyEquivalentModifierMask = [.command, .shift]
-        shortcutMenu.addItem(chatItem)
-        let screenshotItem = NSMenuItem(title: "Screenshot", action: #selector(menuScreenshotShortcut), keyEquivalent: "z")
-        screenshotItem.keyEquivalentModifierMask = [.command, .shift]
-        shortcutMenu.addItem(screenshotItem)
+        let shortcuts = settingsStore.getShortcuts()
+        if let chatOpt = settingsStore.shortcutOption(for: shortcuts["chat"] ?? "cmd+shift+x") {
+            let chatItem = NSMenuItem(title: "Chat", action: #selector(menuChatShortcut), keyEquivalent: chatOpt.keyEquiv)
+            chatItem.keyEquivalentModifierMask = chatOpt.modMask
+            shortcutMenu.addItem(chatItem)
+        }
+        if let ssOpt = settingsStore.shortcutOption(for: shortcuts["screenshot"] ?? "cmd+shift+z") {
+            let screenshotItem = NSMenuItem(title: "Screenshot", action: #selector(menuScreenshotShortcut), keyEquivalent: ssOpt.keyEquiv)
+            screenshotItem.keyEquivalentModifierMask = ssOpt.modMask
+            shortcutMenu.addItem(screenshotItem)
+        }
         let shortcutMenuItem = NSMenuItem()
         shortcutMenuItem.submenu = shortcutMenu
         mainMenu.addItem(shortcutMenuItem)
 
         NSApp.mainMenu = mainMenu
+    }
+
+    func rebuildMenuBar() {
+        setupMainMenu()
     }
 
     @objc func menuChatShortcut() {

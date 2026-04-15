@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 
-// Eye icon using currentColor (inherits CSS color, works in both themes)
-const EyeIcon = ({ size = 24 }) => (
-  <svg viewBox="60 140 420 280" width={size} height={Math.round(size * 280 / 420)}>
-    <path d="M180 195 C220 165, 320 155, 360 185" fill="none" stroke="currentColor" strokeWidth="20" strokeLinecap="round" />
-    <path d="M262 374C228 373 176 360 128 321C176 276 314 200 390 270C462 336 350 379 322 374C248 361 262 276 322 279C378 282 363 346 322 332" fill="none" stroke="currentColor" strokeWidth="22" strokeLinecap="round" />
+// 2×2 grid icon for Board view
+const BoardIcon = ({ size = 24 }) => (
+  <svg viewBox="0 0 100 100" width={size} height={size}>
+    <rect x="8" y="8" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+    <rect x="54" y="8" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+    <rect x="8" y="54" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
+    <rect x="54" y="54" width="38" height="38" rx="6" fill="none" stroke="currentColor" strokeWidth="5" />
   </svg>
 )
 
@@ -302,14 +304,15 @@ export default function ImageBoard({
     <div className="image-board" role="region" aria-label="Image gallery">
       {/* Board header */}
       <div className="board-header">
-        <button
-          className="glimpse-icon-fixed chat-header-eye board-active"
+        <span
+          className="glimpse-icon-fixed"
           onClick={(e) => { e.stopPropagation(); onToggleBoard() }}
+          role="button"
           aria-label="Return to chat"
-          style={{ color: 'var(--brand)' }}
+          style={{ color: 'var(--brand)', cursor: 'pointer' }}
         >
-          <EyeIcon size={24} />
-        </button>
+          <BoardIcon size={24} />
+        </span>
         <span className="board-header-title">Images</span>
         <span className="board-image-count">&middot; {images.length}</span>
         <div className="board-header-spacer" />

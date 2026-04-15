@@ -44,14 +44,34 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
+function formatRelativeTime(ts) {
+  const now = Date.now()
+  const diff = now - ts
+  if (diff < 60000) return 'Just now'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+  const d = new Date(ts)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 function buildImageUrl(path) {
   if (!path || !window._glimpseAppSupportDir) return ''
   const fullPath = `${window._glimpseAppSupportDir}/${path}`
   return 'file://' + fullPath.split('/').map(s => encodeURIComponent(s)).join('/')
 }
 
+const INITIAL_CHAT_COUNT = 20
+
 export default function ImageBoard({
   images,
+  boardThreads = [],
+  boardTab = 'chats',
+  onBoardTabChange,
+  onChatCardClick,
   viewMode,
   viewerImageIndex,
   highlightImagePath,
@@ -63,6 +83,7 @@ export default function ImageBoard({
   onQuoteInNewChat,
   onToggleBoard,
 }) {
+  const [showAllChats, setShowAllChats] = useState(false)
   // Highlight a specific image card when navigating from chat viewer "All images"
   useEffect(() => {
     if (viewMode !== 'board' || !highlightImagePath) return
@@ -313,13 +334,77 @@ export default function ImageBoard({
         >
           <BoardIcon size={24} />
         </span>
-        <span className="board-header-title">Images</span>
-        <span className="board-image-count">&middot; {images.length}</span>
+        <div className="board-tabs">
+          <button
+            className={`board-tab ${boardTab === 'chats' ? 'active' : ''}`}
+            onClick={() => onBoardTabChange('chats')}
+          >Chats</button>
+          <button
+            className={`board-tab ${boardTab === 'images' ? 'active' : ''}`}
+            onClick={() => onBoardTabChange('images')}
+          >Images{images.length > 0 && <span className="board-tab-count">{images.length}</span>}</button>
+        </div>
         <div className="board-header-spacer" />
       </div>
 
-      {/* Grid or empty state */}
-      {images.length === 0 ? (
+      {/* Chats tab */}
+      {boardTab === 'chats' && (
+        boardThreads.length === 0 ? (
+          <div className="board-empty-state" role="status">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" style={{ opacity: 0.3 }} aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="board-empty-text">No chats yet</span>
+            <span className="board-empty-hint">Start a conversation with &#8984;&#8679;X</span>
+          </div>
+        ) : (
+          <div className="board-grid-area">
+            {groupByDate((showAllChats ? boardThreads : boardThreads.slice(0, INITIAL_CHAT_COUNT)).map(t => ({ ...t, timestamp: t.updatedAt }))).map((group) => (
+              <div className="board-time-group" key={group.label}>
+                <div className="board-time-label">{group.label}</div>
+                <div className="board-chat-list" role="list">
+                  {group.items.map((chat) => (
+                    <button
+                      className="board-chat-card"
+                      key={chat.id}
+                      onClick={() => onChatCardClick(chat)}
+                      role="listitem"
+                    >
+                      <div className="chat-card-top">
+                        <span className="chat-card-title">{chat.title || 'New Chat'}</span>
+                        <span className="chat-card-time">{formatRelativeTime(chat.updatedAt)}</span>
+                      </div>
+                      {chat.preview && (
+                        <div className="chat-card-preview">{chat.preview}</div>
+                      )}
+                      <div className="chat-card-meta">
+                        <span className="chat-card-count">
+                          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          {chat.messageCount}
+                        </span>
+                        {chat.imageCount > 0 && (
+                          <span className="chat-card-count">
+                            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                            {chat.imageCount}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {!showAllChats && boardThreads.length > INITIAL_CHAT_COUNT && (
+              <button className="board-show-more" onClick={() => setShowAllChats(true)}>
+                Show {boardThreads.length - INITIAL_CHAT_COUNT} more chats
+              </button>
+            )}
+          </div>
+        )
+      )}
+
+      {/* Images tab */}
+      {boardTab === 'images' && (images.length === 0 ? (
         <div className="board-empty-state" role="status" aria-label="No screenshots yet">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" style={{ opacity: 0.3 }} aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="3" />
@@ -360,7 +445,7 @@ export default function ImageBoard({
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   )
 }

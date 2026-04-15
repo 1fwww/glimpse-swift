@@ -4,6 +4,27 @@ import ImageBoard from './ImageBoard'
 import useThreadManager from './useThreadManager'
 import './app.css'
 
+function extractChatCards(threads) {
+  return threads.map(t => {
+    const msgs = t.messages || []
+    let preview = ''
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'assistant') {
+        const text = (msgs[i].content || []).filter(c => c.type === 'text').map(c => c.text || '').join(' ')
+        preview = text.length > 120 ? text.slice(0, 120) + '…' : text
+        break
+      }
+    }
+    let imageCount = 0
+    for (const m of msgs) {
+      for (const c of (m.content || [])) {
+        if (c.type === 'image') imageCount++
+      }
+    }
+    return { id: t.id, title: t.title, updatedAt: t.updatedAt, createdAt: t.createdAt, messageCount: msgs.length, imageCount, preview, _thread: t }
+  })
+}
+
 export default function ChatOnlyApp() {
   const [initialContext, setInitialContext] = useState({ text: '', seq: 0 })
   const [isPinned, setIsPinned] = useState(false)
@@ -15,6 +36,8 @@ export default function ChatOnlyApp() {
   // Board view state
   const [viewMode, setViewMode] = useState('chat') // 'chat' | 'board' | 'viewer'
   const [boardImages, setBoardImages] = useState([])
+  const [boardThreads, setBoardThreads] = useState([])
+  const [boardTab, setBoardTab] = useState('chats')
   const [viewerImageIndex, setViewerImageIndex] = useState(0)
   const [highlightImagePath, setHighlightImagePath] = useState(null)
   const chatSizeBeforeBoard = useRef(null)
@@ -94,10 +117,15 @@ export default function ChatOnlyApp() {
     // Listen for "View in board" from native image viewer
     const handleOpenBoardToImage = async (e) => {
       const imagePath = e.detail
-      const images = await window.electronAPI?.getAllImages?.() || []
+      const [images, threads] = await Promise.all([
+        window.electronAPI?.getAllImages?.() || [],
+        window.electronAPI?.getThreads?.() || [],
+      ])
       setBoardImages(images)
+      setBoardThreads(extractChatCards(threads))
       chatSizeBeforeBoard.current = window.innerHeight
       setHighlightImagePath(imagePath)
+      setBoardTab('images')
       setViewMode('board')
       viewModeRef.current = 'board'
       window.electronAPI?.resizeChatWindow?.({ width: 560, height: window.innerHeight, force: true, anchorX: 'center' })
@@ -112,8 +140,12 @@ export default function ChatOnlyApp() {
 
   const handleToggleBoard = useCallback(async () => {
     if (viewModeRef.current === 'chat') {
-      const images = await window.electronAPI?.getAllImages?.() || []
+      const [images, threads] = await Promise.all([
+        window.electronAPI?.getAllImages?.() || [],
+        window.electronAPI?.getThreads?.() || [],
+      ])
       setBoardImages(images)
+      setBoardThreads(extractChatCards(threads))
       chatSizeBeforeBoard.current = window.innerHeight
       // Swap view + resize simultaneously — board renders at 380px and reflows as window widens
       setViewMode('board')
@@ -123,6 +155,7 @@ export default function ChatOnlyApp() {
       // Swap view + resize simultaneously — chat reflows as window narrows
       setViewMode('chat')
       viewModeRef.current = 'chat'
+      setBoardTab('chats')
       const h = chatSizeBeforeBoard.current || window.innerHeight
       window.electronAPI?.resizeChatWindow?.({ width: 380, height: h, force: true, anchorX: 'center' })
     }
@@ -132,6 +165,32 @@ export default function ChatOnlyApp() {
     setViewerImageIndex(index)
     setViewMode('viewer')
     viewModeRef.current = 'viewer'
+  }, [])
+
+  const handleChatCardClick = useCallback((chatCard) => {
+    setViewMode('chat')
+    viewModeRef.current = 'chat'
+    const h = chatSizeBeforeBoard.current || window.innerHeight
+    window.electronAPI?.resizeChatWindow?.({ width: 380, height: h, force: true, anchorX: 'center' })
+    tm.handleThreadChange(chatCard._thread)
+    setTimeout(() => {
+      const el = document.querySelector('.chat-messages')
+      if (el) el.scrollTop = el.scrollHeight
+    }, 200)
+  }, [tm])
+
+  const handleViewAllChats = useCallback(async () => {
+    const [images, threads] = await Promise.all([
+      window.electronAPI?.getAllImages?.() || [],
+      window.electronAPI?.getThreads?.() || [],
+    ])
+    setBoardImages(images)
+    setBoardThreads(extractChatCards(threads))
+    setBoardTab('chats')
+    chatSizeBeforeBoard.current = window.innerHeight
+    setViewMode('board')
+    viewModeRef.current = 'board'
+    window.electronAPI?.resizeChatWindow?.({ width: 560, height: window.innerHeight, force: true, anchorX: 'center' })
   }, [])
 
   const handleBackToBoard = useCallback(() => {
@@ -249,6 +308,7 @@ export default function ChatOnlyApp() {
           skipNextScrollRef={skipNextScrollRef}
           onTogglePin={() => window.electronAPI?.togglePin?.()}
           onToggleBoard={handleToggleBoard}
+          onViewAllChats={handleViewAllChats}
           boardActive={false}
           autoSendPending={autoSendPending}
           onAutoSendConsumed={() => setAutoSendPending(false)}
@@ -256,6 +316,10 @@ export default function ChatOnlyApp() {
       ) : (
         <ImageBoard
           images={boardImages}
+          boardThreads={boardThreads}
+          boardTab={boardTab}
+          onBoardTabChange={setBoardTab}
+          onChatCardClick={handleChatCardClick}
           viewMode={viewMode}
           viewerImageIndex={viewerImageIndex}
           highlightImagePath={highlightImagePath}

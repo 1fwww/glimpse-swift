@@ -118,6 +118,7 @@ export default function ChatPanel({
   onExitViewMode,
   skipNextScrollRef,
   onToggleBoard,
+  onViewAllChats,
   boardActive,
   onTogglePin,
   provider,
@@ -1061,8 +1062,12 @@ export default function ChatPanel({
                       </button>
                     ))}
                     <div className="thread-menu-divider" />
-                    <button className="thread-menu-item thread-menu-clear" role="menuitem" onClick={() => { onClearAllThreads(); setThreadMenuOpen(false) }}>
-                      <span>Clear all chats</span>
+                    <button className="thread-menu-item thread-menu-view-all" role="menuitem" onClick={() => { onViewAllChats?.(); setThreadMenuOpen(false) }}>
+                      <svg viewBox="0 0 100 100" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="5">
+                        <rect x="8" y="8" width="38" height="38" rx="6" /><rect x="54" y="8" width="38" height="38" rx="6" />
+                        <rect x="8" y="54" width="38" height="38" rx="6" /><rect x="54" y="54" width="38" height="38" rx="6" />
+                      </svg>
+                      <span>View all chats</span>
                     </button>
                   </>
                 ) : (

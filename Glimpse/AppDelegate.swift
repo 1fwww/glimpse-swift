@@ -42,10 +42,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayWebView: WKWebView?
     var overlayIPC: IPCBridge = { let b = IPCBridge(); b.bridgeId = "overlay"; return b }()
     var overlayReady = false
+    var isOverlayShowing = false  // true when overlay is visible to user (not parked offscreen)
     var pendingCaptureResult: ScreenCapture.CaptureResult?
     var pendingSelection: [String: Any]?
     var frozenScreenWindow: NSWindow?
     var nativeSelectionOverlay: NativeSelectionOverlay?
+    var webContentKeepAlive: Timer?  // Prevents WebContent process suspension
     var lastSpaceChangeTime: Date = .distantPast
     var screenshotDeferPending = false
     // (overlay state unified into wasNewThread + lastDismissTime above)
@@ -245,7 +247,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let webView = createWebView(in: panel, bridge: settingsIPC, route: "#settings")
         settingsIPC.webView = webView
 
-        let fromOverlay = overlayPanel?.isVisible == true
+        let fromOverlay = isOverlayShowing
         panel.setFrameOrigin(settingsOrigin(size: settingsSize, panelBounds: panelBounds, fromOverlay: fromOverlay))
 
         self.settingsPanel = panel
@@ -728,7 +730,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         overlayIPC.webView = webView
-        panel.orderOut(nil)
+
+        // Pre-warm IOSurface: show at alpha=0 to force GPU backing store allocation,
+        // then park offscreen (NOT orderOut). Keeping the panel in the compositor tree
+        // prevents macOS from suspending the WebContent process or releasing the IOSurface.
+        // orderOut would remove it from the compositor, allowing the WebContent process to
+        // sleep — and waking it later via evaluateJavaScript causes a compositor stall that
+        // flashes visible windows (the native selection overlay).
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        DispatchQueue.main.async { [weak self] in
+            self?.parkOverlayOffscreen()
+            NSLog("[App] Overlay IOSurface pre-warmed (parked offscreen)")
+        }
 
         self.overlayPanel = panel
         self.overlayWebView = webView
@@ -745,6 +759,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ?? NSScreen.main ?? NSScreen.screens.first!
         panel.setFrame(screen.frame, display: true)
 
+        unparkOverlay()  // Restore alpha (panel may have been parked offscreen at alpha=0)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.level = Self.screensaverLevel
 
@@ -758,6 +773,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             panel.showAndFocus()
         }
+        isOverlayShowing = true
         updateVisibleWindowFlag()
         NSLog("[App] Overlay shown (fullscreen=\(isFullscreen))")
     }
@@ -766,16 +782,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsPanel?.isVisible == true { hideSettings() }
         dismissFrozenScreen()
         lastDismissTime = Date()
-        overlayPanel?.orderOut(nil)
+        parkOverlayOffscreen()
         updateVisibleWindowFlag()
         restoreActivationPolicyIfNeeded()
         NSLog("[App] Overlay hidden")
     }
 
+    /// Park the overlay panel offscreen at alpha=0 instead of orderOut.
+    /// Keeps the WKWebView's WebContent process alive and IOSurface in GPU memory,
+    /// preventing a compositor stall (visible as a flash on other windows) when
+    /// evaluateJavaScript is next called to wake the WebView.
+    /// Same pattern as the chat panel's hideChat() — see line comment at "stays in GPU memory".
+    private func parkOverlayOffscreen() {
+        guard let panel = overlayPanel else { return }
+        panel.alphaValue = 0
+        panel.level = .normal
+        panel.ignoresMouseEvents = true
+        isOverlayShowing = false
+    }
+
+    /// Unpark the overlay panel: restore alpha and event handling before showing.
+    private func unparkOverlay() {
+        guard let panel = overlayPanel else { return }
+        panel.alphaValue = 1
+        panel.ignoresMouseEvents = false
+    }
+
     /// Update ShortcutManager's flag so ESC is consumed only when we have visible windows.
     private func updateVisibleWindowFlag() {
         shortcutManager.hasVisibleWindow =
-            isChatShowing || (overlayPanel?.isVisible == true) ||
+            isChatShowing || isOverlayShowing ||
             (welcomePanel?.isVisible == true) || (settingsPanel?.isVisible == true) ||
             (imageViewerPanel?.isVisible == true) ||
             (frozenScreenWindow?.isVisible == true) || (nativeSelectionOverlay != nil)
@@ -831,9 +867,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showChat()
             return
         }
-        if let panel = overlayPanel, panel.isVisible {
+        if isOverlayShowing {
             overlayIPC.emit("reset-overlay")
-            panel.orderOut(nil)
+            parkOverlayOffscreen()
             updateVisibleWindowFlag()
             pendingTextContext = nil
             showChat()
@@ -924,7 +960,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Toggle: if overlay visible, hide it
-        if let panel = overlayPanel, panel.isVisible {
+        if isOverlayShowing {
             hideOverlay()
             return
         }
@@ -947,60 +983,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let isFullscreen = SpaceDetector.isFullscreenSpace()
 
-        // Prewarm WebView overlay in parallel (for post-selection annotations/chat)
+        // Prewarm WebView overlay and wait for WebContent process to fully wake.
+        // evaluateJavaScript on an idle WebContent process causes a compositor stall
+        // that flashes any visible window. We must ensure the stall is over BEFORE
+        // the native selection overlay appears.
         let chatState = decideChatState()
         if overlayReady && !isFullscreen {
             overlayIPC.emit(chatState.startNewThread ? "reset-overlay" : "reset-overlay-keep-thread")
-            overlayPanel?.orderOut(nil)
+            parkOverlayOffscreen()
         } else {
             overlayPanel?.orderOut(nil)
             overlayPanel = nil
             overlayWebView = nil
             overlayReady = false
+            isOverlayShowing = false
             if isFullscreen {
                 NSApp.setActivationPolicy(.accessory)
             }
             prewarmOverlay()
         }
 
-        // ── NATIVE SELECTION OVERLAY ──
-        // Show native CAShapeLayer overlay for selection (zero WebKit overhead).
-        // After selection completes, capture screen + hand off to WebView overlay.
-        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
-            ?? NSScreen.main ?? NSScreen.screens.first!
+        // Wake WebContent process, then show native overlay after stall is absorbed.
+        let showNativeOverlay = { [weak self] in
+            guard let self else { return }
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+                ?? NSScreen.main ?? NSScreen.screens.first!
+            let mainHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
+            let cgOriginX = screen.frame.origin.x
+            let cgOriginY = mainHeight - screen.frame.origin.y - screen.frame.height
+            let screenRect = CGRect(x: cgOriginX, y: cgOriginY, width: screen.frame.width, height: screen.frame.height)
+            let windowBounds = ScreenCapture.getWindowBounds(on: screenRect)
 
-        // Get window bounds for hover/snap (same logic as ScreenCapture)
-        let mainHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
-        let cgOriginX = screen.frame.origin.x
-        let cgOriginY = mainHeight - screen.frame.origin.y - screen.frame.height
-        let screenRect = CGRect(x: cgOriginX, y: cgOriginY, width: screen.frame.width, height: screen.frame.height)
-        let windowBounds = ScreenCapture.getWindowBounds(on: screenRect)
+            self.nativeSelectionOverlay = NativeSelectionOverlay.show(
+                on: screen,
+                windowBounds: windowBounds,
+                completion: { [weak self] rect, bounds in
+                    self?.handleNativeSelectionComplete(rect, windowBounds: bounds)
+                },
+                dismiss: { [weak self] in
+                    self?.dismissNativeSelection()
+                }
+            )
+            self.updateVisibleWindowFlag()
+        }
 
-        nativeSelectionOverlay = NativeSelectionOverlay.show(
-            on: screen,
-            windowBounds: windowBounds,
-            completion: { [weak self] rect, bounds in
-                self?.handleNativeSelectionComplete(rect, windowBounds: bounds)
-            },
-            dismiss: { [weak self] in
-                self?.dismissNativeSelection()
-            }
-        )
-        updateVisibleWindowFlag()
+        showNativeOverlay()
     }
 
     private func handleNativeSelectionComplete(_ selectionRect: CGRect, windowBounds: [[String: Any]]) {
         // Keep native overlay visible during capture — capture BELOW it so it doesn't
-        // appear in the screenshot. This eliminates the flash during handoff.
+        // appear in the screenshot.
         let nativeWindowID = CGWindowID(nativeSelectionOverlay?.overlayWindow?.windowNumber ?? 0)
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            // Capture below the native overlay (excludes it from the screenshot)
             guard let result = ScreenCapture.capture(belowWindowID: nativeWindowID) else {
                 NSLog("[App] Capture FAILED after native selection")
                 return
             }
-            NSLog("[App] Capture OK after native selection: \(result.windowBounds.count) windows")
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -1013,10 +1052,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 ]
 
                 if self.overlayReady {
-                    // Emit data to HIDDEN WebView — JS executes on ordered-out windows.
-                    // React renders invisibly while native overlay stays visible.
-                    // React signals overlay_rendered → handleOverlayRendered does
-                    // atomic swap: show WebView + dismiss native in same run loop.
                     let chatState = self.decideChatState()
                     self.overlayIPC.emit("screen-captured", data: [
                         "imageURL": result.imageURL,
@@ -1029,8 +1064,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         "startNewThread": chatState.startNewThread,
                         "compact": chatState.compact
                     ])
-                    // Do NOT show overlay here — wait for overlayRendered callback.
-                    // Safety timeout: if callback never fires, swap after 500ms anyway.
                     DispatchQueue.main.asyncAfter(deadline: .now() + Self.overlayRenderedTimeout) { [weak self] in
                         guard let self, self.nativeSelectionOverlay != nil else { return }
                         NSLog("[App] overlayRendered safety timeout — forcing swap")
@@ -1115,7 +1148,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 if self.overlayReady {
                     // WebView already loaded — show overlay and emit data
-                    if self.overlayPanel?.isVisible != true {
+                    if !self.isOverlayShowing {
                         self.showOverlay()
                     }
                     self.emitCaptureToOverlay(result)
@@ -1141,7 +1174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if nativeSelectionOverlay != nil { dismissNativeSelection(); return }
         // Frozen screen = screenshot in progress, ESC cancels it
         if frozenScreenWindow != nil { dismissFrozenScreen(); return }
-        if let panel = overlayPanel,  panel.isVisible { hideOverlay();  return }
+        if isOverlayShowing { hideOverlay(); return }
         if isChatShowing { hideChat(); return }
         if let panel = welcomePanel,  panel.isVisible { hideWelcome() }
     }
@@ -1343,8 +1376,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     overlayPanel?.alphaValue = CGFloat(1.0 - t)
                     if t >= 1.0 {
                         timer.invalidate()
-                        overlayPanel?.orderOut(nil)
-                        overlayPanel?.alphaValue = 1  // reset for next use
+                        self?.parkOverlayOffscreen()
                         self?.overlayIPC.emit("reset-overlay")
                     }
                 }
@@ -1399,18 +1431,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         overlayReady = true
         NSLog("[App] Overlay ready")
 
-        // Pre-warm IOSurface: briefly put panel in compositor at alpha=0.
-        // Without this, the first screenshot flashes because the IOSurface
-        // backing store is empty (never composited). Showing at alpha=0
-        // forces the GPU to allocate and initialize the IOSurface.
-        if let panel = overlayPanel, !hasShownOverlayBefore {
-            panel.alphaValue = 0
-            panel.orderFrontRegardless()
-            DispatchQueue.main.async {
-                panel.orderOut(nil)
-                panel.alphaValue = 1
-                NSLog("[App] Overlay IOSurface pre-warmed")
-            }
+        // Keep WebContent process alive to prevent compositor stall on first
+        // evaluateJavaScript. The stall causes a visible flash on any window.
+        // Ping every 30s — lightweight (just "0"), prevents macOS from suspending
+        // the WebContent process during idle periods.
+        webContentKeepAlive?.invalidate()
+        webContentKeepAlive = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.overlayWebView?.evaluateJavaScript("0") { _, _ in }
+        }
+        // Initial wake — absorb the first stall while no windows are visible
+        overlayWebView?.evaluateJavaScript("0") { _, _ in
+            NSLog("[App] WebContent process warmed")
         }
 
         if let result = pendingCaptureResult {
@@ -1443,15 +1474,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private var hasShownOverlayBefore = false
-
     @objc func handleOverlayRendered() {
         // Idempotent — may fire multiple times (image onload + safety timeout)
         guard nativeSelectionOverlay != nil || frozenScreenWindow != nil else { return }
 
         dismissFrozenScreen()
 
-        hasShownOverlayBefore = true
         showOverlay()
         nativeSelectionOverlay?.dismiss()
         nativeSelectionOverlay = nil
@@ -1470,7 +1498,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func handleInputFocus() {
-        if let overlay = overlayPanel, overlay.isVisible {
+        if isOverlayShowing, let overlay = overlayPanel {
             overlay.makeKey()
         } else if let chat = chatPanel, chat.isVisible, isPinned {
             chat.makeKeyAndOrderFront(nil)
@@ -1841,7 +1869,7 @@ extension AppDelegate: WKNavigationDelegate {
                 NSLog("[App] Overlay ready (didFinish + 100ms)")
                 if let result = self.pendingCaptureResult {
                     self.pendingCaptureResult = nil
-                    if self.overlayPanel?.isVisible != true {
+                    if !self.isOverlayShowing {
                         self.showOverlay()
                     }
                     self.emitCaptureToOverlay(result)

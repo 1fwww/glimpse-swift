@@ -282,6 +282,9 @@ export default function App() {
   const [copyFeedback, setCopyFeedback] = useState(false)
 
   const handleCopy = useCallback(async () => {
+    setSelectedAnnotation(null)
+    // Wait one frame for React to clear selection handles before compositing
+    await new Promise(r => requestAnimationFrame(r))
     const img = await getHiResComposite()
     if (img) {
       await window.electronAPI?.copyImage(img)
@@ -295,6 +298,8 @@ export default function App() {
   const [saveFeedback, setSaveFeedback] = useState(false)
 
   const handleSave = useCallback(async () => {
+    setSelectedAnnotation(null)
+    await new Promise(r => requestAnimationFrame(r))
     const img = await getHiResComposite()
     if (img) {
       const result = await window.electronAPI?.saveImage(img)

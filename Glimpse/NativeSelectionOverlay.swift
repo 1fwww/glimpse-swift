@@ -275,6 +275,7 @@ class NativeSelectionOverlay: NSView {
 
         if wasDrag && currentRect.width >= 10 && currentRect.height >= 10 {
             // Free-form drag selection
+            NSLog("[NativeSelection] mouseUp: drag complete, calling completeSelection")
             completeSelection()
         } else {
             // Click (no drag) — snap to hovered window, or full screen if empty area

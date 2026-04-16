@@ -24,7 +24,7 @@ const fontSizes = [8, 12, 16, 20, 28, 36, 48, 60, 72, 96]
 const mosaicSizes = [16, 28, 44]
 
 export default function EditToolbar({ selection, chatPos, chatHeight, activeTool, setActiveTool, activeColor, setActiveColor, activeSize, setActiveSize, selectedIndex, annotations, setAnnotations: commitAnnotations, mosaicMode, setMosaicMode, arrowStyle, setArrowStyle, undo, clearAll, canUndo, onCopy, onSave, copyFeedback, saveFeedback, chatMinimized, onToggleChat, onClose }) {
-  const [showOptions, setShowOptions] = useState(false)
+  const showOptions = activeTool !== null
   const [suppressAiTip, setSuppressAiTip] = useState(false)
   const lastStrokeSize = useRef(4)
   const lastFontSize = useRef(20)
@@ -204,7 +204,6 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
               else if (newTool === 'mosaic') setActiveSize(lastMosaicSize.current)
               else if (newTool) setActiveSize(lastStrokeSize.current)
               setActiveTool(newTool)
-              setShowOptions(newTool !== null)
             }}
             onMouseEnter={(e) => { setTooltip(tool.label); setTooltipX(e.currentTarget.offsetLeft + e.currentTarget.offsetWidth / 2) }}
           >
@@ -354,7 +353,7 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
           </>}
         </div>
       )}
-      {((showOptions && activeTool && activeTool !== 'mosaic') || selectedIndex !== null) && (
+      {((showOptions && activeTool && activeTool !== 'mosaic') || (selectedIndex !== null && !(annotations[selectedIndex]?.type === 'mosaic' || annotations[selectedIndex]?.type === 'mosaic-rect'))) && (
         <div className="edit-toolbar-options">
           {activeTool === 'arrow' && (
             <>

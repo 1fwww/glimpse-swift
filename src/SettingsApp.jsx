@@ -19,6 +19,10 @@ export default function SettingsApp() {
 
   useEffect(() => {
     loadData()
+    // Scroll content to top on open (deferred so DOM is ready)
+    requestAnimationFrame(() => {
+      document.querySelector('.settings-content')?.scrollTo(0, 0)
+    })
     window.electronAPI?.settingsReady?.()
   }, [])
 

@@ -98,9 +98,12 @@ if (window.__TAURI_INTERNALS__ && !window.electronAPI) {
     onSetCroppedImage: (callback) => listen('set-cropped-image', callback),
     onClearScreenshot: (callback) => listen('clear-screenshot', callback),
     onClearTextContext: (callback) => listen('clear-text-context', callback),
+    onCheckSize: (callback) => listen('check-size', callback),
+    onStartNewThread: (callback) => listen('start-new-thread', callback),
     onTextContext: (callback) => listen('text-context', callback),
     onShortcutTried: (callback) => listen('shortcut-tried', callback),
     onResetOverlay: (callback) => listen('reset-overlay', callback),
     onProvidersChanged: (callback) => listen('providers-changed', callback),
+    onAutoSend: (callback) => listen('auto-send', callback),
   }
 }

@@ -190,6 +190,7 @@ export default function DrawingCanvas({
   selectedIndex,
   setSelectedIndex,
   mosaicMode,
+  arrowStyle,
   screenImage,
   windowOffset,
   displayInfo,
@@ -428,16 +429,18 @@ export default function DrawingCanvas({
         const pts = prev?.points || []
         const last = pts[pts.length - 1]
         const dist = last ? Math.hypot(pos.x - last.x, pos.y - last.y) : 999
-        if (dist < 20) return prev
+        if (dist < 10) return prev
         const newPts = [...pts, pos]
 
         return { ...prev, points: newPts }
       })
-    } else if (['rect', 'ellipse', 'line', 'arrow'].includes(activeTool)) {
-      setCurrentShape({
+    } else if (['rect', 'ellipse', 'arrow'].includes(activeTool)) {
+      const shape = {
         type: activeTool, x1: drawStart.x, y1: drawStart.y,
         x2: pos.x, y2: pos.y, color: activeColor, size: activeSize,
-      })
+      }
+      if (activeTool === 'arrow') shape.arrowStyle = arrowStyle
+      setCurrentShape(shape)
     }
   }
 
@@ -458,7 +461,13 @@ export default function DrawingCanvas({
     setIsDrawing(false)
     setDrawStart(null)
     if (currentShape) {
-      commitAnnotations(prev => [...prev, currentShape])
+      commitAnnotations(prev => {
+        const next = [...prev, currentShape]
+        // Auto-select the just-created annotation so user can immediately
+        // adjust color/style/size without an extra click
+        setSelectedIndex(next.length - 1)
+        return next
+      })
       setCurrentShape(null)
     }
   }
@@ -549,20 +558,35 @@ function drawAnnotation(ctx, ann, screenImg, selection, windowOffset, displayInf
       ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke()
       break
     }
-    case 'line': {
-      ctx.beginPath(); ctx.moveTo(ann.x1, ann.y1); ctx.lineTo(ann.x2, ann.y2); ctx.stroke()
-      break
-    }
+    case 'line':
     case 'arrow': {
+      const style = ann.arrowStyle || (ann.type === 'line' ? 'line' : 'arrow')
       const angle = Math.atan2(ann.y2 - ann.y1, ann.x2 - ann.x1)
       const headLen = Math.max(10, ann.size * 4)
+      // Dashed style
+      if (style === 'dashed') ctx.setLineDash([ann.size * 3, ann.size * 2])
+      // Main line
       ctx.beginPath(); ctx.moveTo(ann.x1, ann.y1); ctx.lineTo(ann.x2, ann.y2); ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(ann.x2, ann.y2)
-      ctx.lineTo(ann.x2 - headLen * Math.cos(angle - Math.PI / 6), ann.y2 - headLen * Math.sin(angle - Math.PI / 6))
-      ctx.moveTo(ann.x2, ann.y2)
-      ctx.lineTo(ann.x2 - headLen * Math.cos(angle + Math.PI / 6), ann.y2 - headLen * Math.sin(angle + Math.PI / 6))
-      ctx.stroke()
+      if (style === 'dashed') ctx.setLineDash([])
+      // Arrowhead at end (arrow, double, dashed)
+      if (style !== 'line') {
+        ctx.beginPath()
+        ctx.moveTo(ann.x2, ann.y2)
+        ctx.lineTo(ann.x2 - headLen * Math.cos(angle - Math.PI / 6), ann.y2 - headLen * Math.sin(angle - Math.PI / 6))
+        ctx.moveTo(ann.x2, ann.y2)
+        ctx.lineTo(ann.x2 - headLen * Math.cos(angle + Math.PI / 6), ann.y2 - headLen * Math.sin(angle + Math.PI / 6))
+        ctx.stroke()
+      }
+      // Arrowhead at start (double only)
+      if (style === 'double') {
+        const reverseAngle = angle + Math.PI
+        ctx.beginPath()
+        ctx.moveTo(ann.x1, ann.y1)
+        ctx.lineTo(ann.x1 - headLen * Math.cos(reverseAngle - Math.PI / 6), ann.y1 - headLen * Math.sin(reverseAngle - Math.PI / 6))
+        ctx.moveTo(ann.x1, ann.y1)
+        ctx.lineTo(ann.x1 - headLen * Math.cos(reverseAngle + Math.PI / 6), ann.y1 - headLen * Math.sin(reverseAngle + Math.PI / 6))
+        ctx.stroke()
+      }
       break
     }
     case 'pen': {

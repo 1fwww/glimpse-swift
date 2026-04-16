@@ -87,21 +87,15 @@ fi
 cp "$SCRIPT_DIR/Glimpse/swift-shim.js" "$APP_DIR/Contents/Resources/Glimpse/swift-shim.js"
 echo "       Shim: swift-shim.js"
 
-# Frontend dist — always sync from glimpse-tauri (source of truth)
-TAURI_DIST="$SCRIPT_DIR/../glimpse-tauri/dist"
-if [ -d "$TAURI_DIST" ]; then
-    rm -rf "$SCRIPT_DIR/dist"
-    cp -r "$TAURI_DIST" "$SCRIPT_DIR/dist"
-    cp -r "$SCRIPT_DIR/dist" "$APP_DIR/Contents/Resources/dist"
-    echo "       Frontend: dist/ ($(find "$SCRIPT_DIR/dist" -type f | wc -l | tr -d ' ') files, synced from glimpse-tauri)"
-elif [ -d "$SCRIPT_DIR/dist" ]; then
-    cp -r "$SCRIPT_DIR/dist" "$APP_DIR/Contents/Resources/dist"
-    echo "       Frontend: dist/ ($(find "$SCRIPT_DIR/dist" -type f | wc -l | tr -d ' ') files, LOCAL — may be stale!)"
-else
-    echo "ERROR: No dist/ found. Run: cd ../glimpse-tauri && npm run build"
-    exit 1
-    exit 1
+# Frontend dist — build locally
+echo "       Building frontend..."
+cd "$SCRIPT_DIR"
+if [ ! -d "node_modules" ]; then
+    npm install --silent
 fi
+npm run build --silent
+cp -r "$SCRIPT_DIR/dist" "$APP_DIR/Contents/Resources/dist"
+echo "       Frontend: dist/ ($(find "$SCRIPT_DIR/dist" -type f | wc -l | tr -d ' ') files)"
 
 # ── Step 3: Code sign ──
 echo "[3/6] Code signing..."

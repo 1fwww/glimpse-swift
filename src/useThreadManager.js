@@ -1,6 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
-
-const STALE_THRESHOLD = 5 * 60 * 1000
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 function newThread() {
   return { id: null, title: 'New Chat', messages: [], createdAt: Date.now(), updatedAt: Date.now() }
@@ -8,11 +6,15 @@ function newThread() {
 
 export default function useThreadManager() {
   const [currentThread, setCurrentThread] = useState(null)
+  const currentThreadRef = useRef(null)
   const [recentThreads, setRecentThreads] = useState([])
   const [isNewThread, setIsNewThread] = useState(false)
   const [provider, setProviderState] = useState(() => localStorage.getItem('glimpse-provider') || 'claude')
   const [modelId, setModelIdState] = useState(() => localStorage.getItem('glimpse-model') || null)
   const [availableProviders, setAvailableProviders] = useState([])
+
+  // Keep ref in sync for closures that can't depend on state
+  useEffect(() => { currentThreadRef.current = currentThread }, [currentThread])
 
   const setProvider = useCallback((p) => { localStorage.setItem('glimpse-provider', p); setProviderState(p) }, [])
   const setModelId = useCallback((m) => { localStorage.setItem('glimpse-model', m); setModelIdState(m) }, [])
@@ -39,9 +41,11 @@ export default function useThreadManager() {
       window.electronAPI.getThreads().then(threads => {
         setRecentThreads(threads || [])
         const mostRecent = threads?.[0]
-        if (mostRecent && (Date.now() - mostRecent.updatedAt) < STALE_THRESHOLD) {
+        if (mostRecent) {
           setCurrentThread(mostRecent)
           setIsNewThread(false)
+          // Notify Swift that an existing thread loaded — clears wasNewThread
+          window.electronAPI?.notifyThreadLoaded?.()
         } else {
           setCurrentThread(newThread())
           setIsNewThread(true)
@@ -55,11 +59,19 @@ export default function useThreadManager() {
   const handleThreadChange = useCallback((thread) => {
     setCurrentThread(thread)
     setIsNewThread(false)
+    // Existing thread with messages → expanded, empty → compact
+    if (thread?.messages?.length > 0) {
+      window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550, animate: false })
+    } else {
+      window.electronAPI?.resizeChatWindow?.({ width: 380, height: 412, animate: false })
+    }
   }, [])
 
   const handleNewThread = useCallback(() => {
     setCurrentThread(newThread())
     setIsNewThread(true)
+    // Notify Swift so next reopen starts compact
+    window.electronAPI?.notifyNewThread?.()
   }, [])
 
   const handleSetCurrentThread = useCallback((thread) => {
@@ -75,22 +87,13 @@ export default function useThreadManager() {
     })
   }, [])
 
-  const handleClearAllThreads = useCallback(async () => {
-    for (const t of recentThreads) {
-      await window.electronAPI?.deleteThread(t.id)
-    }
-    setRecentThreads([])
-    setCurrentThread(newThread())
-    setIsNewThread(true)
-    window.electronAPI?.refreshTrayMenu?.()
-  }, [recentThreads])
-
-  // Refresh threads with time heuristic (called by overlay on screen capture)
-  const refreshWithHeuristic = useCallback(() => {
+  // Load the most recent thread from disk (no stale check — Swift decides)
+  const loadLatestThread = useCallback(() => {
     window.electronAPI?.getThreads?.().then(threads => {
       setRecentThreads(threads || [])
       const mostRecent = threads?.[0]
-      if (mostRecent && (Date.now() - mostRecent.updatedAt) < STALE_THRESHOLD) {
+      if (mostRecent) {
+        // Always update — thread may have new messages from standalone chat
         setCurrentThread(mostRecent)
         setIsNewThread(false)
       } else {
@@ -99,6 +102,17 @@ export default function useThreadManager() {
       }
     })
   }, [])
+
+  const handleClearAllThreads = useCallback(async () => {
+    for (const t of recentThreads) {
+      await window.electronAPI?.deleteThread(t.id)
+    }
+    setRecentThreads([])
+    setCurrentThread(newThread())
+    setIsNewThread(true)
+    window.electronAPI?.resizeChatWindow?.({ width: 380, height: 412, animate: false })
+    window.electronAPI?.refreshTrayMenu?.()
+  }, [recentThreads])
 
   const refreshProviders = useCallback(async () => {
     const providers = await window.electronAPI?.getAvailableProviders()
@@ -129,7 +143,7 @@ export default function useThreadManager() {
     handleNewThread,
     handleClearAllThreads,
     refreshThreads,
-    refreshWithHeuristic,
+    loadLatestThread,
     refreshProviders,
   }
 }

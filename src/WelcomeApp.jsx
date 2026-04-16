@@ -34,6 +34,11 @@ export default function WelcomeApp() {
   const [showPermSkip, setShowPermSkip] = useState(false)
   const [splashKey, setSplashKey] = useState(0)
 
+  // Signal Swift that React has rendered — safe to show window with shadow
+  useEffect(() => {
+    window.electronAPI?.welcomeReady?.()
+  }, [])
+
   // When entering step 1, immediately check permissions
   useEffect(() => {
     if (step === 1) checkPermissions()

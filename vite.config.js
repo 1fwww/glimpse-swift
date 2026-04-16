@@ -6,6 +6,9 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      external: [/@tauri-apps\/.*/],
+    },
   },
   server: {
     port: 5173,

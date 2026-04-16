@@ -193,6 +193,14 @@ export default function ChatOnlyApp() {
     window.electronAPI?.resizeChatWindow?.({ width: 560, height: window.innerHeight, force: true, anchorX: 'center' })
   }, [])
 
+  // Standalone thread switch: expand when switching to thread with messages
+  const handleStandaloneThreadChange = useCallback((thread) => {
+    tm.handleThreadChange(thread)
+    if (thread?.messages?.length > 0) {
+      window.electronAPI?.resizeChatWindow?.({ width: 380, height: 550 })
+    }
+  }, [tm])
+
   const handleBackToBoard = useCallback(() => {
     setViewMode('board')
     viewModeRef.current = 'board'
@@ -284,7 +292,7 @@ export default function ChatOnlyApp() {
           currentThread={tm.currentThread}
           setCurrentThread={tm.setCurrentThread}
           recentThreads={tm.recentThreads}
-          onThreadChange={tm.handleThreadChange}
+          onThreadChange={handleStandaloneThreadChange}
           onNewThread={tm.handleNewThread}
           onClearAllThreads={tm.handleClearAllThreads}
           chatFullSize={true}

@@ -1,10 +1,9 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react'
+import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react'
 
 const tools = [
   { id: 'rect', label: 'Rectangle', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /></svg> },
   { id: 'ellipse', label: 'Ellipse', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><ellipse cx="12" cy="12" rx="10" ry="7" /></svg> },
   { id: 'arrow', label: 'Arrow', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 19L19 5M19 5H9M19 5v10" /></svg> },
-  { id: 'line', label: 'Line', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 19L19 5" /></svg> },
   { id: 'pen', label: 'Draw', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 21l1-6L16.5 2.5a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L9 20l-6 1z" /><path d="M15 4l5 5" /><path d="M2 22c2-2 4-6 8-8" strokeDasharray="2 2" opacity="0.5" /></svg> },
   { id: 'text', label: 'Text', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 4h12M12 4v16" /><path d="M8 20h8" /></svg> },
   { id: 'mosaic', label: 'Mosaic', icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="5" height="5" fill="currentColor" opacity="0.7" /><rect x="9.5" y="2" width="5" height="5" fill="currentColor" opacity="0.3" /><rect x="17" y="2" width="5" height="5" fill="currentColor" opacity="0.7" /><rect x="2" y="9.5" width="5" height="5" fill="currentColor" opacity="0.3" /><rect x="9.5" y="9.5" width="5" height="5" fill="currentColor" opacity="0.7" /><rect x="17" y="9.5" width="5" height="5" fill="currentColor" opacity="0.3" /><rect x="2" y="17" width="5" height="5" fill="currentColor" opacity="0.7" /><rect x="9.5" y="17" width="5" height="5" fill="currentColor" opacity="0.3" /><rect x="17" y="17" width="5" height="5" fill="currentColor" opacity="0.7" /></svg> },
@@ -24,7 +23,7 @@ const fontSizes = [8, 12, 16, 20, 28, 36, 48, 60, 72, 96]
 
 const mosaicSizes = [16, 28, 44]
 
-export default function EditToolbar({ selection, chatPos, chatHeight, activeTool, setActiveTool, activeColor, setActiveColor, activeSize, setActiveSize, selectedIndex, annotations, setAnnotations: commitAnnotations, mosaicMode, setMosaicMode, undo, clearAll, canUndo, onCopy, onSave, copyFeedback, saveFeedback, chatMinimized, onToggleChat, onClose }) {
+export default function EditToolbar({ selection, chatPos, chatHeight, activeTool, setActiveTool, activeColor, setActiveColor, activeSize, setActiveSize, selectedIndex, annotations, setAnnotations: commitAnnotations, mosaicMode, setMosaicMode, arrowStyle, setArrowStyle, undo, clearAll, canUndo, onCopy, onSave, copyFeedback, saveFeedback, chatMinimized, onToggleChat, onClose }) {
   const [showOptions, setShowOptions] = useState(false)
   const [suppressAiTip, setSuppressAiTip] = useState(false)
   const lastStrokeSize = useRef(4)
@@ -53,6 +52,8 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
   const isDragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0 })
 
+  const toolbarRef = useRef(null)
+
   // Position toolbar: below selection → above → inside bottom
   // Avoids overlapping with chat panel
   const position = useMemo(() => {
@@ -61,7 +62,8 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
     const screenW = window.innerWidth
     const screenH = window.innerHeight
     const toolbarH = 44
-    const toolbarW = 500 // tools bar (with close) + AI icon + gap
+    // Measure actual width if rendered, fallback to estimate
+    const toolbarW = toolbarRef.current?.offsetWidth || 500
     const gap = 10
     const notchSafeY = 52
 
@@ -116,9 +118,20 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
     return { left, top }
   }, [selection, chatPos, chatHeight])
 
+  // Re-clamp after render using actual measured width (initial estimate may be off)
+  useLayoutEffect(() => {
+    if (!toolbarRef.current || position.left == null) return
+    const actual = toolbarRef.current.offsetWidth
+    const screenW = window.innerWidth
+    const maxLeft = screenW - actual - 8
+    if (position.left > maxLeft) {
+      toolbarRef.current.style.left = Math.max(8, maxLeft) + 'px'
+    }
+  }, [position])
+
   const handleToolbarMouseDown = (e) => {
-    // Don't drag when clicking buttons
-    if (e.target.closest('button')) {
+    // Don't drag when clicking interactive elements
+    if (e.target.closest('button, select, input')) {
       e.stopPropagation()
       return
     }
@@ -146,6 +159,7 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
 
   return (
     <div
+      ref={toolbarRef}
       className="edit-toolbar"
       style={{
         left: position.left,
@@ -342,6 +356,28 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
       )}
       {((showOptions && activeTool && activeTool !== 'mosaic') || selectedIndex !== null) && (
         <div className="edit-toolbar-options">
+          {activeTool === 'arrow' && (
+            <>
+              <div className="edit-arrow-styles">
+                {[
+                  { id: 'arrow', label: 'Arrow', icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19L19 5M19 5H11M19 5v8" /></svg> },
+                  { id: 'double', label: 'Double arrow', icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19L19 5M19 5H11M19 5v8M5 19h8M5 19v-8" /></svg> },
+                  { id: 'line', label: 'Line', icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M5 19L19 5" /></svg> },
+                  { id: 'dashed', label: 'Dashed arrow', icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19L19 5M19 5H11M19 5v8" strokeDasharray="3 3" /></svg> },
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    className={`edit-arrow-style-btn ${arrowStyle === s.id ? 'active' : ''}`}
+                    title={s.label}
+                    onClick={() => setArrowStyle(s.id)}
+                  >
+                    {s.icon}
+                  </button>
+                ))}
+              </div>
+              <span className="edit-toolbar-sep" />
+            </>
+          )}
           <div className="edit-color-picker">
             {colors.map(({ hex, name }) => {
               const isActive = selectedIndex !== null && annotations[selectedIndex]
@@ -366,33 +402,55 @@ export default function EditToolbar({ selection, chatPos, chatHeight, activeTool
               )
             })}
           </div>
-          {activeTool && activeTool !== 'mosaic' && <>
-          <span className="edit-toolbar-sep" />
-          {activeTool === 'text' ? (
-            <select
-              className="edit-font-size-select"
-              value={activeSize}
-              onChange={(e) => setActiveSize(Number(e.target.value))}
-            >
-              {fontSizes.map(s => (
-                <option key={s} value={s}>{s}pt</option>
-              ))}
-            </select>
-          ) : (
-            <div className="edit-size-picker">
-              {sizes.map((s, i) => (
-                <button
-                  key={s}
-                  className={`edit-size-btn ${activeSize === s ? 'active' : ''}`}
-                  onClick={() => setActiveSize(s)}
-                  title={['Thin', 'Medium', 'Thick'][i]}
+          {((activeTool && activeTool !== 'mosaic') || selectedIndex !== null) && (() => {
+            const sel = selectedIndex !== null ? annotations[selectedIndex] : null
+            const isText = activeTool === 'text' || (sel && sel.type === 'text')
+            const isMosaic = sel && (sel.type === 'mosaic' || sel.type === 'mosaic-rect')
+            if (isMosaic) return null
+            const currentSize = sel ? sel.size : activeSize
+            return <>
+              <span className="edit-toolbar-sep" />
+              {isText ? (
+                <select
+                  className="edit-font-size-select"
+                  value={currentSize}
+                  onChange={(e) => {
+                    const v = Number(e.target.value)
+                    setActiveSize(v)
+                    if (selectedIndex !== null) {
+                      commitAnnotations(prev => prev.map((ann, i) =>
+                        i === selectedIndex ? { ...ann, size: v } : ann
+                      ))
+                    }
+                  }}
                 >
-                  <span className="edit-size-line" style={{ height: s }} />
-                </button>
-              ))}
-            </div>
-          )}
-          </>}
+                  {fontSizes.map(s => (
+                    <option key={s} value={s}>{s}pt</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="edit-size-picker">
+                  {sizes.map((s, i) => (
+                    <button
+                      key={s}
+                      className={`edit-size-btn ${currentSize === s ? 'active' : ''}`}
+                      onClick={() => {
+                        setActiveSize(s)
+                        if (selectedIndex !== null) {
+                          commitAnnotations(prev => prev.map((ann, i) =>
+                            i === selectedIndex ? { ...ann, size: s } : ann
+                          ))
+                        }
+                      }}
+                      title={['Thin', 'Medium', 'Thick'][i]}
+                    >
+                      <span className="edit-size-line" style={{ height: s }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          })()}
         </div>
       )}
     </div>

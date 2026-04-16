@@ -33,7 +33,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var pendingTextContext: String?
     var lastDismissTime: Date = Date()  // Not .distantPast — first launch should not be "stale"
     var lastChatSize: NSSize?
-    var wasNewThread = true
+    var wasNewThread = false
+    var hasHadActiveSession = false  // true after first AI response — distinguishes fresh launch from active use
     var userDidResizeChat = false
 
     // Overlay (screenshot)
@@ -430,6 +431,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func handleConversationStarted(_ notification: Notification) {
         wasNewThread = false
+        hasHadActiveSession = true
     }
 
     @objc func handleShowImageViewer(_ notification: Notification) {
@@ -475,21 +477,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Uses unified lastDismissTime + wasNewThread (no separate overlay/standalone tracking).
     func decideChatState() -> ChatInitState {
         let isStale = Date().timeIntervalSince(lastDismissTime) >= Self.chatStaleThreshold
-        // Check disk for existing threads — wasNewThread may be stale on first launch
-        // due to race between WebView mount and showChat().
         let hasThreadsOnDisk = !threadStore.getThreads().isEmpty
-        if (isStale || wasNewThread) && !hasThreadsOnDisk {
+
+        // User explicitly created new thread (clicked "+") — always compact
+        if wasNewThread {
             return ChatInitState(startNewThread: true, compact: true)
         }
-        if isStale && hasThreadsOnDisk {
-            // Stale but has threads — start compact with most recent thread (not new)
-            return ChatInitState(startNewThread: false, compact: true)
+        // No active session yet (fresh launch, no AI response) — compact
+        if !hasHadActiveSession {
+            return ChatInitState(startNewThread: !hasThreadsOnDisk, compact: true)
         }
-        if wasNewThread && hasThreadsOnDisk {
-            // wasNewThread flag but threads exist — the WebView loaded one, don't override
-            wasNewThread = false
-            return ChatInitState(startNewThread: false, compact: false)
+        // Stale or no threads on disk — compact
+        if isStale || !hasThreadsOnDisk {
+            return ChatInitState(startNewThread: !hasThreadsOnDisk, compact: true)
         }
+        // Recent with existing thread — expanded, keep current thread
         return ChatInitState(startNewThread: false, compact: false)
     }
 

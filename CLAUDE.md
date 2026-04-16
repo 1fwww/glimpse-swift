@@ -2,6 +2,7 @@
 
 ## Workflow Rules
 - **Do NOT update GitHub releases** (push DMG, edit release notes, etc.) unless explicitly asked. Only commit and push code.
+- **Do NOT touch glimpse-tauri repo.** All frontend source now lives in `src/` here. This repo is fully self-contained.
 
 ## Project Overview
 macOS screenshot + AI chat tool. **Native Swift shell** + WKWebView loading React frontend. Same architecture as Raycast, Alfred, CleanShot X.
@@ -50,11 +51,10 @@ pkill -f "[Gg]limpse"
 ```
 
 ### Frontend Build
-The React frontend source lives in `../glimpse-tauri/src/` and builds to `dist/`. The Swift app loads `dist/index.html`.
+The React frontend source lives in `src/` and builds to `dist/`. The Swift app loads `dist/index.html`.
 ```bash
 # If frontend changes needed (rare — most work is Swift-side)
-# IMPORTANT: edit files in glimpse-tauri/src/, NOT glimpse-swift/src/ — build runs from tauri dir
-cd ../glimpse-tauri && npm run build && rm -rf ../glimpse-swift/dist && cp -r dist ../glimpse-swift/dist
+npm run build
 ```
 
 **CRITICAL**: After `swift build`, you must also copy `dist/` into the app bundle. `swift build` does NOT do this automatically. Without this step, frontend changes won't take effect:
@@ -372,10 +372,9 @@ These properties are intended for the chat panel only. Apply them in `prewarmCha
 - `SettingsStore` reads embedded keys first, falls back to env vars (dev mode)
 
 #### Frontend Source Location
-- React source lives in `../glimpse-tauri/src/`, NOT `glimpse-swift/src/`
-- `npm run build` runs from `glimpse-tauri/` directory
-- Must `rm -rf dist` before `cp -r` (stale hashed files persist otherwise)
-- Copy edited files to `glimpse-swift/src/` for reference only
+- React source lives in `src/` (self-contained, no dependency on glimpse-tauri)
+- `npm run build` outputs to `dist/`
+- `build.sh` runs `npm run build` automatically
 
 #### React State Ordering
 - `resetState()` includes `setScreenImage(null)` — must be called BEFORE `setScreenImage(newUrl)` in event handlers, not after. Wrong order: set image → reset → image cleared → invisible overlay.

@@ -1436,7 +1436,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Ping every 30s — lightweight (just "0"), prevents macOS from suspending
         // the WebContent process during idle periods.
         webContentKeepAlive?.invalidate()
-        webContentKeepAlive = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        webContentKeepAlive = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.overlayWebView?.evaluateJavaScript("0") { _, _ in }
         }
         // Initial wake — absorb the first stall while no windows are visible

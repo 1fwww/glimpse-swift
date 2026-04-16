@@ -59,10 +59,17 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
     private func handleAsyncCommand(_ command: String, args: [String: Any]) async -> Any? {
         switch command {
         case "chat_with_ai":
-            guard let messages = args["messages"] as? [[String: Any]],
+            // WKWebView serializes JS arrays/objects differently across macOS versions.
+            // Use NSArray/NSDictionary casts for broader compatibility (Intel + Sonoma).
+            guard let rawMessages = args["messages"] as? [Any],
                   let provider = args["provider"] as? String,
                   let modelId = args["modelId"] as? String else {
+                NSLog("[IPC] chat_with_ai missing params: messages=\(type(of: args["messages"] as Any)), provider=\(args["provider"] as? String ?? "nil"), modelId=\(args["modelId"] as? String ?? "nil")")
                 return ["success": false, "error": "Missing parameters"]
+            }
+            let messages = rawMessages.compactMap { $0 as? [String: Any] }
+            guard !messages.isEmpty else {
+                return ["success": false, "error": "No valid messages"]
             }
             guard let apiKey = settingsStore.getKeyForProvider(provider) else {
                 return ["success": false, "error": "No API key configured", "code": "auth_error"]
@@ -76,11 +83,12 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             return result
 
         case "generate_title":
-            guard let messages = args["messages"] as? [[String: Any]],
+            guard let rawMessages = args["messages"] as? [Any],
                   let provider = args["provider"] as? String,
                   let modelId = args["modelId"] as? String else {
                 return ["success": false]
             }
+            let messages = rawMessages.compactMap { $0 as? [String: Any] }
             guard let apiKey = settingsStore.getKeyForProvider(provider) else {
                 return ["success": false]
             }

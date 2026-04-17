@@ -608,13 +608,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Decide chat size from Swift — single decision function shared with overlay.
         let chatState = decideChatState()
         let compactSize = NSSize(width: 380, height: 412)
+        userDidResizeChat = false  // Reset for new session — allow AI response auto-resize
         if chatState.compact {
             panel.setFrame(NSRect(origin: panel.frame.origin, size: compactSize), display: false)
             ipcBridge.emit("start-new-thread")
-            // Don't set wasNewThread = true here — it may have been cleared by
-            // notifyThreadLoaded (WebView loaded an existing thread on mount).
-            // The compact decision was already based on wasNewThread's current value.
-            userDidResizeChat = false
         } else if let savedSize = lastChatSize {
             // Recent with conversation — restore saved size
             panel.setFrame(NSRect(origin: panel.frame.origin, size: savedSize), display: false)

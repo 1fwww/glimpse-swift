@@ -64,11 +64,18 @@ class IPCBridge: NSObject, WKScriptMessageHandler {
             guard let rawMessages = args["messages"] as? [Any],
                   let provider = args["provider"] as? String,
                   let modelId = args["modelId"] as? String else {
-                NSLog("[IPC] chat_with_ai missing params: messages=\(type(of: args["messages"] as Any)), provider=\(args["provider"] as? String ?? "nil"), modelId=\(args["modelId"] as? String ?? "nil")")
+                let msgType = args["messages"].map { "\(type(of: $0))" } ?? "nil"
+                let msgCount = (args["messages"] as? [Any])?.count ?? -1
+                NSLog("[IPC] chat_with_ai FAILED cast: messages type=\(msgType) count=\(msgCount), provider=\(args["provider"] as? String ?? "nil"), modelId=\(args["modelId"] as? String ?? "nil"), all keys=\(Array(args.keys))")
                 return ["success": false, "error": "Missing parameters"]
             }
             let messages = rawMessages.compactMap { $0 as? [String: Any] }
+            NSLog("[IPC] chat_with_ai: \(rawMessages.count) raw → \(messages.count) parsed, provider=\(provider), modelId=\(modelId)")
             guard !messages.isEmpty else {
+                // Log the first raw message type for debugging
+                if let first = rawMessages.first {
+                    NSLog("[IPC] chat_with_ai first raw message type: \(type(of: first))")
+                }
                 return ["success": false, "error": "No valid messages"]
             }
             guard let apiKey = settingsStore.getKeyForProvider(provider) else {
